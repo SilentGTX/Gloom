@@ -367,7 +367,8 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 **Status, 2026-10-30: Phases 0, 1, 2 and 3 are done**, and Gloom 0.5.0 (Phase 3, the viewer) is
 released. **Small changes before Phase 4, at your request, released as Gloom 0.5.1:** the window
 becomes the update screen instead of opening a second window, and the Update button is just a
-download arrow (Phase 1's notes, "After 0.5.0"). **One sidebar** (below) is out as Gloom 0.6.0.
+download arrow (Phase 1's notes, "After 0.5.0"). **One sidebar** (below) is out as Gloom 0.6.0,
+and **your new icon**, the gloomy cloud, as Gloom 0.6.1 (Phase 1's notes, "After 0.6.0").
 **Next: Phase 4**, live chat, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
@@ -495,7 +496,9 @@ disclosure pages; `apple-design` for motion).
      `update.png`, the same cloud without the tile, breathing while it works, with the light
      behind it in the cloud's violet. `scripts/make-icons.mts` resizes both, averaging in linear
      light so the glowing eyes and prompt stay bright down to 16 px. The "Updated" note keeps its
-     sparkle: there it means "new", not "Gloom".
+     sparkle: there it means "new", not "Gloom". Released as Gloom 0.6.1 after a check of the
+     packaged build: Gloom.exe carries the icon, and the update screen shows the cloud from inside
+     the app archive.
 2. **Library.** Transcript indexer in a utility process (tail reads, cache, subagent files skipped),
    watcher, library store, folder tree (nesting, rename, drag, keyboard, context menu, smart folders,
    search, filing rules, subtree delete with Undo), session list (pin, archive, rename).
