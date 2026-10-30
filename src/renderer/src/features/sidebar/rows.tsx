@@ -10,7 +10,7 @@ import { ELSEWHERE_MS, type SmartFolder } from '@shared/library'
 import { cn } from '../../lib/cn'
 import { fullDate, relativeTime } from '../../lib/time'
 import { useDrag, type DragData, type DropData } from '../library/drag'
-import { SMART_LABELS, type GroupRow as GroupRowData, type SessionRow as SessionRowData } from './tree'
+import { SMART_LABELS, type GroupRow as GroupRowData, type MoreRow as MoreRowData, type SessionRow as SessionRowData } from './tree'
 
 export const SMART_ICONS: Record<SmartFolder, LucideIcon> = {
   all: MessagesSquare,
@@ -299,6 +299,42 @@ export function SessionRow({
           </time>
         </div>
         {preview && <p className="row-secondary truncate text-[0.8125rem] leading-snug">{preview}</p>}
+      </div>
+    </motion.li>
+  )
+}
+
+/**
+ * "Show More", after the sessions a group shows so far: five more each time.
+ * Inside a folder it takes drops for the folder, like the sessions above it.
+ */
+export function MoreRow({ row, tabbable, ref, onShow }: { row: MoreRowData; tabbable: boolean; ref?: Ref<HTMLLIElement>; onShow(): void }) {
+  const motionProps = useReveal()
+  const drop: DropData | undefined = row.folderId ? { kind: 'folder', id: row.folderId, nested: true } : undefined
+  const { setNodeRef: dropRef } = useDroppable({ id: `drop:${row.key}`, data: drop, disabled: !drop })
+  const lit = useLitGroup()
+  const refs = useRefs(ref, dropRef)
+  return (
+    <motion.li
+      {...motionProps}
+      ref={refs}
+      role="treeitem"
+      aria-level={row.depth + 1}
+      tabIndex={tabbable ? 0 : -1}
+      data-nav={row.key}
+      data-label=""
+      onClick={onShow}
+      className="group/row no-drag relative flex flex-col outline-none select-none"
+      style={{ paddingLeft: row.depth ? guideX(row.depth - 1) + 10 : 0 }}
+    >
+      <Guides trail={row.trail} lit={lit} />
+      <div
+        className={cn(
+          'my-px rounded-[var(--radius-row)] px-2.5 py-1 text-[0.8125rem] text-label-secondary hover:bg-fill hover:text-label active:bg-fill-pressed',
+          'group-focus-visible/row:outline-2 group-focus-visible/row:-outline-offset-2 group-focus-visible/row:outline-[var(--accent-ring)]'
+        )}
+      >
+        Show More
       </div>
     </motion.li>
   )

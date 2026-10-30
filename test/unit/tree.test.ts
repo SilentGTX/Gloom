@@ -61,10 +61,12 @@ const input = (lib: LibraryData, extra: Partial<TreeInput> = {}): TreeInput => (
   archive: false,
   sort: 'activity',
   now,
+  shown: {},
+  keep: new Set(),
   ...extra
 })
 /** A row as "name depth": sessions by ID, groups by name. */
-const show = (r: TreeRow) => `${r.kind === 'session' ? r.item.id : r.kind === 'smart' ? r.smart : r.folder.name} ${r.depth}`
+const show = (r: TreeRow) => `${r.kind === 'session' ? r.item.id : r.kind === 'smart' ? r.smart : r.kind === 'more' ? 'more' : r.folder.name} ${r.depth}`
 const sessionsIn = (rows: TreeRow[], group: string) => rows.flatMap((r) => (r.kind === 'session' && r.group === group ? [r.item.id] : []))
 
 describe('the sidebar tree', () => {
@@ -95,7 +97,7 @@ describe('the sidebar tree', () => {
     expect(rows.map(show)).toEqual(['Top 0', 'Inner 1', 'new 2', 'old 1'])
     expect(rows.map((r) => (r.kind === 'smart' ? [] : r.trail))).toEqual([[], [`folder:${top}`], [`folder:${top}`, `folder:${inner}`], [`folder:${top}`]])
     // Inner and "old" are Top's two children.
-    expect(rows.map((r) => [r.posInSet, r.setSize])).toEqual([
+    expect(rows.map((r) => (r.kind === 'more' ? [] : [r.posInSet, r.setSize]))).toEqual([
       [1, 1],
       [1, 2],
       [1, 1],
@@ -129,6 +131,26 @@ describe('the sidebar tree', () => {
     expect(tree.sections.map((s) => [s.label, s.count])).toEqual([['Archived', 1]])
     expect(tree.rows.map(show)).toEqual(['gone 0'])
     expect(sessionsIn(buildTree(input(lib(), { openSmart: ['all'] })).rows, 'smart:all')).not.toContain('gone')
+  })
+
+  it('shows five of a group’s sessions, then Show More, five more at a time, and always as far as the selection', () => {
+    const many = Object.fromEntries(
+      Array.from({ length: 12 }, (_, i) => meta(`s${String(i).padStart(2, '0')}`, 'C:\\A', { updated: now - (i + 1) * 60_000 })).map((s) => [s.id, s])
+    )
+    const lib = noticeSessions(emptyLibrary(), Object.values(many), [], 0)
+    const tree = (extra: Partial<TreeInput> = {}) => buildTree({ ...input(lib, { openSmart: ['unfiled'], ...extra }), sessions: many })
+    const showing = (t: ReturnType<typeof buildTree>) => t.rows.flatMap((r) => (r.kind === 'session' && r.group === 'smart:unfiled' ? [r.item.id] : []))
+    const more = (t: ReturnType<typeof buildTree>) => t.rows.find((r) => r.kind === 'more')
+    expect(showing(tree())).toEqual(['s00', 's01', 's02', 's03', 's04'])
+    expect(more(tree())).toMatchObject({ key: 'more:smart:unfiled', group: 'smart:unfiled', hidden: 7, depth: 1, trail: ['smart:unfiled'] })
+    expect(showing(tree({ shown: { 'smart:unfiled': 10 } }))).toHaveLength(10)
+    expect(more(tree({ shown: { 'smart:unfiled': 15 } }))).toBeUndefined()
+    // A selected session far down shows, and everything above it.
+    expect(showing(tree({ keep: new Set(['s08']) }))).toHaveLength(9)
+    // The set still counts every session in the group.
+    expect(tree().rows.find((r) => r.kind === 'session')).toMatchObject({ posInSet: 1, setSize: 12 })
+    // Search results and Archived show everything.
+    expect(tree({ search: 'title' }).rows.filter((r) => r.kind === 'session')).toHaveLength(12)
   })
 
   it('searches every folder by title, prompt or project, with archived matches apart', () => {

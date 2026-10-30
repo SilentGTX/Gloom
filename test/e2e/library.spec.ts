@@ -105,7 +105,7 @@ test('the sidebar follows Claude Code as it writes, and searches every folder', 
   ;({ app, page } = await launch({ claudeDir }))
   await openGroup(page, 'All Sessions')
   await expect(rowsIn('smart:all')).toHaveCount(3)
-  // A session continued in the Claude app: new prompt, new activity, a live dot; it moves to the top.
+  // A session continued in the Claude app: new prompt, new activity, its title shimmers; it keeps its place.
   const file = join(claudeDir, 'projects', 'D--Home-notes', `${SESSIONS[2].id}.jsonl`)
   appendEntries(file, [
     { type: 'user', message: { role: 'user', content: 'Now sort them by date' }, timestamp: new Date().toISOString(), cwd: 'D:\\Home\\notes' },
@@ -115,7 +115,7 @@ test('the sidebar follows Claude Code as it writes, and searches every folder', 
   // Running: its title shimmers, and a screen reader hears it.
   await expect(row('Notes cleanup').locator('.live-title')).toHaveCount(1)
   await expect(row('Notes cleanup')).toContainText('Running in another app')
-  await expect(rowsIn('smart:all').first()).toContainText('Notes cleanup')
+  await expect(rowsIn('smart:all').last()).toContainText('Notes cleanup')
 
   const search = page.getByRole('searchbox', { name: 'Search sessions' })
   await search.fill('login')
@@ -190,6 +190,47 @@ test('a group opens and closes on every click, however fast they come', async ()
     await page.mouse.click(box.x + 60, box.y + box.height / 2)
     await expect(all).toHaveAttribute('aria-expanded', open)
   }
+})
+
+test('a group shows five sessions, and Show More five more at a time; the open one always shows', async () => {
+  const many = Array.from({ length: 12 }, (_, i) => ({
+    id: `bbbbbbbb-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+    cwd: 'D:\\Work\\api',
+    prompt: `Task number ${i + 1}`,
+    title: `Task ${i + 1}`,
+    updated: minutesAgo(5 + i * 10)
+  }))
+  ;({ app, page } = await launch({ claudeDir: fakeClaude(many) }))
+  await openGroup(page, 'Unfiled')
+  const showing = rowsIn('smart:unfiled')
+  const more = sidebar(page).getByRole('treeitem', { name: 'Show More' })
+  await expect(showing).toHaveCount(5)
+  await more.click()
+  await expect(showing).toHaveCount(10)
+  await more.click()
+  await expect(showing).toHaveCount(12)
+  await expect(more).toHaveCount(0)
+
+  // Closing the group starts it over at five.
+  await group('Unfiled').click()
+  await openGroup(page, 'Unfiled')
+  await expect(showing).toHaveCount(5)
+
+  // From the keyboard, Show More moves you on to the first of the next five.
+  await more.focus()
+  await page.keyboard.press('Enter')
+  await expect(showing).toHaveCount(10)
+  await expect(showing.nth(5)).toBeFocused()
+
+  // The open session is never hidden behind Show More.
+  await group('Unfiled').click()
+  const search = page.getByRole('searchbox', { name: 'Search sessions' })
+  await search.fill('number 9')
+  await rowsIn('results').first().click()
+  await search.fill('')
+  await openGroup(page, 'Unfiled')
+  await expect(showing).toHaveCount(9)
+  await expect(showing.last()).toHaveAttribute('aria-selected', 'true')
 })
 
 test('Ctrl+Z undoes library changes, newest first, and the menu says what it will undo', async () => {

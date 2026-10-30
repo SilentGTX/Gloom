@@ -252,7 +252,11 @@ Stopped sessions resume on their next send.
   folder, copy session ID. Archive hides a session everywhere except Archived; its transcript is
   untouched.
 - **Search** field at the top: results from every folder, archived matches apart.
-- **Sorting** (View › Sort Sessions By): last activity, name or date created; pinned ones lead.
+- **Sorting** (View › Sort Sessions By): date created, newest first (the default, so a session
+  keeps its place while it runs), last activity or name; pinned ones lead.
+- **Five at a time:** an open group shows its first five sessions, then **Show More** for five
+  more (as Claude Code does); closing the group starts it over. Subfolders always show, search
+  results and Archived show everything, and the open session always shows, however far down.
 - **Selection:** multi-select (Ctrl and Shift) and drag to a folder.
 - **New Session (Ctrl+N):** the pencil at the top of the sidebar. Choose the working folder
   (prefilled from the folder's defaults), model and mode; in a git repo a **worktree** switch, on by
@@ -447,7 +451,10 @@ disclosure pages; `apple-design` for motion).
 - **After 0.6.2, at your request:** a running session's title shimmers, as in Claude Code (not on
   the selected row, which the indigo already marks), and the dot in front of it is gone; "Now"
   beside it stays, and a screen reader hears "Running in another app". The info card keeps its
-  small dot beside "Running in the Claude app".
+  small dot beside "Running in the Claude app". A group shows five sessions, then Show More for
+  five more. And sessions keep their places: sorting by last activity swapped two running
+  sessions every time either wrote, so the default is now date created, newest first (your
+  setting moved over; Last Activity is still in View › Sort Sessions By).
 - Built in its own worktree (`D:\JS\Gloom-sidebar`) while 0.5.1 was being made in the main
   checkout, then merged with it. Released as 0.6.0 after a check of the packaged build: it opens
   on the update screen, then the sidebar, a session and its info card, from inside the app archive.

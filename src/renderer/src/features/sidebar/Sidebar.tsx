@@ -17,8 +17,17 @@ import { FolderMenu } from '../folders/FolderMenu'
 import { useDrag, type DropData } from '../library/drag'
 import { archiveSessions, SessionMenu } from '../sessions/SessionMenu'
 import { AppMenu } from '../shell/AppMenu'
-import { ArchiveRow, GroupContents, GroupRow, RowMotion, SectionHeading, SessionRow } from './rows'
-import { buildTree, nest, type GroupRow as GroupRowData, type Section, type SessionRow as SessionRowData, type TreeNode, type TreeRow } from './tree'
+import { ArchiveRow, GroupContents, GroupRow, MoreRow, RowMotion, SectionHeading, SessionRow } from './rows'
+import {
+  buildTree,
+  nest,
+  type GroupRow as GroupRowData,
+  type MoreRow as MoreRowData,
+  type Section,
+  type SessionRow as SessionRowData,
+  type TreeNode,
+  type TreeRow
+} from './tree'
 
 /** The Archived row at the foot of the sidebar, last in the keyboard's order. */
 const ARCHIVE = 'archive'
@@ -54,6 +63,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
   const openSmart = useUi((s) => s.openSmart)
   const archive = useUi((s) => s.archive)
   const selection = useUi((s) => s.selection)
+  const shown = useUi((s) => s.shown)
   const renaming = useUi((s) => s.renaming)
   const select = useUi((s) => s.select)
   const library = useLibrary((s) => s.library)
@@ -61,7 +71,12 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
   const indexed = useLibrary((s) => s.indexed)
   const apply = useLibrary((s) => s.apply)
   const now = useNow(15_000)
-  const tree = useMemo(() => buildTree({ library, sessions, openSmart, search, archive, sort, now }), [library, sessions, openSmart, search, archive, sort, now])
+  const selected = useMemo(() => new Set(selection), [selection])
+  // The selected sessions always show: a group shows as far down as they are.
+  const tree = useMemo(
+    () => buildTree({ library, sessions, openSmart, search, archive, sort, now, shown, keep: selected }),
+    [library, sessions, openSmart, search, archive, sort, now, shown, selected]
+  )
 
   const root = useRef<HTMLElement>(null)
   /** The row the keyboard is on: the sidebar's one tab stop. */
@@ -86,7 +101,6 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
   }, [indexed, settled])
 
   const searching = search.trim() !== ''
-  const selected = useMemo(() => new Set(selection), [selection])
   const order = useMemo(() => [...tree.rows.map((r) => r.key), ARCHIVE], [tree])
   const byKey = useMemo(() => new Map<string, TreeRow>(tree.rows.map((r) => [r.key, r])), [tree])
   // The selection in sidebar order, each session once; any that aren't showing come last.
@@ -145,8 +159,21 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
 
   const toggleGroup = (row: GroupRowData, all = false, open = !row.open) => {
     if (!row.hasChildren) return
-    if (row.kind === 'smart') return useUi.getState().toggleSmart(row.smart, open)
-    void apply({ type: 'setExpanded', ids: all ? [...subtreeIds(library.folders, row.folder.id)] : [row.folder.id], expanded: open })
+    if (row.kind === 'smart') {
+      // A group that closes starts over at five when it opens again.
+      if (!open) useUi.getState().resetShown([row.key])
+      return useUi.getState().toggleSmart(row.smart, open)
+    }
+    const ids = all ? [...subtreeIds(library.folders, row.folder.id)] : [row.folder.id]
+    if (!open) useUi.getState().resetShown(ids.map((id) => `folder:${id}`))
+    void apply({ type: 'setExpanded', ids, expanded: open })
+  }
+
+  /** Shows the next five of a group's sessions, and takes the keyboard on to the first of them. */
+  const showMoreFrom = (row: MoreRowData) => {
+    const showing = tree.rows.filter((r) => r.kind === 'session' && r.group === row.group).length
+    useUi.getState().showMore(row.group, showing)
+    requestAnimationFrame(() => root.current?.querySelectorAll<HTMLElement>(`[data-nav^="${CSS.escape(row.group)}/"]`)[showing]?.focus())
   }
 
   const toggleArchive = () => {
@@ -227,7 +254,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
     if (!viaKeyboard) setViaKeyboard(true)
     const i = order.indexOf(key)
     const row = byKey.get(key)
-    const group = row && row.kind !== 'session' ? row : undefined
+    const group = row?.kind === 'smart' || row?.kind === 'folder' ? row : undefined
     const session = row?.kind === 'session' ? row : undefined
     const handled = () => {
       e.preventDefault()
@@ -274,6 +301,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
       case ' ':
         handled()
         if (key === ARCHIVE) return toggleArchive()
+        if (row?.kind === 'more') return showMoreFrom(row)
         if (group) return toggleGroup(group)
         if (session && e.key === ' ') {
           // Space selects; Ctrl+Space adds or takes away, as in Explorer.
@@ -376,6 +404,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
 
   const renderRow = (row: TreeRow) => {
     const tabbable = tabKey === row.key
+    if (row.kind === 'more') return <MoreRow key={row.key} row={row} tabbable={tabbable} onShow={() => showMoreFrom(row)} />
     if (row.kind === 'session') {
       const isSelected = selected.has(row.item.id)
       return (
@@ -411,7 +440,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
   // A row, and after an open group the box that holds what's inside it.
   const renderNodes = (nodes: TreeNode[]): ReactNode[] =>
     nodes.flatMap(({ row, children }) =>
-      row.kind === 'session' || !row.open || children.length === 0
+      row.kind === 'session' || row.kind === 'more' || !row.open || children.length === 0
         ? [renderRow(row)]
         : [renderRow(row), <GroupContents key={`${row.key}/contents`}>{renderNodes(children)}</GroupContents>]
     )

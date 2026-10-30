@@ -73,7 +73,22 @@ export interface SessionRow extends RowBase {
   trail: string[]
 }
 
-export type TreeRow = SmartRow | FolderRow | SessionRow
+/** "Show More", after the sessions an open group shows so far. */
+export interface MoreRow {
+  kind: 'more'
+  /** 'more:<group>'. */
+  key: string
+  /** The group it shows more of ('smart:all', 'folder:<id>'). */
+  group: string
+  /** The folder it's in, which takes what's dropped on it. */
+  folderId: string | null
+  depth: number
+  trail: string[]
+  /** Sessions not showing yet. */
+  hidden: number
+}
+
+export type TreeRow = SmartRow | FolderRow | SessionRow | MoreRow
 export type GroupRow = SmartRow | FolderRow
 
 export interface Section {
@@ -99,7 +114,14 @@ export interface TreeInput {
   archive: boolean
   sort: SortOrder
   now: number
+  /** How many sessions an open group shows, by group ('smart:all', 'folder:<id>'); five until Show More. */
+  shown: Readonly<Record<string, number>>
+  /** Sessions that show wherever they are, however far down (the selection). */
+  keep: ReadonlySet<string>
 }
+
+/** A group shows this many sessions at first, and Show More adds as many again. */
+export const SHOWN_STEP = 5
 
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true })
 
@@ -116,6 +138,21 @@ export function sortSessions(items: SessionItem[], sort: SortOrder): SessionItem
 
 function sessionRows(list: SessionItem[], group: string, trail: string[], folderId: string | null, before = 0, setSize = list.length): SessionRow[] {
   return list.map((item, i) => ({ kind: 'session', key: `${group}/${item.id}`, item, group, folderId, trail, depth: trail.length, posInSet: before + i + 1, setSize }))
+}
+
+/**
+ * The sessions an open group shows: the first five (more after each Show
+ * More), and as far down as any session that must show; then Show More, if
+ * there are others.
+ */
+function shownRows(input: TreeInput, list: SessionItem[], group: string, trail: string[], folderId: string | null, before = 0, setSize = list.length): TreeRow[] {
+  let count = input.shown[group] ?? SHOWN_STEP
+  list.forEach((item, i) => {
+    if (input.keep.has(item.id)) count = Math.max(count, i + 1)
+  })
+  const rows: TreeRow[] = sessionRows(list.slice(0, count), group, trail, folderId, before, setSize)
+  if (list.length > count) rows.push({ kind: 'more', key: `more:${group}`, group, folderId, trail, depth: trail.length, hidden: list.length - count })
+  return rows
 }
 
 export function buildTree(input: TreeInput): Tree {
@@ -148,17 +185,18 @@ export function buildTree(input: TreeInput): Tree {
       const list = items.filter((item) => inSmartFolder(smart, item.meta, item.entry, folderExists, now))
       const open = input.openSmart.includes(smart)
       rows.push({ kind: 'smart', key: `smart:${smart}`, smart, count: list.length, open, hasChildren: list.length > 0, depth: 0, posInSet: i + 1, setSize: LIBRARY_GROUPS.length })
-      if (open) rows.push(...sessionRows(list, `smart:${smart}`, [`smart:${smart}`], null))
+      if (open) rows.push(...shownRows(input, list, `smart:${smart}`, [`smart:${smart}`], null))
     })
     sections.push({ key: 'library', label: 'Library', rows })
-    sections.push({ key: 'folders', label: 'Folders', rows: folderRows(library.folders, items, folderExists) })
+    sections.push({ key: 'folders', label: 'Folders', rows: folderRows(input, items, folderExists) })
   }
 
   return { sections, rows: sections.flatMap((s) => s.rows) }
 }
 
 /** Your folders, depth first; an open folder shows its subfolders, then its own sessions. */
-function folderRows(folders: readonly Folder[], items: SessionItem[], folderExists: (id: string) => boolean): TreeRow[] {
+function folderRows(input: TreeInput, items: SessionItem[], folderExists: (id: string) => boolean): TreeRow[] {
+  const folders = input.library.folders
   const kids = new Map<string | null, Folder[]>()
   for (const f of folders) {
     const list = kids.get(f.parentId)
@@ -199,7 +237,7 @@ function folderRows(folders: readonly Folder[], items: SessionItem[], folderExis
       if (!folder.expanded || trail.length >= 64) return
       const inside = [...trail, key]
       walk(folder.id, inside, sessions.length)
-      rows.push(...sessionRows(sessions, key, inside, folder.id, subfolders.length, subfolders.length + sessions.length))
+      rows.push(...shownRows(input, sessions, key, inside, folder.id, subfolders.length, subfolders.length + sessions.length))
     })
   }
   walk(null, [], 0)

@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { SmartFolder } from '@shared/library'
 import { computeLayout, SIDEBAR, type ColumnPrefs } from '../features/shell/layout'
+import { SHOWN_STEP } from '../features/sidebar/tree'
 
 /** Up to 200%, Apple's floor for "support larger text". */
 export const TEXT_SCALES = [0.875, 0.9375, 1, 1.0625, 1.125, 1.25, 1.5, 1.75, 2]
@@ -30,6 +31,8 @@ interface UiState extends ColumnPrefs {
   openSmart: SmartFolder[]
   /** The sidebar shows Archived in place of the library. */
   archive: boolean
+  /** How many sessions an open group shows, past the first five, by group ('folder:<id>'). Not kept. */
+  shown: Record<string, number>
   /** Selected sessions, in the order they were picked. The chat shows one. */
   selection: string[]
   renaming: Renaming
@@ -45,6 +48,10 @@ interface UiState extends ColumnPrefs {
   /** Opens or closes a library group; with no `open`, flips it. */
   toggleSmart(smart: SmartFolder, open?: boolean): void
   setArchive(open: boolean): void
+  /** Shows five more of a group's sessions, after the `from` it shows now. */
+  showMore(group: string, from: number): void
+  /** Groups closed: they start over at five. */
+  resetShown(groups: string[]): void
   stepText(direction: 1 | -1): void
   resetText(): void
   toggleGlass(): void
@@ -68,9 +75,11 @@ export const useUi = create<UiState>()(
         instant: false,
         toggledAt: 0,
         search: '',
-        sort: 'activity',
+        // Newest first: a session keeps its place while it runs (by last activity it jumped about).
+        sort: 'created',
         openSmart: [],
         archive: false,
+        shown: {},
         selection: [],
         renaming: null,
         info: false,
@@ -98,6 +107,13 @@ export const useUi = create<UiState>()(
           if (want !== current.includes(smart)) set({ openSmart: want ? [...current, smart] : current.filter((s) => s !== smart) })
         },
         setArchive: (open) => set({ archive: open }),
+        showMore: (group, from) => set({ shown: { ...get().shown, [group]: from + SHOWN_STEP } }),
+        resetShown: (groups) => {
+          const shown = { ...get().shown }
+          const before = Object.keys(shown).length
+          for (const group of groups) delete shown[group]
+          if (Object.keys(shown).length !== before) set({ shown })
+        },
         stepText: (direction) => {
           const i = TEXT_SCALES.indexOf(get().textScale)
           const next = TEXT_SCALES[Math.min(TEXT_SCALES.length - 1, Math.max(0, (i < 0 ? 2 : i) + direction))]
@@ -114,7 +130,7 @@ export const useUi = create<UiState>()(
     },
     {
       name: 'gloom.ui',
-      version: 3,
+      version: 4,
       partialize: (s) => ({
         sidebarWidth: s.sidebarWidth,
         sidebarHidden: s.sidebarHidden,
@@ -135,6 +151,9 @@ export const useUi = create<UiState>()(
           state.sidebarHidden = state.foldersHidden === true
           for (const key of ['folderWidth', 'sessionWidth', 'foldersHidden', 'sessionsHidden', 'place', 'selected', 'includeSubfolders']) delete state[key]
         }
+        // Sorting by last activity reordered the sidebar every time a running
+        // session wrote; it moves over to newest first, which holds still.
+        if (version < 4 && state.sort === 'activity') state.sort = 'created'
         return state as unknown as UiState
       }
     }

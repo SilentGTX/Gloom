@@ -35,10 +35,11 @@ export const COMMANDS = [
   { id: 'edit.findPrevious', label: 'Find Previous', group: 'edit', accelerator: 'Shift+F3', runs: 'renderer' },
   { id: 'view.search', label: 'Search Sessions', group: 'view', accelerator: 'CmdOrCtrl+Shift+F', runs: 'renderer' },
   { id: 'view.toggleSidebar', label: 'Show or Hide Sidebar', group: 'view', accelerator: 'CmdOrCtrl+B', runs: 'renderer' },
-  // How the sessions inside each folder are ordered (pinned ones always lead).
+  // How the sessions inside each folder are ordered (pinned ones always lead). Date
+  // Created, newest first, is the default: a session keeps its place while it runs.
+  { id: 'view.sortCreated', label: 'Date Created', group: 'view', submenu: 'Sort Sessions By', runs: 'renderer' },
   { id: 'view.sortActivity', label: 'Last Activity', group: 'view', submenu: 'Sort Sessions By', runs: 'renderer' },
   { id: 'view.sortName', label: 'Name', group: 'view', submenu: 'Sort Sessions By', runs: 'renderer' },
-  { id: 'view.sortCreated', label: 'Date Created', group: 'view', submenu: 'Sort Sessions By', runs: 'renderer' },
   { id: 'view.toggleDiff', label: 'Diff Pane', group: 'view', accelerator: 'CmdOrCtrl+Shift+D', runs: 'renderer', arrivesIn: 'Phase 5' },
   { id: 'view.toggleTerminal', label: 'Terminal', group: 'view', accelerator: 'CmdOrCtrl+`', runs: 'renderer', arrivesIn: 'Phase 5' },
   { id: 'view.textBigger', label: 'Bigger Text', group: 'view', accelerator: 'CmdOrCtrl+=', runs: 'renderer' },
