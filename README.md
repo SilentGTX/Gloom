@@ -35,10 +35,11 @@ and Developer → Preview Update Screen plays the screen's steps without install
 `GLOOM_UPDATE_FROM=<folder>` reads `update.json` and its files from a folder instead of GitHub,
 to try an update without publishing it.
 
-The app icon is `icon.png`, and `update.png` is the same cloud without its tile, for the update
-screen (both square PNGs, at least 256 px). After changing either, run
-`npx tsx scripts/make-icons.mts`: it resizes them into `build/icon.ico` (the app, the installer
-and the uninstaller), `build/icon.png`, and `src/renderer/src/assets/update.png`.
+Gloom's cloud is `update.png` (a square PNG, at least 256 px). The app icon is the cloud on a
+violet tile, which `scripts/make-icons.mts` draws; the update screen shows the cloud on its own.
+After changing the cloud or the tile, run `npx tsx scripts/make-icons.mts`: it writes
+`build/icon.ico` (the app, the installer and the uninstaller), `build/icon.png`, and
+`src/renderer/src/assets/update.png`.
 
 ## Test
 

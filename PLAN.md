@@ -510,6 +510,11 @@ disclosure pages; `apple-design` for motion).
      sparkle: there it means "new", not "Gloom". Released as Gloom 0.6.1 after a check of the
      packaged build: Gloom.exe carries the icon, and the update screen shows the cloud from inside
      the app archive.
+   - **After 0.6.2, at your request:** on the taskbar the icon looked odd beside Claude's. Its
+     dark tile was 1.13:1 against the dark taskbar (Claude's orange is 5.3:1), and it filled only
+     88% of its image, so Windows drew it at about 21 px against Claude's 24. You picked the
+     cloud on a violet tile from three mock-ups: `scripts/make-icons.mts` draws a rounded square
+     edge to edge (#a78bfa to #6d28d9) and puts `update.png` on it; `icon.png` is gone.
    - **After 0.6.2, at your request: updates without the window closing**, the way Discord
      installs them. A release also carries the app as a zip, which unpacks beside the running copy
      into `versions\<version>` in the install folder (`src/main/versions.ts`), so nothing has to
