@@ -90,6 +90,13 @@ export function offerUpdate(release: Release): void {
   for (const listener of listeners) listener(state)
 }
 
+/** Update was clicked while Claude was working: the button says it installs once the sessions settle. */
+export function setUpdateWaiting(waiting: boolean): void {
+  if (!!state.waiting === waiting) return
+  state = { ...state, waiting }
+  for (const listener of listeners) listener(state)
+}
+
 async function githubToken(): Promise<string> {
   if (process.env.GLOOM_GITHUB_TOKEN) return process.env.GLOOM_GITHUB_TOKEN
   const token = await new Promise<string | null>((resolve) =>

@@ -98,6 +98,7 @@ export function MenuItem({
   label,
   shortcut,
   note,
+  detail,
   disabled,
   icon,
   destructive,
@@ -108,6 +109,8 @@ export function MenuItem({
   shortcut?: string
   /** Shown instead of the shortcut on disabled items, e.g. the phase that builds them. */
   note?: string
+  /** What it does, on a second line in secondary ink. */
+  detail?: string
   disabled?: boolean
   icon?: ReactNode
   /** Destroys something: red, and listed last. */
@@ -120,11 +123,18 @@ export function MenuItem({
     <Base.Item
       disabled={disabled}
       onClick={onClick}
-      className={`relative ${itemClass} ${destructive ? 'text-[var(--destructive)] [&_svg]:text-[var(--destructive)]' : ''}`}
+      className={`relative ${detail ? detailItemClass : itemClass} ${destructive ? 'text-[var(--destructive)] [&_svg]:text-[var(--destructive)]' : ''}`}
       style={indent ? { paddingLeft: 28 + indent * 14 } : undefined}
     >
       <Leading icon={icon} />
-      <span className="flex-1 truncate">{label}</span>
+      {detail ? (
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate">{label}</span>
+          <span className="text-[11.5px] leading-snug whitespace-normal text-label-secondary">{detail}</span>
+        </span>
+      ) : (
+        <span className="flex-1 truncate">{label}</span>
+      )}
       <Trailing shortcut={shortcut} note={note} disabled={disabled} />
     </Base.Item>
   )
@@ -151,13 +161,30 @@ export function MenuRadioGroup<T extends string>({ value, onChange, children }: 
   )
 }
 
-export function MenuRadioItem({ label, value }: { label: string; value: string }) {
+/** A choice; `detail` explains it on a second line, in secondary ink. */
+export function MenuRadioItem({ label, value, detail, destructive }: { label: string; value: string; detail?: string; destructive?: boolean }) {
   return (
-    <Base.RadioItem value={value} closeOnClick className={`relative ${itemClass}`}>
-      <Base.RadioItemIndicator className="absolute left-2 flex items-center">
+    <Base.RadioItem
+      value={value}
+      closeOnClick
+      className={`relative ${detail ? detailItemClass : itemClass} ${destructive ? 'text-[var(--destructive)]' : ''}`}
+    >
+      <Base.RadioItemIndicator className={`absolute left-2 flex items-center ${detail ? 'top-[7px]' : ''}`}>
         <Check size={14} strokeWidth={2.25} />
       </Base.RadioItemIndicator>
-      <span className="flex-1 truncate">{label}</span>
+      {detail ? (
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate">{label}</span>
+          <span className="text-[11.5px] leading-snug whitespace-normal text-label-secondary">{detail}</span>
+        </span>
+      ) : (
+        <span className="flex-1 truncate">{label}</span>
+      )}
     </Base.RadioItem>
   )
 }
+
+const detailItemClass = [
+  'flex min-h-7 items-start gap-6 rounded-[7px] py-[5px] pr-2.5 pl-7 outline-none select-none',
+  'data-[highlighted]:bg-fill-strong data-[disabled]:text-label-tertiary'
+].join(' ')

@@ -9,7 +9,7 @@
 import { app, BrowserWindow, dialog, type MessageBoxOptions } from 'electron'
 import type { UpdateScreen } from '@shared/ipc'
 import { handOver } from './handover'
-import { download, findUpdate, install, offerUpdate, pendingUpdate, removeDownloads, updatesEnabled, type Release } from './updater'
+import { download, findUpdate, install, offerUpdate, pendingUpdate, removeDownloads, setUpdateWaiting, updatesEnabled, type Release } from './updater'
 import { canInstallBeside, discard, unpack } from './versions'
 import { saveWindowState } from './window'
 
@@ -132,11 +132,36 @@ export function finishStarting(): void {
   if (screen?.status === 'starting') setTimeout(() => screen?.status === 'starting' && show(null), 400)
 }
 
-/** The Update button: the window becomes the update screen, which downloads and installs. */
+/** Whether a session is mid-turn or waiting for you: an update waits for it, as the Claude app's do. */
+let sessionsBusy: () => boolean = () => false
+let deferred = false
+
+export function deferUpdatesWhile(busy: () => boolean): void {
+  sessionsBusy = busy
+}
+
+/**
+ * The Update button: the window becomes the update screen, which downloads and
+ * installs. While Claude is working it waits, and goes once no session is
+ * (the open session and the window come back after; stopped sessions resume on
+ * their next message).
+ */
 export async function installPending(): Promise<void> {
   const release = pendingUpdate()
   if (!release || applying) return
+  if (sessionsBusy()) {
+    deferred = true
+    setUpdateWaiting(true)
+    return
+  }
+  deferred = false
+  setUpdateWaiting(false)
   if (!(await apply(release))) show(null)
+}
+
+/** No session is mid-turn: a waiting update goes now. */
+export function sessionsQuiet(): void {
+  if (deferred) void installPending()
 }
 
 /** Help → Check for Updates…: checks now and offers to install what it finds. */

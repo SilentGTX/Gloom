@@ -4,6 +4,7 @@ import { formatAccelerator } from '@shared/commands'
 import { Button } from '../../components/ui/Button'
 import { GlassCapsule } from '../../components/ui/Glass'
 import { Tooltip } from '../../components/ui/Tooltip'
+import { cn } from '../../lib/cn'
 import { runCommand } from '../../lib/commands'
 import { AppMenu } from './AppMenu'
 
@@ -24,12 +25,20 @@ export function PaneToolbar({ children, clearCaptionButtons }: { children: React
   )
 }
 
-/** The pane's title, with what it's doing beside it ("Active now"). Pixel-capped: the bar's height is fixed. */
-export function BarTitle({ children, status }: { children: ReactNode; status?: string }) {
+/**
+ * The pane's title, with what it's doing beside it ("Active now", "Working…").
+ * While Claude works, light sweeps across the status, as across the session's
+ * title in the sidebar. Pixel-capped: the bar's height is fixed.
+ */
+export function BarTitle({ children, status, live }: { children: ReactNode; status?: string; live?: boolean }) {
   return (
     <div className="flex min-w-0 items-baseline gap-2 px-1">
       <h1 className="min-w-0 truncate font-display text-[min(0.9375rem,18px)] font-bold tracking-[-0.01em] text-label">{children}</h1>
-      {status && <span className="shrink-0 text-[min(0.75rem,14px)] text-label-secondary tabular">{status}</span>}
+      {status && (
+        <span role="status" className={cn('shrink-0 text-[min(0.75rem,14px)] text-label-secondary tabular', live && 'live-text')}>
+          {status}
+        </span>
+      )}
     </div>
   )
 }
@@ -40,7 +49,7 @@ export function SidebarStandIns() {
     <GlassCapsule label="Navigation">
       <AppMenu shape="round" />
       <Tooltip label="New Session" shortcut="Ctrl+N">
-        <Button aria-label="New session" shape="round" disabled>
+        <Button aria-label="New session" shape="round" onClick={() => runCommand('session.new')}>
           <SquarePen size={16} strokeWidth={1.75} />
         </Button>
       </Tooltip>

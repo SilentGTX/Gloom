@@ -1,11 +1,12 @@
 import { Popover } from '@base-ui/react/popover'
 import { Copy, FolderCode, FolderOpen, Info } from 'lucide-react'
-import { ELSEWHERE_MS, projectName, type SessionMeta } from '@shared/library'
+import { projectName, type SessionMeta } from '@shared/library'
 import { Button } from '../../components/ui/Button'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { useNow } from '../../lib/now'
 import { fullDate } from '../../lib/time'
 import { useLibrary } from '../../stores/library'
+import { useElsewhere } from '../../stores/live'
 import { useUi } from '../../stores/ui'
 import { folderLabel } from '../folders/folders'
 import { copySessionId, revealSession } from '../sessions/SessionMenu'
@@ -65,7 +66,7 @@ function InfoCard({ session, onDone }: { session: SessionMeta; onDone(): void })
   const folders = useLibrary((s) => s.library.folders)
   const folderId = useLibrary((s) => s.library.sessions[session.id]?.folderId)
   const now = useNow(15_000)
-  const live = now - session.updated < ELSEWHERE_MS
+  const live = useElsewhere(session, now)
   const inFolder = folderId && folders.some((f) => f.id === folderId) ? folderLabel(folders, folderId) : 'Unfiled'
   const from = session.entrypoint ? (ENTRYPOINTS[session.entrypoint] ?? session.entrypoint) : null
   const facts: [string, string, string?][] = [

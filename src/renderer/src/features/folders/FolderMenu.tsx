@@ -1,18 +1,22 @@
-import { Folder as FolderGlyph, FolderInput, FolderPlus, FolderTree, Pencil, Trash2 } from 'lucide-react'
+import { Folder as FolderGlyph, FolderInput, FolderPlus, FolderTree, Pencil, SlidersHorizontal, SquarePen, Trash2 } from 'lucide-react'
 import { childrenOf, flattenTree, subtreeIds, type Folder } from '@shared/library'
 import { ContextMenuPopup, MenuItem, MenuSeparator, MenuSubmenu } from '../../components/ui/Menu'
 import { useLibrary } from '../../stores/library'
+import { useLive } from '../../stores/live'
 import { useUi } from '../../stores/ui'
 import { deleteFolder, newFolder } from './folders'
 
 /** A folder's context menu: the few things you'd do to it, Delete last. */
-export function FolderMenu({ folder, onRules }: { folder: Folder; onRules(): void }) {
+export function FolderMenu({ folder, onRules, onDefaults }: { folder: Folder; onRules(): void; onDefaults(): void }) {
   const apply = useLibrary((s) => s.apply)
   const folders = useLibrary((s) => s.library.folders)
   return (
     <ContextMenuPopup label={`${folder.name} actions`}>
+      <MenuItem label="New Session Here…" icon={<SquarePen />} onClick={() => useLive.getState().openNewSession(folder.id)} />
+      <MenuSeparator />
       <MenuItem label="Rename" icon={<Pencil />} onClick={() => useUi.getState().rename({ kind: 'folder', id: folder.id })} />
       <MenuItem label="New Folder Inside" icon={<FolderPlus />} onClick={() => void newFolder(folder.id)} />
+      <MenuItem label="Defaults for New Sessions…" icon={<SlidersHorizontal />} onClick={onDefaults} />
       <MenuItem label="Filing Rules…" icon={<FolderTree />} onClick={onRules} />
       <MenuSeparator />
       <MenuSubmenu label="Move To" icon={<FolderInput />}>

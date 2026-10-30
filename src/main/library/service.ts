@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import type { ApplyResult, LibrarySnapshot, SessionsChange, TranscriptChange, WorkerReply, WorkerRequest } from '@shared/ipc'
-import { applyOp, LibraryError, noticeSessions, type LibraryData, type LibraryOp, type SessionMeta } from '@shared/library'
+import { applyOp, LibraryError, noticeSessions, type LibraryData, type LibraryOp, type SessionEntry, type SessionMeta } from '@shared/library'
 import type { Cursor, TranscriptPage } from '@shared/transcript'
 import transcriptsWorker from '../../worker/transcripts?modulePath'
 import { parseOp } from './ops'
@@ -83,6 +83,11 @@ export class LibraryService {
 
   session(id: string): SessionMeta | undefined {
     return this.index.get(id)
+  }
+
+  /** How you've organised a session: its folder, pin, archive, rename. */
+  entry(id: string): SessionEntry | undefined {
+    return this.store.library.sessions[id]
   }
 
   /** A page of a session's transcript; with `follow`, its changes are sent as `transcript` events. */

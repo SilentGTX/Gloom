@@ -3,13 +3,19 @@ import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { findCommand, type CommandId } from '@shared/commands'
 import { IPC, type AppInfo, type ResumeResult } from '@shared/ipc'
+import { displayTitle } from '@shared/library'
 import { parseRef, type Cursor } from '@shared/transcript'
+import { attend, setBadge } from './attention'
+import { claudeInfo } from './claude/binary'
+import { parseAnswer, parseNewSession, parseSend, parseSet, sessionId } from './claude/parse'
+import { Sessions } from './claude/sessions'
+import { knownModels, loadSettings, onSettings, settings, updateSettings } from './claude/settings'
 import { installApplicationMenu, runCommand } from './commands'
 import { parseTakeover, takeOver } from './handover'
 import { LibraryService } from './library/service'
 import { runPtySmoke } from './smoke'
-import { resumeInTerminal } from './terminal'
-import { finishStarting, installPending, launchCheck, onUpdateScreen, showStarting, updateScreen } from './update-screen'
+import { claudeInTerminal, resumeInTerminal } from './terminal'
+import { deferUpdatesWhile, finishStarting, installPending, launchCheck, onUpdateScreen, sessionsQuiet, showStarting, updateScreen } from './update-screen'
 import { checkOnFocus, onUpdateState, startBackgroundChecks, updateState } from './updater'
 import { markStarted, removeOldVersions, startNewerVersion } from './versions'
 import { createMainWindow, rendererUrl, windowState } from './window'
@@ -48,6 +54,7 @@ if (smokeArg) {
 
   void app.whenReady().then(() => {
     app.setAppUserModelId('com.silentgtx.gloom')
+    loadSettings()
     installApplicationMenu()
 
     ipcMain.handle(IPC.windowState, (event) => {
@@ -116,8 +123,10 @@ if (smokeArg) {
     })
     ipcMain.handle(IPC.transcriptBlob, (event, id: unknown, ref: unknown) => {
       if (!trusted(event)) throw new Error('untrusted sender')
-      if (typeof id !== 'string' || !parseRef(ref)) throw new Error('bad transcript reference')
-      return library.readBlob(id, ref as string)
+      const at = parseRef(ref)
+      if (typeof id !== 'string' || !at) throw new Error('bad transcript reference')
+      // A line the stream showed before the file had it: no length, read from memory.
+      return at.length === 0 ? sessions.blob(id, ref as string) : library.readBlob(id, ref as string)
     })
     ipcMain.handle(IPC.unfollowTranscript, (event) => {
       if (!trusted(event)) throw new Error('untrusted sender')
@@ -136,6 +145,61 @@ if (smokeArg) {
       const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
       return result.canceled ? null : (result.filePaths[0] ?? null)
     })
+
+    // ─── Sessions Gloom runs ───────────────────────────────────────────────
+    const handle = (channel: string, run: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown) =>
+      ipcMain.handle(channel, (event, ...args) => {
+        if (!trusted(event)) throw new Error('untrusted sender')
+        return run(event, ...args)
+      })
+    const titleOf = (id: string) => {
+      const meta = library.session(id)
+      return meta ? displayTitle(meta, library.entry(id)) : 'New Session'
+    }
+    const sessions = new Sessions(
+      {
+        event: (event) => mainWindow?.webContents.send(IPC.liveEvent, event),
+        attention: (id, kind, card) => attend(mainWindow, id, titleOf(id), kind, card),
+        quiet: () => sessionsQuiet()
+      },
+      (id) => library.session(id)
+    )
+    deferUpdatesWhile(() => sessions.busy())
+    app.on('before-quit', () => sessions.closeAll())
+    handle(IPC.liveList, () => sessions.list())
+    handle(IPC.liveSnapshot, (_event, id) => sessions.snapshot(sessionId(id)))
+    handle(IPC.liveCreate, (_event, raw) => {
+      const request = parseNewSession(raw)
+      if (!existsSync(request.cwd)) throw new Error('That folder doesn’t exist.')
+      return sessions.create(request)
+    })
+    handle(IPC.liveDiscard, (_event, id) => sessions.discard(sessionId(id)))
+    handle(IPC.liveCheck, (_event, id) => sessions.check(sessionId(id)))
+    handle(IPC.liveSend, (_event, raw) => {
+      const request = parseSend(raw)
+      sessions.send(request.id, request.text, request.images)
+    })
+    handle(IPC.liveInterrupt, (_event, id) => sessions.interrupt(sessionId(id)))
+    handle(IPC.liveUnqueue, (_event, id, queuedId) => sessions.unqueue(sessionId(id), String(queuedId)))
+    handle(IPC.liveAnswer, (_event, id, answer) => sessions.answer(sessionId(id), parseAnswer(answer)))
+    handle(IPC.liveSet, (_event, id, request) => sessions.set(sessionId(id), parseSet(request)))
+    handle(IPC.liveCommands, (_event, id) => sessions.commands(sessionId(id)))
+    handle(IPC.liveModels, () => knownModels())
+    handle(IPC.liveUsage, () => sessions.usage())
+    handle(IPC.claudeInfo, (_event, fresh) => claudeInfo({ fresh: fresh === true }))
+    handle(IPC.claudeTerminal, (_event, what) => (what === 'login' || what === 'update' ? claudeInTerminal(what) : false))
+    handle(IPC.claudeLocate, async (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const options = { title: 'Choose claude.exe', properties: ['openFile' as const], filters: [{ name: 'Claude Code', extensions: ['exe'] }] }
+      const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      return result.canceled ? null : (result.filePaths[0] ?? null)
+    })
+    handle(IPC.settings, () => settings())
+    handle(IPC.settingsSet, (_event, patch) => updateSettings(patch))
+    onSettings((next) => mainWindow?.webContents.send(IPC.settingsChanged, next))
+    handle(IPC.setBadge, (_event, count, png) =>
+      setBadge(mainWindow, typeof count === 'number' ? count : 0, typeof png === 'string' && png.startsWith('data:image/png;base64,') ? png : null)
+    )
 
     // Taking over from the previous version: this window opens on top of its
     // window, on the update screen, and the app loads once that one has quit.
@@ -170,6 +234,30 @@ if (smokeArg) {
       mainWindow = null
     })
     mainWindow.on('focus', checkOnFocus)
+    mainWindow.on('focus', () => mainWindow?.flashFrame(false))
+    // Quitting mid-turn stops Claude where it is: say so first.
+    let quitAnyway = false
+    mainWindow.on('close', (event) => {
+      const win = mainWindow
+      if (quitAnyway || !win || !sessions.busy()) return
+      event.preventDefault()
+      const working = sessions.list().filter((s) => s.state === 'starting' || s.state === 'working' || s.state === 'waiting').length
+      void dialog
+        .showMessageBox(win, {
+          type: 'warning',
+          message: 'Quit Gloom while Claude is working?',
+          detail: `${working === 1 ? 'A session stops' : `${working} sessions stop`} where ${working === 1 ? 'it is' : 'they are'}. Send ${working === 1 ? 'it' : 'one'} a message later to pick up from there.`,
+          buttons: ['Quit', 'Cancel'],
+          defaultId: 0,
+          cancelId: 1,
+          noLink: true
+        })
+        .then(({ response }) => {
+          if (response !== 0) return
+          quitAnyway = true
+          app.quit()
+        })
+    })
     startBackgroundChecks()
     if (app.isPackaged) void handedOver.then(() => setTimeout(() => void removeOldVersions(), TIDY_AFTER_MS))
   })

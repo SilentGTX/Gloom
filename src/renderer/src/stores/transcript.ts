@@ -9,6 +9,8 @@ type Status = 'idle' | 'loading' | 'ready' | 'error'
 
 interface TranscriptState {
   id: string | null
+  /** False while the session has no transcript file yet (a new one): nothing to read, nothing to follow. */
+  readable: boolean
   status: Status
   error: string | null
   entries: TranscriptEntry[]
@@ -22,8 +24,8 @@ interface TranscriptState {
   expanded: ReadonlySet<string>
   /** Counts up when the rows are replaced wholesale, so the list starts afresh at the bottom. */
   epoch: number
-  /** Shows a session's transcript (null shows none). */
-  open(id: string | null): void
+  /** Shows a session's transcript (null shows none). A session without a file yet opens empty, and reads once it has one. */
+  open(id: string | null, readable?: boolean): void
   loadOlder(): void
   /** Reads the conversation before a compaction. */
   showEarlier(compactKey: string): void
@@ -53,6 +55,7 @@ export const useTranscript = create<TranscriptState>()((set, get) => {
 
   return {
     id: null,
+    readable: true,
     status: 'idle',
     error: null,
     entries: [],
@@ -63,11 +66,20 @@ export const useTranscript = create<TranscriptState>()((set, get) => {
     expanded: new Set(),
     epoch: 0,
 
-    open: (id) => {
-      if (id === get().id) return
+    open: (id, readable = true) => {
+      const s = get()
+      if (id === s.id && (readable === s.readable || !readable)) return
       const gen = ++generation
-      set({ id, status: id ? 'loading' : 'idle', error: null, entries: [], results: {}, older: null, loadingOlder: false, earlier: {}, expanded: new Set(), epoch: get().epoch + 1 })
-      if (!id) {
+      // The file just appeared under a session you're watching: read it in place, keeping what's open.
+      const same = id === s.id
+      set({
+        id,
+        readable,
+        status: !id ? 'idle' : readable ? (same ? s.status : 'loading') : 'ready',
+        error: null,
+        ...(same ? {} : { entries: [], results: {}, older: null, loadingOlder: false, earlier: {}, expanded: new Set<string>(), epoch: s.epoch + 1 })
+      })
+      if (!id || !readable) {
         void window.gloom?.unfollowTranscript()
         return
       }

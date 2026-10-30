@@ -6,9 +6,10 @@ import { createContext, useContext, useEffect, useMemo, useRef, type KeyboardEve
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { Archive, ChevronRight, Clock3, Folder as FolderIcon, Inbox, MessagesSquare, Pin, type LucideIcon } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ELSEWHERE_MS, type SmartFolder } from '@shared/library'
+import type { SmartFolder } from '@shared/library'
 import { cn } from '../../lib/cn'
 import { fullDate, relativeTime } from '../../lib/time'
+import { useElsewhere, useLive } from '../../stores/live'
 import { useDrag, type DragData, type DropData } from '../library/drag'
 import { SMART_LABELS, type GroupRow as GroupRowData, type MoreRow as MoreRowData, type SessionRow as SessionRowData } from './tree'
 
@@ -251,7 +252,12 @@ export function SessionRow({
   const dragging = useDrag((s) => s.active?.kind === 'sessions' && s.active.ids.includes(id))
   const lit = useLitGroup()
   const refs = useRefs(ref, dragRef, dropRef)
-  const elsewhere = now - meta.updated < ELSEWHERE_MS
+  // Gloom's own sessions say what they're doing; one growing in another app shimmers too.
+  const live = useLive((s) => s.sessions[id])
+  const elsewhere = useElsewhere(meta, now)
+  const working = live?.state === 'working' || live?.state === 'starting'
+  const waiting = live?.state === 'waiting'
+  const updated = Math.max(meta.updated, live && live.state !== 'new' ? live.lastActive : 0)
   const preview = meta.lastPrompt && meta.lastPrompt !== title ? meta.lastPrompt : meta.firstPrompt !== title ? meta.firstPrompt : null
 
   return (
@@ -293,13 +299,19 @@ export function SessionRow({
           {renaming ? (
             <RenameField initial={title} label="Session name" onDone={onRenameEnd} className="text-[0.875rem] font-semibold" />
           ) : (
-            <span className={cn('row-label min-w-0 flex-1 truncate text-[0.875rem] leading-snug font-semibold', elsewhere && !selected && 'live-title')}>{title}</span>
+            <span className={cn('row-label min-w-0 flex-1 truncate text-[0.875rem] leading-snug font-semibold', (elsewhere || working) && !selected && 'live-title')}>{title}</span>
           )}
           {/* The shimmer says it to the eye ("Now" too, under reduced motion); this says it to a screen reader. */}
           {elsewhere && <span className="sr-only">Running in another app</span>}
-          <time dateTime={new Date(meta.updated).toISOString()} title={fullDate(meta.updated)} className="row-secondary shrink-0 pl-1 text-[0.75rem] tabular">
-            {relativeTime(meta.updated, now)}
-          </time>
+          {working && <span className="sr-only">Claude is working</span>}
+          {waiting ? (
+            // Claude waits on a card: said in words, in the warning ink, where the time was.
+            <span className="row-waiting shrink-0 pl-1 text-[0.75rem] font-semibold">Waiting</span>
+          ) : (
+            <time dateTime={new Date(updated).toISOString()} title={fullDate(updated)} className="row-secondary shrink-0 pl-1 text-[0.75rem] tabular">
+              {relativeTime(updated, now)}
+            </time>
+          )}
         </div>
         {preview && <p className="row-secondary truncate text-[0.8125rem] leading-snug">{preview}</p>}
       </div>

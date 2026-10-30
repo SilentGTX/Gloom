@@ -19,13 +19,16 @@ export interface CommandSpec {
 }
 
 export const COMMANDS = [
-  { id: 'session.new', label: 'New Session', group: 'file', accelerator: 'CmdOrCtrl+N', runs: 'renderer', arrivesIn: 'Phase 4' },
+  // In the folder you're in, with its defaults: the working folder, model and mode.
+  { id: 'session.new', label: 'New Session…', group: 'file', accelerator: 'CmdOrCtrl+N', runs: 'renderer' },
   { id: 'folder.new', label: 'New Folder', group: 'file', accelerator: 'CmdOrCtrl+Shift+N', runs: 'renderer' },
-  // Opens the open session in a terminal window, until Gloom can send messages itself.
+  // Opens the open session in a terminal window, to carry on in the CLI.
   { id: 'session.resume', label: 'Resume in Terminal', group: 'file', runs: 'renderer' },
   // The open session's details: where and when it ran, and its ID (the chat toolbar's ⓘ).
   { id: 'session.info', label: 'Session Info', group: 'file', accelerator: 'CmdOrCtrl+I', runs: 'renderer' },
-  { id: 'app.settings', label: 'Settings…', group: 'file', accelerator: 'CmdOrCtrl+,', runs: 'renderer', arrivesIn: 'Phase 4' },
+  // Stops the turn under way in the open session (Esc in the composer does the same).
+  { id: 'session.stop', label: 'Stop', group: 'file', accelerator: 'CmdOrCtrl+.', runs: 'renderer' },
+  { id: 'app.settings', label: 'Settings…', group: 'file', accelerator: 'CmdOrCtrl+,', runs: 'renderer' },
   { id: 'app.quit', label: 'Quit Gloom', group: 'file', accelerator: 'CmdOrCtrl+Q', runs: 'main' },
   // Undoes typing in a field, otherwise the last change to your folders and sessions.
   { id: 'edit.undo', label: 'Undo', group: 'edit', accelerator: 'CmdOrCtrl+Z', runs: 'renderer' },

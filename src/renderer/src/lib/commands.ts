@@ -6,6 +6,7 @@ import { useFind } from '../features/chat/find'
 import { newFolder } from '../features/folders/folders'
 import { resumeSession } from '../features/sessions/SessionMenu'
 import { useLibrary } from '../stores/library'
+import { isBusy, useLive } from '../stores/live'
 import { useTranscript } from '../stores/transcript'
 import { useUi } from '../stores/ui'
 
@@ -35,6 +36,12 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
     const ui = useUi.getState()
     if (ui.selection.length === 1) ui.setInfo(!ui.info)
   },
+  'session.new': () => useLive.getState().openNewSession(),
+  'session.stop': () => {
+    const { selection } = useUi.getState()
+    if (selection.length === 1 && isBusy(useLive.getState().sessions[selection[0]])) void useLive.getState().stop(selection[0])
+  },
+  'app.settings': () => useLive.getState().setSettingsOpen(true),
   'folder.new': (k) => inSidebar(k, () => void newFolder(null)),
   'view.search': (k) =>
     inSidebar(k, () => {

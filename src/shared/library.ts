@@ -218,6 +218,10 @@ export type LibraryOp =
   /** `title: null` goes back to Claude's title. */
   | { type: 'renameSession'; id: string; title: string | null }
   | { type: 'setFilingRules'; id: string; paths: string[] }
+  /** What New Session inside the folder starts with; null clears them. */
+  | { type: 'setFolderDefaults'; id: string; defaults: FolderDefaults | null }
+  /** You said Claude may run in this folder (its hooks and MCP servers included). */
+  | { type: 'trustFolder'; path: string }
 
 export interface OpContext {
   /** The index, for the working folders filing rules match against. */
@@ -418,7 +422,41 @@ export function applyOp(lib: LibraryData, op: LibraryOp, ctx: OpContext): OpResu
       }
       return { library: { ...lib, folders, sessions } }
     }
+
+    case 'setFolderDefaults': {
+      need(op.id)
+      const d = op.defaults
+      const defaults: FolderDefaults = { ...(d?.cwd?.trim() ? { cwd: d.cwd.trim() } : {}), ...(d?.model ? { model: d.model } : {}), ...(d?.mode ? { mode: d.mode } : {}) }
+      const keep = Object.keys(defaults).length > 0
+      return { library: { ...lib, folders: lib.folders.map((f) => (f.id === op.id ? (keep ? { ...f, defaults } : withoutKey(f, 'defaults')) : f)) } }
+    }
+
+    case 'trustFolder': {
+      const path = op.path.trim()
+      if (!path || lib.trustedFolders.some((p) => normalizePath(p) === normalizePath(path))) return { library: lib }
+      return { library: { ...lib, trustedFolders: [...lib.trustedFolders, path] } }
+    }
   }
+}
+
+/**
+ * A folder Claude may run in without asking: one you trusted here, or one
+ * Claude Code has already run sessions in (it asked about it then).
+ */
+export function folderTrusted(lib: LibraryData, sessions: Iterable<SessionMeta>, path: string): boolean {
+  const p = normalizePath(path)
+  if (lib.trustedFolders.some((t) => normalizePath(t) === p)) return true
+  for (const s of sessions) if (s.cwd && s.file && normalizePath(s.cwd) === p) return true
+  return false
+}
+
+/** The defaults New Session starts from in a folder: its own, else its nearest parent's that has them. */
+export function folderDefaults(folders: readonly Folder[], id: string | null): FolderDefaults {
+  if (!id) return {}
+  const path = folderPath(folders, id)
+  const merged: FolderDefaults = {}
+  for (const f of path) Object.assign(merged, f.defaults ?? {})
+  return merged
 }
 
 // ─── Reading the library ─────────────────────────────────────────────────────

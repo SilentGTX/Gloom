@@ -1,6 +1,7 @@
 // Checks the shape of an operation sent by the window before it touches the
 // library. The window is our own page, but a malformed op must never reach disk.
-import { LibraryError, type Folder, type LibraryOp } from '@shared/library'
+import { LibraryError, type Folder, type FolderDefaults, type LibraryOp } from '@shared/library'
+import { isMode } from '@shared/live'
 
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 
@@ -27,8 +28,17 @@ function folder(v: unknown): Folder {
   if (!isRecord(v)) throw new LibraryError('bad folder')
   const f: Folder = { id: str(v.id, 'id'), name: str(v.name, 'name'), parentId: strOrNull(v.parentId, 'parent'), order: str(v.order, 'order'), expanded: v.expanded === true }
   if (Array.isArray(v.fileFrom)) f.fileFrom = v.fileFrom.map((p) => str(p, 'path'))
-  if (isRecord(v.defaults)) f.defaults = { cwd: typeof v.defaults.cwd === 'string' ? v.defaults.cwd : undefined }
+  const defaults = folderDefaults(v.defaults)
+  if (defaults) f.defaults = defaults
   return f
+}
+function folderDefaults(v: unknown): FolderDefaults | null {
+  if (!isRecord(v)) return null
+  const d: FolderDefaults = {}
+  if (typeof v.cwd === 'string' && v.cwd.length < 1024) d.cwd = v.cwd
+  if (typeof v.model === 'string' && /^[\w.:[\]-]{1,200}$/.test(v.model)) d.model = v.model
+  if (isMode(v.mode)) d.mode = v.mode
+  return d
 }
 
 export function parseOp(raw: unknown): LibraryOp {
@@ -61,6 +71,10 @@ export function parseOp(raw: unknown): LibraryOp {
     case 'setFilingRules':
       if (!Array.isArray(raw.paths)) throw new LibraryError('bad paths')
       return { type: 'setFilingRules', id: str(raw.id, 'id'), paths: raw.paths.map((p) => str(p, 'path')) }
+    case 'setFolderDefaults':
+      return { type: 'setFolderDefaults', id: str(raw.id, 'id'), defaults: raw.defaults === null ? null : folderDefaults(raw.defaults) }
+    case 'trustFolder':
+      return { type: 'trustFolder', path: str(raw.path, 'path') }
     default:
       throw new LibraryError(`unknown op ${String(raw.type)}`)
   }

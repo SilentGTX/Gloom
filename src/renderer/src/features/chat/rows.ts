@@ -1,6 +1,7 @@
 // The transcript as the chat's rows: entries in order, each tool call with its
 // result, the time above a prompt after a pause, and how long each turn took
 // under its reply. Pure, so it's tested without a window.
+import type { Activity, StreamBlock, StreamState } from '@shared/live'
 import type { CompactEntry, NoticeEntry, OutputEntry, PromptEntry, SummaryEntry, TextEntry, ThinkingEntry, ToolEntry, ToolResult, TranscriptEntry } from '@shared/transcript'
 import { describeTool } from './tools'
 
@@ -25,7 +26,19 @@ export type Row = RowBase &
     | { kind: 'output'; entry: OutputEntry }
     | { kind: 'compact'; entry: CompactEntry; summary: SummaryEntry | null }
     | { kind: 'turn'; ms: number; model: string | null }
+    /** A block of the reply still streaming in a session Gloom runs. */
+    | { kind: 'stream'; block: StreamBlock }
+    /** The turn under way: since when, and what Claude is doing. */
+    | { kind: 'working'; since: number; activity: Activity | null }
   )
+
+/** What a session Gloom runs adds below its transcript. */
+export interface LiveRows {
+  /** Calls without results are still running. */
+  live?: boolean
+  stream?: StreamState | null
+  working?: { since: number; activity: Activity | null } | null
+}
 
 /** A pause this long, or a new day, puts the time above the next prompt. */
 const PAUSE_MS = 30 * 60 * 1000
@@ -37,7 +50,7 @@ function startsTurn(e: TranscriptEntry): boolean {
 const isReply = (e: TranscriptEntry) => e.kind === 'text' || e.kind === 'tool' || e.kind === 'thinking'
 const compact = (kind: Row['kind']) => kind === 'tool' || kind === 'thinking'
 
-export function buildRows(entries: readonly TranscriptEntry[], results: Readonly<Record<string, ToolResult>>, { live = false } = {}): Row[] {
+export function buildRows(entries: readonly TranscriptEntry[], results: Readonly<Record<string, ToolResult>>, { live = false, stream = null, working = null }: LiveRows = {}): Row[] {
   const rows: Row[] = []
   let start: TranscriptEntry | null = null
   let last: TranscriptEntry | null = null
@@ -116,7 +129,7 @@ export function buildRows(entries: readonly TranscriptEntry[], results: Readonly
     }
   }
 
-  if (live) {
+  if (live || working) {
     // The last turn is still going: its calls without results are running, and it has no time yet.
     for (let i = rows.length - 1; i >= 0; i--) {
       const r = rows[i]
@@ -124,6 +137,14 @@ export function buildRows(entries: readonly TranscriptEntry[], results: Readonly
       if (r.kind === 'tool' && !r.result) rows[i] = { ...r, running: true }
     }
   } else endTurn()
+
+  // What's streaming now sits where its finished lines will.
+  const messageId = stream?.messageId
+  stream?.blocks.forEach((block, i) => {
+    if (!block || (block.kind === 'text' && !block.text.trim())) return
+    rows.push({ kind: 'stream', key: `stream:${messageId}:${i}`, space: spaceFor(block.kind), block })
+  })
+  if (working) rows.push({ kind: 'working', key: 'working', space: spaceFor('working'), since: working.since, activity: working.activity })
   return rows
 }
 
@@ -149,6 +170,8 @@ export function rowText(row: Row): { shown: string; hidden: string } {
       return { shown: [row.entry.input, row.entry.stdout, row.entry.stderr].filter(Boolean).join('\n'), hidden: '' }
     case 'compact':
       return { shown: 'Conversation compacted', hidden: row.summary?.text ?? '' }
+    case 'stream':
+      return row.block.kind === 'text' ? { shown: stripMarkdown(row.block.text), hidden: '' } : { shown: '', hidden: row.block.kind === 'thinking' ? row.block.text : '' }
     default:
       return { shown: '', hidden: '' }
   }

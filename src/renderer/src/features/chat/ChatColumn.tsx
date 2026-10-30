@@ -1,55 +1,87 @@
 import { useEffect, useState } from 'react'
-import { MessagesSquare, Terminal } from 'lucide-react'
+import { MessagesSquare, SquarePen, Terminal, TriangleAlert } from 'lucide-react'
 import type { ResumeResult } from '@shared/ipc'
-import { displayTitle, ELSEWHERE_MS, type SessionMeta } from '@shared/library'
+import { displayTitle, type SessionMeta } from '@shared/library'
+import type { LiveSummary } from '@shared/live'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { GlassCapsule } from '../../components/ui/Glass'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
+import { runCommand } from '../../lib/commands'
 import { useNow } from '../../lib/now'
 import { relativeTime } from '../../lib/time'
 import { useLibrary } from '../../stores/library'
+import { loadSnapshot, useElsewhere, useLive } from '../../stores/live'
 import { useTranscript } from '../../stores/transcript'
 import { useUi } from '../../stores/ui'
 import { resumeSession } from '../sessions/SessionMenu'
 import { BarTitle, PaneToolbar, SidebarButton, SidebarStandIns } from '../shell/Toolbar'
 import { UpdateButton } from '../update/UpdateButton'
+import { Composer } from './Composer'
 import { SessionInfo } from './SessionInfo'
 import { Transcript } from './Transcript'
 
-/** "Active now" while it runs in another app, else when it last did ("Active 33m ago", "Active Oct 21"). */
-function activity(updated: number, now: number): string {
-  if (now - updated < ELSEWHERE_MS) return 'Active now'
-  const when = relativeTime(updated, now)
+/** What the session is doing, beside its title: Gloom's own state first, then the file's. */
+function status(summary: LiveSummary | undefined, updated: number, elsewhere: boolean, now: number): string {
+  switch (summary?.state) {
+    case 'new':
+      return 'New'
+    case 'starting':
+      return 'Starting…'
+    case 'working':
+      return 'Working…'
+    case 'waiting':
+      return 'Waiting for you'
+  }
+  const last = Math.max(updated, summary?.lastActive ?? 0)
+  if (elsewhere || now - last < 60_000) return 'Active now'
+  const when = relativeTime(last, now)
   return /^\d/.test(when) ? `Active ${when} ago` : `Active ${when}`
 }
 
 /**
  * Chat: content, so paper, never glass. Its toolbar floats over the top: the
  * session's title and what it's doing, then one capsule with the sidebar,
- * Resume in Terminal and the session's info. With the sidebar away, its menu
- * comes along to the leading edge.
+ * Resume in Terminal and the session's info. The composer floats over the
+ * foot. With the sidebar away, its menu comes along to the leading edge.
  */
 export function ChatColumn({ sidebarShown }: { sidebarShown: boolean }) {
   const selection = useUi((s) => s.selection)
   const session = useLibrary((s) => (selection.length === 1 ? s.sessions[selection[0]] : undefined))
   const entry = useLibrary((s) => (session ? s.library.sessions[session.id] : undefined))
-  const title = session ? displayTitle(session, entry) : null
+  const summary = useLive((s) => (session ? s.sessions[session.id] : undefined))
   const now = useNow(15_000)
-  // Growing right now in the Claude app or a terminal: its last turn may still be going.
-  const live = !!session && now - session.updated < ELSEWHERE_MS
+  const elsewhere = useElsewhere(session, now)
+  const title = session ? (summary?.state === 'new' ? 'New Session' : displayTitle(session, entry)) : null
   const id = session?.id ?? null
+  // A session made here has no transcript until its first message is written.
+  const readable = !!session?.file
 
   useEffect(() => {
-    useTranscript.getState().open(id)
+    useTranscript.getState().open(id, readable)
+  }, [id, readable])
+
+  useEffect(() => {
+    if (!id) return
+    // Whatever the stream showed before this window was looking.
+    if (useLive.getState().sessions[id]) void loadSnapshot(id)
+    return () => {
+      // A new session you leave without writing anything goes.
+      const live = useLive.getState()
+      if (live.sessions[id]?.state === 'new' && !live.draft(id).text.trim()) void window.gloom?.live.discard(id)
+    }
   }, [id])
 
   return (
     <main className="@container relative flex min-w-0 flex-1 flex-col pt-[var(--titlebar-h)]">
       <PaneToolbar clearCaptionButtons>
         {!sidebarShown && <SidebarStandIns />}
-        {session && title && <BarTitle status={activity(session.updated, now)}>{title}</BarTitle>}
+        {session && title && (
+          <BarTitle status={status(summary, session.updated, elsewhere, now)} live={summary?.state === 'working' || summary?.state === 'starting'}>
+            {title}
+          </BarTitle>
+        )}
         <div className="flex-1" />
         <UpdateButton />
         <GlassCapsule label="Session">
@@ -59,17 +91,53 @@ export function ChatColumn({ sidebarShown }: { sidebarShown: boolean }) {
         </GlassCapsule>
       </PaneToolbar>
       {session ? (
-        <Transcript sessionId={session.id} live={live} />
+        <>
+          <Transcript sessionId={session.id} live={elsewhere} />
+          <Composer key={session.id} sessionId={session.id} meta={session} />
+        </>
       ) : selection.length > 1 ? (
         <EmptyState icon={<MessagesSquare size={40} strokeWidth={1.25} />} title={`${selection.length} Sessions Selected`}>
           Drag them to a folder, or right-click for more.
         </EmptyState>
       ) : (
-        <EmptyState icon={<MessagesSquare size={40} strokeWidth={1.25} />} title="No Session Selected">
-          Choose a session to read it here.
-        </EmptyState>
+        <Welcome />
       )}
     </main>
+  )
+}
+
+/** Nothing open: what to do next, or what's missing first. */
+function Welcome() {
+  const claude = useLive((s) => s.claude)
+  const indexed = useLibrary((s) => s.indexed)
+  const none = useLibrary((s) => indexed && Object.keys(s.sessions).length === 0)
+  if (claude && !claude.path) {
+    return (
+      <EmptyState icon={<TriangleAlert size={40} strokeWidth={1.25} />} title="Claude Code Isn’t Installed">
+        <span className="flex flex-col items-center gap-3">
+          <span>Gloom runs Claude Code on this PC. Install it, sign in once in a terminal, then come back.</span>
+          <span className="flex gap-2">
+            <Button size="text" tone="secondary" onClick={() => window.open('https://docs.claude.com/en/docs/claude-code/setup', '_blank')}>
+              How to Install
+            </Button>
+            <Button size="text" tone="secondary" onClick={() => useLive.getState().setSettingsOpen(true)}>
+              Choose claude.exe…
+            </Button>
+          </span>
+        </span>
+      </EmptyState>
+    )
+  }
+  return (
+    <EmptyState icon={<MessagesSquare size={40} strokeWidth={1.25} />} title={none ? 'No Sessions Yet' : 'No Session Selected'}>
+      <span className="flex flex-col items-center gap-3">
+        <span>{none ? 'Start one, and Claude gets to work in the folder you choose.' : 'Choose a session to read it here, or start a new one.'}</span>
+        <Button size="text" tone="secondary" onClick={() => runCommand('session.new')}>
+          <SquarePen size={14} strokeWidth={1.75} aria-hidden />
+          New Session
+        </Button>
+      </span>
+    </EmptyState>
   )
 }
 
@@ -81,6 +149,7 @@ function ResumeButton({ session }: { session: SessionMeta | undefined }) {
   const [check, setCheck] = useState<ResumeResult | null>(null)
   const id = session?.id
   const cwd = session?.cwd
+  const file = session?.file
   useEffect(() => {
     setCheck(null)
     if (!id) return
@@ -89,8 +158,8 @@ function ResumeButton({ session }: { session: SessionMeta | undefined }) {
     return () => {
       alive = false
     }
-  }, [id, cwd])
-  const blocked = check?.ok === false ? check.reason : null
+  }, [id, cwd, file])
+  const blocked = !file && id ? 'It has no messages yet.' : check?.ok === false ? check.reason : null
   return (
     <Tooltip label={blocked ?? 'Resume in Terminal'}>
       <Button
@@ -99,7 +168,7 @@ function ResumeButton({ session }: { session: SessionMeta | undefined }) {
         disabled={!id}
         aria-disabled={!!blocked}
         className={cn(blocked && 'opacity-40')}
-        onClick={() => id && void resumeSession(id)}
+        onClick={() => id && !blocked && void resumeSession(id)}
       >
         <Terminal size={16} strokeWidth={1.75} aria-hidden />
       </Button>

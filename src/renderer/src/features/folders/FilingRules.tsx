@@ -7,7 +7,7 @@ import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from '../../components/ui/
 import { useLibrary } from '../../stores/library'
 
 /** Your projects: the working folders sessions ran in on this PC, most recent first. */
-function useProjects(): string[] {
+export function useProjects(): string[] {
   const sessions = useLibrary((s) => s.sessions)
   return useMemo(() => {
     const latest = new Map<string, { path: string; updated: number }>()

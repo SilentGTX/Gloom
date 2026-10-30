@@ -15,7 +15,45 @@ import type {
   WindowState
 } from '../shared/ipc'
 import type { LibraryOp } from '../shared/library'
+import type {
+  CanSend,
+  CardAnswer,
+  ClaudeInfo,
+  CommandInfo,
+  LiveEvent,
+  LiveSnapshot,
+  LiveSummary,
+  ModelChoice,
+  NewSessionRequest,
+  Queued,
+  SendRequest,
+  SetRequest,
+  Settings,
+  UsageInfo
+} from '../shared/live'
 import type { BlobRef, TranscriptPage } from '../shared/transcript'
+
+/** The sessions Gloom runs. */
+export interface LiveApi {
+  list(): Promise<LiveSummary[]>
+  snapshot(id: string): Promise<LiveSnapshot | null>
+  onEvent(listener: (event: LiveEvent) => void): () => void
+  /** A new session in this folder; nothing runs until its first message. Resolves to its ID. */
+  create(request: NewSessionRequest): Promise<string>
+  /** A new session you left without a message goes. */
+  discard(id: string): Promise<void>
+  check(id: string): Promise<CanSend>
+  /** Rejects with the reason when it can't (its folder is gone, say). */
+  send(request: SendRequest): Promise<void>
+  /** Stops the turn; resolves to what was queued, for the composer. */
+  interrupt(id: string): Promise<Queued[]>
+  unqueue(id: string, queuedId: string): Promise<void>
+  answer(id: string, answer: CardAnswer): Promise<void>
+  set(id: string, request: SetRequest): Promise<void>
+  commands(id: string): Promise<CommandInfo[]>
+  models(): Promise<ModelChoice[]>
+  usage(): Promise<UsageInfo | null>
+}
 
 export interface GloomApi {
   getWindowState(): Promise<WindowState | null>
@@ -54,6 +92,23 @@ export interface GloomApi {
   onTranscript(listener: (change: TranscriptChange) => void): () => void
   /** Opens `claude --resume` in a terminal window; with `check`, only says whether it can. */
   resumeSession(id: string, options?: { check?: boolean }): Promise<ResumeResult>
+  live: LiveApi
+  claude: {
+    /** Where claude.exe is and its version; `fresh` asks it again (after an update). */
+    info(options?: { fresh?: boolean }): Promise<ClaudeInfo>
+    /** Runs `claude auth login` or `claude update` in a terminal window; false when there's no claude to run. */
+    inTerminal(what: 'login' | 'update'): Promise<boolean>
+    /** A claude.exe chosen in a file picker, or null. */
+    locate(): Promise<string | null>
+  }
+  getSettings(): Promise<Settings>
+  /** Changes some settings; resolves to all of them. */
+  setSettings(patch: Partial<Settings>): Promise<Settings>
+  onSettings(listener: (settings: Settings) => void): () => void
+  /** The taskbar badge: how many sessions wait for you, drawn as a PNG. */
+  setBadge(count: number, png: string | null): Promise<void>
+  /** Where a dropped or picked file lives on disk ('' for one made in the page, a pasted image say). */
+  pathForFile(file: File): string
 }
 
 declare global {

@@ -51,7 +51,50 @@ export const IPC = {
   /** invoke: resolves once the previous version has quit, when this window took it over */
   handoverWait: 'handover:wait',
   /** invoke: the app is drawn under the update screen, which can go */
-  handoverDone: 'handover:done'
+  handoverDone: 'handover:done',
+
+  /** invoke → LiveSummary[]: every session Gloom runs */
+  liveList: 'live:list',
+  /** invoke(sessionId) → LiveSnapshot | null: its state, provisional entries and stream */
+  liveSnapshot: 'live:snapshot',
+  /** main → renderer: LiveEvent */
+  liveEvent: 'live:event',
+  /** invoke(NewSessionRequest) → string: the new session's ID */
+  liveCreate: 'live:create',
+  /** invoke(sessionId): a new session left without a message goes */
+  liveDiscard: 'live:discard',
+  /** invoke(sessionId) → CanSend */
+  liveCheck: 'live:check',
+  /** invoke(SendRequest): sends, or queues while Claude works */
+  liveSend: 'live:send',
+  /** invoke(sessionId) → Queued[]: stops the turn, handing back what was queued */
+  liveInterrupt: 'live:interrupt',
+  /** invoke(sessionId, queuedId) */
+  liveUnqueue: 'live:unqueue',
+  /** invoke(sessionId, CardAnswer) */
+  liveAnswer: 'live:answer',
+  /** invoke(sessionId, SetRequest): model, mode or effort */
+  liveSet: 'live:set',
+  /** invoke(sessionId) → CommandInfo[]: its slash commands */
+  liveCommands: 'live:commands',
+  /** invoke → ModelChoice[] */
+  liveModels: 'live:models',
+  /** invoke → UsageInfo | null */
+  liveUsage: 'live:usage',
+  /** invoke → ClaudeInfo */
+  claudeInfo: 'claude:info',
+  /** invoke('login' | 'update') → boolean: runs it in a terminal window */
+  claudeTerminal: 'claude:terminal',
+  /** invoke → string | null: a claude.exe chosen in a file picker */
+  claudeLocate: 'claude:locate',
+  /** invoke → Settings */
+  settings: 'settings:get',
+  /** invoke(Partial<Settings>) → Settings */
+  settingsSet: 'settings:set',
+  /** main → renderer: Settings */
+  settingsChanged: 'settings:changed',
+  /** invoke(count, png data URL | null): the taskbar badge */
+  setBadge: 'attention:badge'
 } as const
 
 export interface UpdateState {
@@ -60,6 +103,8 @@ export interface UpdateState {
   current: string
   /** The newer version, once a check finds one. */
   available?: string
+  /** You clicked Update while Claude was working: it installs once no session is mid-turn. */
+  waiting?: boolean
 }
 
 /** What the update screen shows. */

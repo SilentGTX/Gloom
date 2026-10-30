@@ -1,5 +1,6 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import { IPC, type CommandDispatch, type LibraryChange, type SessionsChange, type TranscriptChange, type UpdateScreen, type UpdateState, type WindowState } from '@shared/ipc'
+import type { LiveEvent, Settings } from '@shared/live'
 import type { GloomApi } from './api'
 
 function subscribe<T>(channel: string, listener: (payload: T) => void): () => void {
@@ -32,7 +33,33 @@ const api: GloomApi = {
   transcriptBlob: (id, ref) => ipcRenderer.invoke(IPC.transcriptBlob, id, ref),
   unfollowTranscript: () => ipcRenderer.invoke(IPC.unfollowTranscript),
   onTranscript: (listener) => subscribe<TranscriptChange>(IPC.transcriptChanged, listener),
-  resumeSession: (id, options) => ipcRenderer.invoke(IPC.resumeSession, id, options)
+  resumeSession: (id, options) => ipcRenderer.invoke(IPC.resumeSession, id, options),
+  live: {
+    list: () => ipcRenderer.invoke(IPC.liveList),
+    snapshot: (id) => ipcRenderer.invoke(IPC.liveSnapshot, id),
+    onEvent: (listener) => subscribe<LiveEvent>(IPC.liveEvent, listener),
+    create: (request) => ipcRenderer.invoke(IPC.liveCreate, request),
+    discard: (id) => ipcRenderer.invoke(IPC.liveDiscard, id),
+    check: (id) => ipcRenderer.invoke(IPC.liveCheck, id),
+    send: (request) => ipcRenderer.invoke(IPC.liveSend, request),
+    interrupt: (id) => ipcRenderer.invoke(IPC.liveInterrupt, id),
+    unqueue: (id, queuedId) => ipcRenderer.invoke(IPC.liveUnqueue, id, queuedId),
+    answer: (id, answer) => ipcRenderer.invoke(IPC.liveAnswer, id, answer),
+    set: (id, request) => ipcRenderer.invoke(IPC.liveSet, id, request),
+    commands: (id) => ipcRenderer.invoke(IPC.liveCommands, id),
+    models: () => ipcRenderer.invoke(IPC.liveModels),
+    usage: () => ipcRenderer.invoke(IPC.liveUsage)
+  },
+  claude: {
+    info: (options) => ipcRenderer.invoke(IPC.claudeInfo, options?.fresh === true),
+    inTerminal: (what) => ipcRenderer.invoke(IPC.claudeTerminal, what),
+    locate: () => ipcRenderer.invoke(IPC.claudeLocate)
+  },
+  getSettings: () => ipcRenderer.invoke(IPC.settings),
+  setSettings: (patch) => ipcRenderer.invoke(IPC.settingsSet, patch),
+  onSettings: (listener) => subscribe<Settings>(IPC.settingsChanged, listener),
+  setBadge: (count, png) => ipcRenderer.invoke(IPC.setBadge, count, png),
+  pathForFile: (file) => webUtils.getPathForFile(file)
 }
 
 contextBridge.exposeInMainWorld('gloom', api)

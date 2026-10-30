@@ -2,10 +2,12 @@ import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type HTM
 import { Virtuoso, type ListRange, type VirtuosoHandle } from 'react-virtuoso'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowDown, FileWarning, LoaderCircle, MessagesSquare } from 'lucide-react'
+import { mergeProvisional } from '@shared/live'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { GlassCapsule } from '../../components/ui/Glass'
 import { cn } from '../../lib/cn'
+import { isBusy, useLive } from '../../stores/live'
 import { useTranscript } from '../../stores/transcript'
 import { clearMatches, findMatches, paintMatches, popMatch, useFind } from './find'
 import { FindBar } from './FindBar'
@@ -14,8 +16,9 @@ import { RowView } from './RowView'
 
 /** Virtuoso counts rows from here, so older pages can be put above without the view jumping. */
 const BASE_INDEX = 1_000_000
-/** Space under the last row, so it never sits on the window's edge. */
+/** Space under the last row, past the composer floating over the transcript's foot. */
 const BOTTOM_SPACE = 32
+const bottomSpace = () => BOTTOM_SPACE + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--composer-space')) || 0)
 
 /** Shows `value` only once it has held for `ms`, so quick loads never flash a spinner. */
 function useDelayed(value: boolean, ms: number): boolean {
@@ -42,7 +45,17 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
   const entries = useTranscript((s) => s.entries)
   const results = useTranscript((s) => s.results)
   const epoch = useTranscript((s) => s.epoch)
-  const rows = useMemo(() => buildRows(entries, results, { live }), [entries, results, live])
+  // In a session Gloom runs, what the stream has shown joins what the file holds, and the reply streams below.
+  const provisional = useLive((s) => s.provisional[sessionId])
+  const stream = useLive((s) => s.streams[sessionId] ?? null)
+  const summary = useLive((s) => s.sessions[sessionId])
+  const busy = isBusy(summary) && summary?.state !== 'waiting'
+  const since = busy ? (summary?.turnStarted ?? null) : null
+  const activity = summary?.activity ?? null
+  const rows = useMemo(() => {
+    const merged = mergeProvisional(entries, results, provisional)
+    return buildRows(merged.entries, merged.results, { live: live || isBusy(summary), stream: busy ? stream : null, working: since ? { since, activity } : null })
+  }, [entries, results, provisional, live, summary, busy, stream, since, activity])
   const slow = useDelayed(status === 'loading', 300)
 
   if (status === 'loading' || status === 'idle') {
@@ -56,6 +69,17 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
     )
   }
   if (!rows.length) {
+    // A session made here, waiting for its first message.
+    if (summary?.state === 'new') {
+      const folder = summary.cwd.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || summary.cwd
+      return (
+        <div className="flex flex-1 flex-col" style={{ paddingBottom: 'var(--composer-space)' }}>
+          <EmptyState icon={<MessagesSquare size={40} strokeWidth={1.25} />} title="New Session">
+            Claude works in <span className="font-medium text-label">{folder}</span>. Ask for anything below.
+          </EmptyState>
+        </div>
+      )
+    }
     return (
       <EmptyState icon={<MessagesSquare size={40} strokeWidth={1.25} />} title="Nothing Here Yet">
         This session has no messages yet.
@@ -109,7 +133,7 @@ const components = {
       {context?.loadingOlder && <LoaderCircle size={16} strokeWidth={1.75} aria-label="Loading earlier messages" className="animate-spin text-label-secondary motion-reduce:animate-none" />}
     </div>
   ),
-  Footer: () => <div style={{ height: BOTTOM_SPACE }} />
+  Footer: () => <div style={{ height: `calc(var(--composer-space, 0px) + ${BOTTOM_SPACE}px)` }} />
 }
 
 function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] }) {
@@ -145,10 +169,16 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
   useEffect(() => {
     if (pinned.current) toBottom()
   }, [rows, toBottom])
+  // The composer grew (a long message, a card above it): the last row stays in view.
+  useEffect(() => {
+    const onComposer = () => pinned.current && toBottom()
+    window.addEventListener('gloom:composer', onComposer)
+    return () => window.removeEventListener('gloom:composer', onComposer)
+  }, [toBottom])
   useEffect(() => () => cancelAnimationFrame(settle.current), [])
   const onScroll = useCallback((e: Event) => {
     const s = e.currentTarget as HTMLElement
-    pinned.current = s.scrollHeight - s.clientHeight - s.scrollTop < BOTTOM_SPACE + 64
+    pinned.current = s.scrollHeight - s.clientHeight - s.scrollTop < bottomSpace() + 64
   }, [])
 
   // ─── Find ──────────────────────────────────────────────────────────────────
@@ -233,13 +263,13 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
         components={components}
         firstItemIndex={firstItemIndex}
         // Opens at the very bottom, past the last row's end to the spacer under it.
-        initialTopMostItemIndex={{ index: rows.length - 1, align: 'end', offset: BOTTOM_SPACE }}
+        initialTopMostItemIndex={{ index: rows.length - 1, align: 'end', offset: bottomSpace() }}
         computeItemKey={(_, row) => row.key}
         itemContent={(_, row) => <RowView row={row} sessionId={sessionId} />}
         startReached={() => loadOlder()}
         atTopStateChange={(top) => setScrolled(!top)}
         atBottomStateChange={setAtBottom}
-        atBottomThreshold={BOTTOM_SPACE + 64}
+        atBottomThreshold={bottomSpace() + 64}
         rangeChanged={(range) => {
           visible.current = { startIndex: range.startIndex - firstItemIndex, endIndex: range.endIndex - firstItemIndex }
         }}
@@ -251,7 +281,8 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
         {!atBottom && (
           <motion.div
             key="latest"
-            className="absolute right-4 bottom-4"
+            className="absolute right-4 z-[5]"
+            style={{ bottom: 'calc(var(--composer-space, 0px) + 16px)' }}
             initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.85 }}

@@ -1,13 +1,16 @@
 import { useEffect } from 'react'
 import { TooltipProvider } from './components/ui/Tooltip'
+import { SessionsSheetsHost } from './features/sessions/SheetsHost'
 import { Shell } from './features/shell/Shell'
 import { UpdatedNote } from './features/update/UpdateButton'
 import { UpdateScreen } from './features/update/UpdateScreen'
+import { useWaitingBadge } from './lib/badge'
 import { useCommandBridge } from './lib/commands'
 import { Toasts } from './lib/toast'
 import { useUpdateScreen } from './lib/update'
 import { useApplyWindowState, useWindowState } from './lib/window-state'
 import { useLibraryBridge } from './stores/library'
+import { useLiveBridge } from './stores/live'
 import { useTranscriptBridge } from './stores/transcript'
 import { useUi } from './stores/ui'
 
@@ -16,6 +19,8 @@ export function App() {
   useCommandBridge()
   useLibraryBridge()
   useTranscriptBridge()
+  useLiveBridge()
+  useWaitingBadge()
   const textScale = useUi((s) => s.textScale)
   const glassAlways = useUi((s) => s.glassAlways)
   const updateScreen = useUpdateScreen()
@@ -31,6 +36,7 @@ export function App() {
       {/* Under the update screen the app can't be reached, by pointer, keyboard or screen reader. */}
       <div className="contents" inert={updateScreen !== null}>
         <Shell />
+        <SessionsSheetsHost />
         <UpdatedNote />
         <Toasts />
       </div>

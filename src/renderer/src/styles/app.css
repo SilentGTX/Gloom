@@ -680,6 +680,75 @@
       display: none;
     }
   }
+
+  /* ─── Sessions Gloom runs ──────────────────────────────────────────────── */
+
+  /* Words for work under way ("Thinking", "Working…"): the light that sweeps a
+     running session's title in the sidebar sweeps them too, Gloom's one
+     signature of life. Under reduced motion they hold still. */
+  @media (prefers-reduced-motion: no-preference) {
+    .live-text {
+      background: linear-gradient(90deg, var(--label-secondary) 42%, var(--label) 50%, var(--label-secondary) 58%) 100% 0 / 300% 100% no-repeat;
+      background-clip: text;
+      color: transparent;
+      animation: live-title 1.8s linear infinite;
+    }
+  }
+
+  /* The composer floats over the transcript's foot; the paper gathers behind
+     it, so lines slip under the glass instead of being cut by it (a scroll
+     edge effect, as under Apple's bottom toolbars). */
+  .composer-edge {
+    position: absolute;
+    inset: auto 0 0;
+    height: 96px;
+    background: linear-gradient(to bottom, transparent, var(--surface) 72%);
+    pointer-events: none;
+  }
+  /* Files dragged over it: the box says it will take them. */
+  .composer.is-dropping {
+    box-shadow:
+      0 0 0 2px var(--accent-ring),
+      var(--glass-shadow);
+  }
+
+  /* "Waiting" where a session's time was, while a card waits for you: amber
+     ink, 5.5:1 on the light sidebar, 8:1 on the dark; in full white on the
+     selected row's indigo. */
+  .row-waiting {
+    color: var(--warning);
+  }
+  .session-row.is-selected .row-waiting {
+    color: var(--on-row-selected);
+  }
+
+  /* The context meter: a small capacity ring by Send, and its bars. Quiet
+     until it's three quarters full, amber then, red near the end. */
+  .context-ring-track,
+  .context-ring-fill {
+    fill: none;
+    stroke-width: 2.5;
+  }
+  .context-ring-track {
+    stroke: var(--fill-pressed);
+  }
+  .context-ring-fill {
+    stroke: var(--label-secondary);
+    stroke-linecap: round;
+  }
+  .context-ring.is-high .context-ring-fill,
+  .context-bar.is-high {
+    stroke: var(--warning);
+    background: var(--warning);
+  }
+  .context-ring.is-full .context-ring-fill,
+  .context-bar.is-full {
+    stroke: var(--removed-text);
+    background: var(--removed-text);
+  }
+  .context-bar {
+    background: var(--label-secondary);
+  }
 }
 
 @utility drag {

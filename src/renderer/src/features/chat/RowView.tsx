@@ -3,6 +3,7 @@ import { ArrowLeftRight, Bell, ChevronRight, CircleAlert, ClipboardType, Hand, I
 import type { CompactEntry, NoticeEntry, NoticeIcon, OutputEntry, PromptEntry, SummaryEntry, TextEntry, ThinkingEntry } from '@shared/transcript'
 import { cn } from '../../lib/cn'
 import { useTranscript } from '../../stores/transcript'
+import { StreamRow, WorkingRow } from './LiveRows'
 import { Markdown } from './Markdown'
 import { ImageStrip, ShowAll, useFullText } from './media'
 import type { Row } from './rows'
@@ -43,6 +44,10 @@ function RowBody({ row, sessionId }: { row: Row; sessionId: string }) {
           {modelName(row.model) && ` · ${modelName(row.model)}`}
         </p>
       )
+    case 'stream':
+      return <StreamRow rowKey={row.key} block={row.block} />
+    case 'working':
+      return <WorkingRow since={row.since} activity={row.activity} />
   }
 }
 

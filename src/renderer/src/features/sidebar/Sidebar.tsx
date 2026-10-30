@@ -8,10 +8,12 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { ContextMenuRoot, ContextMenuTrigger } from '../../components/ui/Menu'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
+import { runCommand } from '../../lib/commands'
 import { useNow } from '../../lib/now'
 import { useLibrary } from '../../stores/library'
 import { useUi } from '../../stores/ui'
 import { FilingRules } from '../folders/FilingRules'
+import { FolderDefaultsDialog } from '../sessions/NewSession'
 import { deleteFolder, newFolder } from '../folders/folders'
 import { FolderMenu } from '../folders/FolderMenu'
 import { useDrag, type DropData } from '../library/drag'
@@ -87,6 +89,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
   const narrowOnClick = useRef<string | null>(null)
   const [menu, setMenu] = useState<MenuTarget | null>(null)
   const [rulesFor, setRulesFor] = useState<string | null>(null)
+  const [defaultsFor, setDefaultsFor] = useState<string | null>(null)
   // Rows spring to their new places after a click or a drop, but not after a key.
   const [viaKeyboard, setViaKeyboard] = useState(false)
   const typed = useRef({ text: '', at: 0 })
@@ -511,7 +514,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
           <AppMenu />
           <div className="flex-1" />
           <Tooltip label="New Session" shortcut="Ctrl+N">
-            <Button aria-label="New session" disabled>
+            <Button aria-label="New session" onClick={() => runCommand('session.new')}>
               <SquarePen size={16} strokeWidth={1.75} />
             </Button>
           </Tooltip>
@@ -549,7 +552,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
                   ))}
                 </nav>
               </ContextMenuTrigger>
-              {menuFolder && <FolderMenu folder={menuFolder} onRules={() => setRulesFor(menuFolder.id)} />}
+              {menuFolder && <FolderMenu folder={menuFolder} onRules={() => setRulesFor(menuFolder.id)} onDefaults={() => setDefaultsFor(menuFolder.id)} />}
               {menu?.kind === 'sessions' && <SessionMenu ids={menu.ids} />}
             </ContextMenuRoot>
 
@@ -562,6 +565,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
         </div>
       </div>
       <FilingRules folderId={rulesFor} onClose={() => setRulesFor(null)} />
+      <FolderDefaultsDialog folderId={defaultsFor} onClose={() => setDefaultsFor(null)} />
     </aside>
   )
 }
