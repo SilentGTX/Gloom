@@ -5,6 +5,7 @@ import { findCommand, type CommandId } from '@shared/commands'
 import { IPC, type AppInfo } from '@shared/ipc'
 import { installApplicationMenu, runCommand } from './commands'
 import { runPtySmoke } from './smoke'
+import { installUpdate, onUpdateState, startUpdater, updateState } from './updater'
 import { createMainWindow, rendererUrl, windowState } from './window'
 
 // `Gloom.exe --smoke-pty[=<file>]` runs the packaging smoke test headless and
@@ -50,9 +51,19 @@ if (smokeArg) {
       if (typeof id !== 'string' || !findCommand(id)) throw new Error(`unknown command: ${String(id)}`)
       runCommand(id as CommandId, BrowserWindow.fromWebContents(event.sender), false)
     })
+    ipcMain.handle(IPC.updateState, (event) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      return updateState()
+    })
+    ipcMain.handle(IPC.installUpdate, (event) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      installUpdate()
+    })
+    onUpdateState((state) => mainWindow?.webContents.send(IPC.updateStateChanged, state))
 
     mainWindow = createMainWindow()
     mainWindow.on('closed', () => (mainWindow = null))
+    startUpdater()
   })
 
   app.on('window-all-closed', () => app.quit())

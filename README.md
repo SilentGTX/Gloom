@@ -13,6 +13,18 @@ npm run build      # type-check, then a production build into out/
 npm run dist       # one-click NSIS installer in release/<version>/
 ```
 
+## Release
+
+```bash
+npm run release -- "What changed"   # builds the installer from HEAD, publishes v<version> to GitHub releases
+```
+
+Bump `version` in package.json, commit and push first: the release is tagged at HEAD. Installed
+copies check the latest release a few seconds after launch and then hourly, through your `gh`
+login since the repo is private. They download the installer, verify its SHA-256, and light up
+**Update** in the title bar, which installs it silently and relaunches. Help → Check for Updates…
+checks right away.
+
 ## Test
 
 ```bash

@@ -1,5 +1,6 @@
 import { MessagesSquare } from 'lucide-react'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { UpdateButton } from '../update/UpdateButton'
 import { ChatControls, LeadingControls, NewSessionButton, PaneToolbar, type LeadingControl } from '../shell/Toolbar'
 
 /**
@@ -13,6 +14,7 @@ export function ChatColumn({ leading, withNewSession }: { leading: LeadingContro
         <LeadingControls controls={leading} />
         {withNewSession && <NewSessionButton />}
         <div className="flex-1" />
+        <UpdateButton />
         <ChatControls />
       </PaneToolbar>
       <EmptyState icon={<MessagesSquare size={40} strokeWidth={1.25} />} title="No Session Selected">

@@ -1,5 +1,5 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { launch, pressRealKeys, setWindowSize, triggerShortcut } from './app'
+import { launch, pressRealKeys, sendUpdateReady, setWindowSize, triggerShortcut } from './app'
 
 let app: ElectronApplication
 let page: Page
@@ -79,6 +79,14 @@ test('the menu button lists every command', async () => {
   await expect(folders()).toHaveCount(0)
   await page.getByRole('button', { name: 'Menu' }).first().click()
   await expect(page.getByRole('menu').getByRole('menuitem', { name: /Show Folders/ })).toBeVisible()
+})
+
+test('the update button appears once an update is ready', async () => {
+  const button = page.getByRole('button', { name: /Update to Gloom/ })
+  await expect(button).toHaveCount(0)
+  await sendUpdateReady(app, '0.2.1')
+  await expect(button).toBeVisible()
+  await expect(button).toHaveAccessibleName('Update to Gloom 0.2.1')
 })
 
 test('splitters drag 1:1 and answer the keyboard', async () => {

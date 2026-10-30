@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { IPC, type UpdateState } from '../../src/shared/ipc'
 
 /** Launches the built app with a throwaway profile, so tests never see your real state. */
 export async function launch(): Promise<{ app: ElectronApplication; page: Page }> {
@@ -73,6 +74,15 @@ export async function captureWindow(app: ElectronApplication, file: string): Pro
   })
   const script = join(__dirname, 'capture-window.ps1')
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Hwnd', hwnd, '-Out', file])
+}
+
+/** Tells the window an update is downloaded and verified. Development builds never check for real. */
+export async function sendUpdateReady(app: ElectronApplication, available: string): Promise<void> {
+  const state: UpdateState = { status: 'ready', current: '0.0.0', available }
+  await app.evaluate(({ BrowserWindow }, { channel, state }) => BrowserWindow.getAllWindows()[0].webContents.send(channel, state), {
+    channel: IPC.updateStateChanged,
+    state
+  })
 }
 
 export async function setWindowSize(app: ElectronApplication, width: number, height = 800): Promise<void> {

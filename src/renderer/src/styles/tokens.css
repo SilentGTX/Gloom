@@ -56,6 +56,11 @@
   --glass-light: rgb(255 255 255 / 0.55);
   --scrim: rgb(30 18 60 / 0.14);
 
+  /* Signal: Gloom's dusk indigo, kept for the few things that must stand out
+     (the update button). White on it is 5.4:1. */
+  --signal: #5b5bd6;
+  --signal-glow: rgb(91 91 214 / 0.65);
+
   /* Selection: a neutral base under the accent tint, so even a gray accent reads. */
   --selection: linear-gradient(var(--accent-fill), var(--accent-fill)), rgb(255 255 255 / 0.7);
   --selection-label: var(--label);

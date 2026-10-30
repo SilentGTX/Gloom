@@ -364,6 +364,9 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
    - Installer 110 MB, nearly all Electron (its exe alone is 238 MB). node-pty runs from
      `app.asar.unpacked` on its prebuilt N-API binaries: no compiler needed, no rebuild.
    - Electron 45 no longer downloads itself on install; `postinstall` runs `install-electron`.
+   - **Updates came early** (planned for Phase 3), in 0.2.0, so you could watch one arrive:
+     `src/main/updater.ts`, `npm run release`, and an indigo **Update** capsule in the chat toolbar,
+     the one coloured control. The busy-deferral waits for Phase 4, when sessions run.
 2. **Library.** Transcript indexer in a utility process (tail reads, cache, subagent files skipped),
    watcher, library store, folder tree (nesting, rename, drag, keyboard, context menu, smart folders,
    search, filing rules, subtree delete with Undo), session list (pin, archive, rename).

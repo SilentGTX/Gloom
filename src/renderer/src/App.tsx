@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { TooltipProvider } from './components/ui/Tooltip'
 import { Shell } from './features/shell/Shell'
+import { UpdatedNote } from './features/update/UpdateButton'
 import { useCommandBridge } from './lib/commands'
 import { useApplyWindowState, useWindowState } from './lib/window-state'
 import { useUi } from './stores/ui'
@@ -20,6 +21,7 @@ export function App() {
   return (
     <TooltipProvider>
       <Shell />
+      <UpdatedNote />
     </TooltipProvider>
   )
 }

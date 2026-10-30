@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { captureWindow, launch, setWindowSize } from './app'
+import { captureWindow, launch, sendUpdateReady, setWindowSize } from './app'
 
 // Captures of the window as Windows draws it (caption buttons, border), in
 // light and dark, with glass as this PC's settings give it and with glass on:
@@ -27,6 +27,11 @@ for (const theme of ['light', 'dark'] as const) {
       await page.waitForTimeout(500)
       const name = `${theme}-glass-${glass}`
       await captureWindow(app, join(dir, `shell-${name}.png`))
+
+      // The update button once it has settled after lighting up.
+      await sendUpdateReady(app, '0.2.1')
+      await page.waitForTimeout(2000)
+      await captureWindow(app, join(dir, `update-${name}.png`))
 
       await page.getByRole('button', { name: 'Menu' }).first().click()
       await page.getByRole('menu').waitFor()

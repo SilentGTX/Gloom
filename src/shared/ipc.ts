@@ -11,8 +11,25 @@ export const IPC = {
   /** main → renderer: CommandDispatch, for commands the renderer handles */
   dispatchCommand: 'command:dispatch',
   /** invoke → AppInfo */
-  appInfo: 'app:info'
+  appInfo: 'app:info',
+  /** invoke → UpdateState */
+  updateState: 'update:state',
+  /** main → renderer: UpdateState */
+  updateStateChanged: 'update:state-changed',
+  /** invoke: quit, install the downloaded update silently and relaunch */
+  installUpdate: 'update:install'
 } as const
+
+export interface UpdateState {
+  /** 'disabled' in development builds. */
+  status: 'idle' | 'checking' | 'downloading' | 'ready' | 'error' | 'disabled'
+  current: string
+  /** The newer version, once one is found. */
+  available?: string
+  /** 0..1 while downloading. */
+  progress?: number
+  error?: string
+}
 
 export interface WindowState {
   focused: boolean
