@@ -112,7 +112,9 @@ test('the sidebar follows Claude Code as it writes, and searches every folder', 
     { type: 'last-prompt', lastPrompt: 'Now sort them by date', sessionId: SESSIONS[2].id }
   ])
   await expect(row('Notes cleanup')).toContainText('Now sort them by date')
-  await expect(row('Notes cleanup').getByRole('img', { name: 'Running in another app' })).toBeVisible()
+  // Running: its title shimmers, and a screen reader hears it.
+  await expect(row('Notes cleanup').locator('.live-title')).toHaveCount(1)
+  await expect(row('Notes cleanup')).toContainText('Running in another app')
   await expect(rowsIn('smart:all').first()).toContainText('Notes cleanup')
 
   const search = page.getByRole('searchbox', { name: 'Search sessions' })

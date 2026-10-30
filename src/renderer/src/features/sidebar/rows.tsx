@@ -204,8 +204,9 @@ export function GroupRow({
 
 /**
  * One session, nested in its group: its title and when it was last active,
- * then what you last asked. A live dot marks a session running in another
- * app; a pin, one you've pinned. Selected, it takes the accent.
+ * then what you last asked. Light sweeps across the title of a session running
+ * in another app; a pin marks one you've pinned. Selected, it takes Gloom's
+ * indigo.
  */
 export function SessionRow({
   row,
@@ -285,22 +286,14 @@ export function SessionRow({
         )}
       >
         <div className="flex min-w-0 items-center gap-1.5">
-          {elsewhere ? (
-            // It lights up only as the session comes alive, not each time the row is drawn again.
-            <span
-              className={cn('status-dot shrink-0', Date.now() - meta.updated < 4000 && 'is-fresh')}
-              role="img"
-              aria-label="Running in another app"
-              title="Running in another app"
-            />
-          ) : entry?.pinned ? (
-            <Pin size={11} strokeWidth={2} className="row-secondary shrink-0 rotate-45" aria-label="Pinned" />
-          ) : null}
+          {entry?.pinned && <Pin size={11} strokeWidth={2} className="row-secondary shrink-0 rotate-45" aria-label="Pinned" />}
           {renaming ? (
             <RenameField initial={title} label="Session name" onDone={onRenameEnd} className="text-[0.875rem] font-semibold" />
           ) : (
-            <span className="row-label min-w-0 flex-1 truncate text-[0.875rem] leading-snug font-semibold">{title}</span>
+            <span className={cn('row-label min-w-0 flex-1 truncate text-[0.875rem] leading-snug font-semibold', elsewhere && !selected && 'live-title')}>{title}</span>
           )}
+          {/* The shimmer says it to the eye ("Now" too, under reduced motion); this says it to a screen reader. */}
+          {elsewhere && <span className="sr-only">Running in another app</span>}
           <time dateTime={new Date(meta.updated).toISOString()} title={fullDate(meta.updated)} className="row-secondary shrink-0 pl-1 text-[0.75rem] tabular">
             {relativeTime(meta.updated, now)}
           </time>
