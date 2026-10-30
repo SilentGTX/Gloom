@@ -38,6 +38,9 @@ npm test           # unit tests (vitest)
 npm run e2e        # end-to-end tests against the built app; run `npm run build` first
 ```
 
+End-to-end tests launch Gloom with a throwaway profile and a throwaway Claude Code folder
+(`CLAUDE_CONFIG_DIR`) holding made-up transcripts, so they never read or change your sessions.
+
 `GLOOM_E2E_REAL_KEYS=1 npm run e2e` also sends real keystrokes through Windows. It takes the
 foreground, and sends nothing unless Gloom is the foreground window.
 

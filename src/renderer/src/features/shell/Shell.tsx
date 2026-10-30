@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useUi } from '../../stores/ui'
 import { ChatColumn } from '../chat/ChatColumn'
 import { FolderPanel } from '../folders/FolderColumn'
+import { LibraryDnd } from '../library/drag'
 import { SessionColumn } from '../sessions/SessionColumn'
 import { CHAT_MIN, computeLayout, FOLDERS, SESSIONS } from './layout'
 import { OverlaySheet } from './OverlaySheet'
@@ -48,45 +49,47 @@ export function Shell() {
   const chatLeading: LeadingControl[] = sessionsInline ? [] : foldersInline ? ['sessions'] : ['menu', 'folders', 'sessions']
 
   return (
-    <div className="paper relative flex h-full overflow-hidden">
-      {foldersInline && (
-        <>
-          <div className="shrink-0 p-[var(--frame)]" style={{ width: column }}>
-            <FolderPanel width={ui.folderWidth} />
-          </div>
-          <Splitter variant="edge" label="Resize folders" value={ui.folderWidth} min={FOLDERS.min} max={folderMax} initial={FOLDERS.initial} onChange={ui.setFolderWidth} />
-        </>
-      )}
-      {sessionsInline && (
-        <>
-          <SessionColumn width={ui.sessionWidth} leading={listLeading} />
-          <Splitter
-            variant="hairline"
-            label="Resize session list"
-            value={ui.sessionWidth}
-            min={SESSIONS.min}
-            max={sessionMax}
-            initial={SESSIONS.initial}
-            onChange={ui.setSessionWidth}
-          />
-        </>
-      )}
-      <ChatColumn leading={chatLeading} withNewSession={!sessionsInline} />
+    <LibraryDnd>
+      <div className="paper relative flex h-full overflow-hidden">
+        {foldersInline && (
+          <>
+            <div className="shrink-0 p-[var(--frame)]" style={{ width: column }}>
+              <FolderPanel width={ui.folderWidth} />
+            </div>
+            <Splitter variant="edge" label="Resize folders" value={ui.folderWidth} min={FOLDERS.min} max={folderMax} initial={FOLDERS.initial} onChange={ui.setFolderWidth} />
+          </>
+        )}
+        {sessionsInline && (
+          <>
+            <SessionColumn width={ui.sessionWidth} leading={listLeading} />
+            <Splitter
+              variant="hairline"
+              label="Resize session list"
+              value={ui.sessionWidth}
+              min={SESSIONS.min}
+              max={sessionMax}
+              initial={SESSIONS.initial}
+              onChange={ui.setSessionWidth}
+            />
+          </>
+        )}
+        <ChatColumn leading={chatLeading} withNewSession={!sessionsInline} />
 
-      <OverlaySheet open={overlay === 'folders'} instant={ui.overlayInstant} area={{ inset: 0 }} inset={FRAME} width={ui.folderWidth} label="Folders" onClose={closeOverlay}>
-        <FolderPanel width={ui.folderWidth} inSheet />
-      </OverlaySheet>
-      <OverlaySheet
-        open={overlay === 'sessions'}
-        instant={ui.overlayInstant}
-        area={{ top: 0, bottom: 0, left: foldersInline ? column : 0, right: 0 }}
-        inset={0}
-        width={ui.sessionWidth}
-        label="Sessions"
-        onClose={closeOverlay}
-      >
-        <SessionColumn width={ui.sessionWidth} className="paper shadow-[var(--glass-shadow)]" />
-      </OverlaySheet>
-    </div>
+        <OverlaySheet open={overlay === 'folders'} instant={ui.overlayInstant} area={{ inset: 0 }} inset={FRAME} width={ui.folderWidth} label="Folders" onClose={closeOverlay}>
+          <FolderPanel width={ui.folderWidth} inSheet />
+        </OverlaySheet>
+        <OverlaySheet
+          open={overlay === 'sessions'}
+          instant={ui.overlayInstant}
+          area={{ top: 0, bottom: 0, left: foldersInline ? column : 0, right: 0 }}
+          inset={0}
+          width={ui.sessionWidth}
+          label="Sessions"
+          onClose={closeOverlay}
+        >
+          <SessionColumn width={ui.sessionWidth} className="paper shadow-[var(--glass-shadow)]" />
+        </OverlaySheet>
+      </div>
+    </LibraryDnd>
   )
 }

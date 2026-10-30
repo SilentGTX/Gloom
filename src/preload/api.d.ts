@@ -1,6 +1,7 @@
 // The typed `window.gloom` bridge, as the renderer sees it.
 import type { CommandId } from '../shared/commands'
-import type { AppInfo, CommandDispatch, SplashState, UpdateState, WindowState } from '../shared/ipc'
+import type { AppInfo, ApplyResult, CommandDispatch, LibraryChange, LibrarySnapshot, SessionsChange, SplashState, UpdateState, WindowState } from '../shared/ipc'
+import type { LibraryOp } from '../shared/library'
 
 export interface GloomApi {
   getWindowState(): Promise<WindowState | null>
@@ -16,6 +17,16 @@ export interface GloomApi {
   installUpdate(): Promise<void>
   /** The update window's page listens here for what to show. */
   onSplashState(listener: (state: SplashState) => void): () => void
+  getLibrary(): Promise<LibrarySnapshot>
+  /** Rejects with the reason when the library refuses (e.g. a folder moved inside itself). */
+  applyLibrary(op: LibraryOp): Promise<ApplyResult>
+  onLibrary(listener: (change: LibraryChange) => void): () => void
+  onSessions(listener: (change: SessionsChange) => void): () => void
+  /** Opens the session's working folder in Explorer; false if it no longer exists. */
+  revealSession(id: string): Promise<boolean>
+  copySessionId(id: string): Promise<void>
+  /** A folder chosen in the system's folder picker, or null. */
+  pickFolder(): Promise<string | null>
 }
 
 declare global {

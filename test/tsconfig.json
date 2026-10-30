@@ -9,7 +9,8 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "paths": { "@shared/*": ["../src/shared/*"] }
   },
   "include": ["**/*.ts", "../playwright.config.ts", "../vitest.config.mts", "../src/preload/api.d.ts"]
 }

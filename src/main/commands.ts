@@ -61,11 +61,9 @@ export function installApplicationMenu(): void {
     })
     groups.set(spec.group, items)
   }
+  // Edit roles keep the standard text shortcuts wired to the focused field; Undo is
+  // the registry's own, so it can undo library changes when no field has focus.
+  groups.get('edit')?.push({ role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' })
   const template: MenuItemConstructorOptions[] = [...groups].map(([group, submenu]) => ({ label: GROUP_LABELS[group], submenu }))
-  // Edit roles keep the standard text shortcuts wired to the focused field.
-  template.splice(1, 0, {
-    label: 'Edit',
-    submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }]
-  })
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }

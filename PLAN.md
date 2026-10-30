@@ -82,6 +82,8 @@ D:\JS\Gloom
 │  ├─ updater.ts                GitHub releases check, download, silent install (Sync's updater)
 │  └─ window.ts                 hidden title bar, titleBarOverlay, sky base colour, accent colour
 ├─ src/worker/transcripts.ts    utility process: index, read and watch ~/.claude/projects
+├─ src/worker/indexer.ts        head and tail reads, the cache, appended bytes
+├─ src/shared/library.ts        folders, placement and filing rules as pure operations
 ├─ src/preload/index.ts         typed `window.gloom` bridge
 ├─ src/shared/ipc.ts            IPC channel names + payload types
 ├─ src/renderer/src/
@@ -330,9 +332,9 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 
 ## Phases
 
-**Status, 2026-10-30: Phases 0 and 1 are done**, and Gloom 0.3.1 is released. Phase 3's installer,
-release script and update window came early (see Phase 1's notes), so what's left of Phase 3 is the
-viewer itself, which opens sessions from Phase 2's library. Phase 2 hasn't started.
+**Status, 2026-10-30: Phases 0 and 1 are done**, and Gloom 0.3.1 is released. **Phase 2 is built
+and waiting for you to try it** (see its notes). Phase 3's installer, release script and update
+window came early (see Phase 1's notes), so what's left of Phase 3 is the viewer itself.
 
 0. **SDK spike.** A node script drives the SDK against your real `claude.exe` and checks: two turns in
    one process, interrupt, resume keeping the session ID, a permission request answered from code,
@@ -380,6 +382,48 @@ viewer itself, which opens sessions from Phase 2's library. Phase 2 hasn't start
 2. **Library.** Transcript indexer in a utility process (tail reads, cache, subagent files skipped),
    watcher, library store, folder tree (nesting, rename, drag, keyboard, context menu, smart folders,
    search, filing rules, subtree delete with Undo), session list (pin, archive, rename).
+   **Built 2026-10-30, waiting for your try.**
+   - **Index:** `src/worker/indexer.ts` in the "Gloom Transcripts" utility process, watched with
+     chokidar. Your 91 transcripts (1.5 GB, the biggest 520 MB) index in **38 ms cold and 5 ms
+     warm**, against the 3 s and 300 ms targets: the CLI re-appends its title and last prompt as it
+     goes, always within 32 KB of the end. The cache is `transcript-index.json` in userData.
+     Gloom follows `CLAUDE_CONFIG_DIR` when it's set, as the CLI does.
+   - **Library:** `src/shared/library.ts` (pure operations, shared with the window), saved by
+     `src/main/library/store.ts` as `library.json` with a `.bak`. Main owns it; the window sends
+     operations and gets every change back.
+   - **Sidebar:** smart folders, your folders nested without limit, Archived at the bottom. One tab
+     stop; arrows, Home/End, type to find, F2, Delete (with Undo), numpad `*`, Enter on to the list;
+     Alt-click a disclosure for everything below. A click on the selected folder renames it, as in
+     Finder. New Folder (Ctrl+Shift+N, or the + by "Folders") makes a top-level folder; "New Folder
+     Inside" is in the folder's context menu.
+   - **Drag:** sessions onto a folder, onto Unfiled (out of folders), Pinned (pins) or Archived
+     (archives, with Undo); folders above, below or into another. Resting on a closed folder opens
+     it. A drop that can't land flies back.
+   - **Session list:** pinned sessions lead under their own heading; rows show the title, when, the
+     last prompt, the project, and the folder when it isn't the one you're in. Ctrl/Shift-click and
+     Shift+arrows select; Ctrl+A; F2 renames; Delete archives with Undo; Left goes back to the
+     sidebar. View options sort (last activity, name, date created) and include subfolders.
+   - **Search** (Ctrl+Shift+F; Ctrl+F stays for find in chat) looks through every folder's titles,
+     prompts and project names. Archived sessions only show when Archived is selected.
+   - **Filing rules** (a folder's context menu): pick from your projects or any folder. As the plan
+     says, a new rule files the Unfiled sessions it covers, and later changes never move a session.
+   - **Pulled forward from Phase 4:** the status dot for a session running elsewhere (its
+     transcript grew in the last minute). The composer lock and Take over stay in Phase 4.
+   - **Until the viewer:** the chat pane shows the selected session's details, with Reveal Working
+     Folder and Copy Session ID. Folder defaults (working folder, model, mode) wait for New Session
+     in Phase 4.
+   - **Undo:** Ctrl+Z (Edit → Undo, named for what it undoes: "Undo Archive") takes back folder and
+     session changes, newest first; it undoes typing when a field has focus. Toasts offer the same
+     Undo for changes that take something out of view; they sit under the title bar.
+   - **Design and motion pass** with `apple-hig` and `apple-design`: rows select on press (a press
+     on a selected row keeps the selection for dragging); selected rows keep full contrast on any
+     accent; Shift+F10 opens the list's context menu at its row; a drop travels into its folder,
+     which acknowledges it, and a refused one flies back; the list fades under its toolbar when
+     scrolled. Deliberate departures: the sidebar nests without limit (Gloom's reason to exist,
+     where Apple suggests two levels), and Move To lists where things are now, dimmed, so the
+     folder tree keeps its shape.
+   - Tests: 38 new unit tests (indexer, operations, filing rules, store recovery) and 5 end-to-end
+     tests; the end-to-end tests now run against a throwaway Claude folder, never yours.
 3. **Read-only viewer, first release.** Paged transcript renderer (newest chain, compaction cut, lazy
    images, find in chat). Gloom is now a usable organizer next to the Claude app; "Resume in
    terminal" opens `claude --resume <id>` in a new terminal window. The installer, the release

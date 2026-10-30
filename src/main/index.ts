@@ -1,9 +1,10 @@
-import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
-import { writeFileSync } from 'node:fs'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { findCommand, type CommandId } from '@shared/commands'
 import { IPC, type AppInfo } from '@shared/ipc'
 import { installApplicationMenu, runCommand } from './commands'
+import { LibraryService } from './library/service'
 import { runPtySmoke } from './smoke'
 import { installPending, launch, updateWindow } from './update-window'
 import { onUpdateState, startBackgroundChecks, updateState } from './updater'
@@ -62,6 +63,38 @@ if (smokeArg) {
       void installPending()
     })
     onUpdateState((state) => mainWindow?.webContents.send(IPC.updateStateChanged, state))
+
+    const library = new LibraryService({
+      library: (change) => mainWindow?.webContents.send(IPC.libraryChanged, change),
+      sessions: (change) => mainWindow?.webContents.send(IPC.sessionsChanged, change)
+    })
+    library.start()
+    app.on('before-quit', () => library.stop())
+    ipcMain.handle(IPC.library, (event) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      return library.snapshot()
+    })
+    ipcMain.handle(IPC.libraryApply, (event, op: unknown) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      return library.apply(op)
+    })
+    ipcMain.handle(IPC.revealSession, async (event, id: unknown) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      const cwd = typeof id === 'string' ? library.session(id)?.cwd : undefined
+      if (!cwd || library.session(id as string)?.remote || !existsSync(cwd)) return false
+      return (await shell.openPath(cwd)) === ''
+    })
+    ipcMain.handle(IPC.copySessionId, (event, id: unknown) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      if (typeof id === 'string' && library.session(id)) clipboard.writeText(id)
+    })
+    ipcMain.handle(IPC.pickFolder, async (event) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const options = { title: 'Choose a Working Folder', properties: ['openDirectory' as const] }
+      const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      return result.canceled ? null : (result.filePaths[0] ?? null)
+    })
 
     // The update window checks for an update first, then hands over to the main window.
     void launch({

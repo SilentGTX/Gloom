@@ -199,6 +199,112 @@
   .paper {
     background: var(--surface);
   }
+
+  /* A session row's text, which turns to the accent's contrast colour when selected in a focused list. */
+  .row-label {
+    color: var(--label);
+  }
+  .row-secondary {
+    color: var(--label-secondary);
+  }
+  .session-row.is-selected {
+    background: var(--row-selected-blur);
+  }
+  .group\/list:focus-within .session-row.is-selected {
+    background: var(--row-selected);
+  }
+  /* Every line in full contrast on the accent: a softened secondary drops below
+     4.5:1 on a saturated accent (Windows' blue). Weight and size keep the hierarchy. */
+  .group\/list:focus-within .session-row.is-selected .row-label,
+  .group\/list:focus-within .session-row.is-selected .row-secondary {
+    color: var(--on-accent);
+  }
+  :root[data-focused='false'] .group\/list:focus-within .session-row.is-selected {
+    background: var(--row-selected-blur);
+  }
+  :root[data-focused='false'] .group\/list:focus-within .session-row.is-selected .row-label {
+    color: var(--label);
+  }
+  :root[data-focused='false'] .group\/list:focus-within .session-row.is-selected .row-secondary {
+    color: var(--label-secondary);
+  }
+
+  /* A disclosure turned from the keyboard snaps. */
+  .tree-instant .disclosure {
+    transition: none;
+  }
+
+  /* Where a dragged item would land. */
+  .drop-inside {
+    background: color-mix(in oklab, var(--accent) 22%, transparent);
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
+  /* A folder that just took a drop acknowledges it: the highlight lets go
+     instead of vanishing. Only opacity animates. */
+  .drop-landed::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: color-mix(in oklab, var(--accent) 22%, transparent);
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+    pointer-events: none;
+    animation: drop-landed 420ms var(--curve-out) forwards;
+  }
+  @keyframes drop-landed {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  /* Rows dissolve as they scroll under the floating toolbar (a scroll edge
+     effect), rather than being sliced at its line. */
+  .scroll-edge {
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14px);
+    mask-image: linear-gradient(to bottom, transparent, #000 14px);
+  }
+
+  /* Gloom's signature: a session's live dot. It lights up once when the
+     session comes alive, then holds a soft, still glow; no endless pulse. */
+  .status-dot {
+    position: relative;
+    display: block;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--status-elsewhere);
+    box-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.35) inset;
+  }
+  .status-dot::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    box-shadow: 0 0 8px 1px var(--status-elsewhere-glow);
+    opacity: 0.7;
+  }
+  .status-dot.is-fresh::after {
+    animation: status-light 1.4s var(--curve-out) both;
+  }
+  @keyframes status-light {
+    0% {
+      opacity: 0;
+    }
+    30% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0.7;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .status-dot::after {
+      animation: none;
+    }
+  }
 }
 
 @utility drag {

@@ -27,14 +27,21 @@ const button = cva(
       pressed: {
         true: 'bg-fill-strong text-label',
         false: ''
+      },
+      tone: {
+        plain: '',
+        // A dialog's default action: the background carries the accent.
+        primary: 'bg-accent font-medium text-[var(--on-accent)] enabled:hover:bg-accent enabled:hover:text-[var(--on-accent)] enabled:hover:brightness-110 enabled:active:bg-accent',
+        // Its other actions sit on a quiet fill.
+        secondary: 'bg-fill-strong text-label enabled:hover:bg-fill-pressed'
       }
     },
-    defaultVariants: { size: 'icon', shape: 'rounded', pressed: false }
+    defaultVariants: { size: 'icon', shape: 'rounded', pressed: false, tone: 'plain' }
   }
 )
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof button> {}
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({ className, size, shape, pressed, type = 'button', ...props }, ref) {
-  return <button ref={ref} type={type} className={cn(button({ size, shape, pressed }), className)} {...props} />
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({ className, size, shape, pressed, tone, type = 'button', ...props }, ref) {
+  return <button ref={ref} type={type} className={cn(button({ size, shape, pressed, tone }), className)} {...props} />
 })

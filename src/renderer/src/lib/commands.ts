@@ -2,9 +2,29 @@
 // owns, and the bridge that receives accelerators from the main process.
 import { useEffect } from 'react'
 import { COMMANDS, findCommand, type CommandId, type CommandSpec } from '@shared/commands'
+import { newFolder } from '../features/folders/FolderColumn'
+import { useLibrary } from '../stores/library'
 import { useUi } from '../stores/ui'
 
+/** Runs once the folders have rendered, wherever they were. */
+function afterFolders(viaKeyboard: boolean, then: () => void) {
+  useUi.getState().showFolders(viaKeyboard)
+  requestAnimationFrame(() => requestAnimationFrame(then))
+}
+
 const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
+  'edit.undo': () => {
+    const field = document.activeElement as HTMLElement | null
+    if (field && (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' || field.isContentEditable)) document.execCommand('undo')
+    else void useLibrary.getState().undo()
+  },
+  'folder.new': (k) => afterFolders(k, () => void newFolder(null)),
+  'view.search': (k) =>
+    afterFolders(k, () => {
+      const field = document.querySelector<HTMLInputElement>('input[data-search]')
+      field?.focus()
+      field?.select()
+    }),
   'view.toggleFolders': (k) => useUi.getState().toggleFolders(k),
   'view.toggleSessions': (k) => useUi.getState().toggleSessions(k),
   'view.textBigger': () => useUi.getState().stepText(1),

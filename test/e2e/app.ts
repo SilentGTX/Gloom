@@ -1,22 +1,59 @@
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { IPC, type SplashState, type UpdateState } from '../../src/shared/ipc'
+import { writeTranscript, type FakeSession } from '../support/transcripts'
+
+export interface LaunchOptions {
+  /** Reuse a profile, to see what survives a restart. */
+  userData?: string
+  /** Claude Code's folder (CLAUDE_CONFIG_DIR). By default an empty one: tests never read your sessions. */
+  claudeDir?: string
+}
 
 /** Launches the built app with a throwaway profile, so tests never see your real state. */
-export async function launch(): Promise<{ app: ElectronApplication; page: Page }> {
-  const userData = mkdtempSync(join(tmpdir(), 'gloom-e2e-'))
+export async function launch(options: LaunchOptions = {}): Promise<{ app: ElectronApplication; page: Page }> {
+  const userData = options.userData ?? tempDir('gloom-e2e-')
+  const claudeDir = options.claudeDir ?? fakeClaude([])
   const app = await electron.launch({
     args: ['.', `--user-data-dir=${userData}`],
     cwd: join(__dirname, '..', '..'),
+    env: { ...process.env, CLAUDE_CONFIG_DIR: claudeDir },
     // Playwright forces a light colour scheme by default; follow nativeTheme like the real app.
     colorScheme: null
   })
   const page = await app.firstWindow()
   await page.waitForSelector('main')
   return { app, page }
+}
+
+export function tempDir(prefix: string): string {
+  return mkdtempSync(join(tmpdir(), prefix))
+}
+
+/** A Claude Code folder holding these sessions' transcripts. */
+export function fakeClaude(sessions: FakeSession[]): string {
+  const dir = tempDir('gloom-claude-')
+  mkdirSync(join(dir, 'projects'), { recursive: true })
+  for (const s of sessions) writeTranscript(join(dir, 'projects'), s)
+  return dir
+}
+
+/** An ISO time this many minutes ago. */
+export function minutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60_000).toISOString()
+}
+
+/** Drags with real pointer events, in steps, as dnd kit expects. */
+export async function dragTo(page: Page, from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> {
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(from.x + 12, from.y + 6, { steps: 4 })
+  await page.mouse.move(to.x, to.y, { steps: 12 })
+  await page.waitForTimeout(80)
+  await page.mouse.up()
 }
 
 /**
@@ -92,9 +129,10 @@ interface UpdateWindowHook {
 /** Opens the update window (development builds hand tests its controls) and returns its page. */
 export async function openUpdateWindow(app: ElectronApplication): Promise<Page> {
   await app.evaluate(() => (globalThis as unknown as UpdateWindowHook).gloomUpdateWindow.open())
-  const page = app.windows().find((p) => p.url().includes('splash.html'))
-  if (!page) throw new Error('the update window did not open')
-  return page
+  // Playwright can learn of the new window a moment after it opens.
+  const find = () => app.windows().find((p) => p.url().includes('splash.html'))
+  await expect.poll(() => !!find(), { message: 'the update window did not open', timeout: 5000 }).toBe(true)
+  return find()!
 }
 
 export async function showInUpdateWindow(app: ElectronApplication, state: SplashState): Promise<void> {

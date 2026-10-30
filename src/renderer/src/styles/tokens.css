@@ -64,6 +64,19 @@
   /* Selection: a neutral base under the accent tint, so even a gray accent reads. */
   --selection: linear-gradient(var(--accent-fill), var(--accent-fill)), rgb(255 255 255 / 0.7);
   --selection-label: var(--label);
+  /* A list's selection while it has focus is the accent itself, as in Mail;
+     without focus it settles to a neutral gray. */
+  --row-selected: var(--accent);
+  --row-selected-blur: rgb(22 18 38 / 0.1);
+
+  /* Destroys something (Delete Folder). 5.3:1 on white. */
+  --destructive: #d70015;
+  /* A field you type into, raised off the glass or paper. */
+  --field: rgb(255 255 255 / 0.92);
+
+  /* A session running in another app: a periwinkle from the dusk, lit softly. */
+  --status-elsewhere: #6f7ff0;
+  --status-elsewhere-glow: rgb(111 127 240 / 0.55);
 
   /* Type: the system face, size-specific tracking, rem so text size scales. */
   --typeface-text: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
@@ -134,6 +147,11 @@
     --scrim: rgb(4 2 14 / 0.4);
 
     --selection: linear-gradient(var(--accent-fill), var(--accent-fill)), rgb(255 255 255 / 0.12);
+    --row-selected-blur: rgb(255 255 255 / 0.1);
+    --destructive: #ff6961;
+    --field: rgb(0 0 0 / 0.28);
+    --status-elsewhere: #8f9cff;
+    --status-elsewhere-glow: rgb(143 156 255 / 0.5);
   }
 }
 

@@ -2,7 +2,7 @@
 // menu from it so accelerators work; the renderer's menu button lists the same
 // entries; the command palette will read it later.
 
-export type CommandGroup = 'file' | 'view' | 'help' | 'developer'
+export type CommandGroup = 'file' | 'edit' | 'view' | 'help' | 'developer'
 
 export interface CommandSpec {
   id: string
@@ -18,9 +18,13 @@ export interface CommandSpec {
 
 export const COMMANDS = [
   { id: 'session.new', label: 'New Session', group: 'file', accelerator: 'CmdOrCtrl+N', runs: 'renderer', arrivesIn: 'Phase 4' },
-  { id: 'folder.new', label: 'New Folder', group: 'file', accelerator: 'CmdOrCtrl+Shift+N', runs: 'renderer', arrivesIn: 'Phase 2' },
+  { id: 'folder.new', label: 'New Folder', group: 'file', accelerator: 'CmdOrCtrl+Shift+N', runs: 'renderer' },
   { id: 'app.settings', label: 'Settings…', group: 'file', accelerator: 'CmdOrCtrl+,', runs: 'renderer', arrivesIn: 'Phase 4' },
   { id: 'app.quit', label: 'Quit Gloom', group: 'file', accelerator: 'CmdOrCtrl+Q', runs: 'main' },
+  // Undoes typing in a field, otherwise the last change to your folders and sessions.
+  { id: 'edit.undo', label: 'Undo', group: 'edit', accelerator: 'CmdOrCtrl+Z', runs: 'renderer' },
+  // Ctrl+F stays for finding in a chat (Phase 3); this searches every session.
+  { id: 'view.search', label: 'Search Sessions', group: 'view', accelerator: 'CmdOrCtrl+Shift+F', runs: 'renderer' },
   { id: 'view.toggleFolders', label: 'Show or Hide Folders', group: 'view', accelerator: 'CmdOrCtrl+B', runs: 'renderer' },
   // Not Ctrl+Alt: that is AltGr on many keyboard layouts.
   { id: 'view.toggleSessions', label: 'Show or Hide Session List', group: 'view', accelerator: 'CmdOrCtrl+Shift+B', runs: 'renderer' },
@@ -43,6 +47,7 @@ export type CommandId = (typeof COMMANDS)[number]['id']
 
 export const GROUP_LABELS: Record<CommandGroup, string> = {
   file: 'File',
+  edit: 'Edit',
   view: 'View',
   help: 'Help',
   developer: 'Developer'
