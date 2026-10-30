@@ -22,16 +22,24 @@ npm run release -- "What changed"   # builds the installer from HEAD, publishes 
 Bump `version` in package.json, commit and push first: the release is tagged at HEAD. Updates
 work like Sync's (and Discord's): at launch Gloom's window shows the update screen while it checks
 the latest release, through your `gh` login since the repo is private. A newer one downloads there
-with progress, is checked against its SHA-256, installs silently and Gloom reopens on it. While
-Gloom runs, a check every half hour lights up the download arrow in the title bar; clicking it
-turns the window into the same screen. Help → Check for Updates… checks right away, and
-Developer → Preview Update Screen plays the screen's steps without installing anything. `GLOOM_UPDATE_DRY_RUN=1` makes a packaged build do
-everything but run the installer.
+with progress and is checked against its SHA-256. It unpacks beside the running copy, in
+`versions\<version>` in Gloom's install folder, and the new version takes the window over without
+it closing: its window opens on top of the old one on the same screen, the old one quits, and the
+screen gives way to the new app (`src/main/versions.ts`, `src/main/handover.ts`). The installer's
+copy then starts the newest version that has run, and Gloom's shortcuts point straight at it.
+Where that can't be done (or from versions before it), the installer runs silently and Gloom
+reopens. While Gloom runs, a check every half hour lights up the download arrow in the title bar;
+clicking it turns the window into the same screen. Help → Check for Updates… checks right away,
+and Developer → Preview Update Screen plays the screen's steps without installing anything.
+`GLOOM_UPDATE_DRY_RUN=1` makes a packaged build do everything but install, and
+`GLOOM_UPDATE_FROM=<folder>` reads `update.json` and its files from a folder instead of GitHub,
+to try an update without publishing it.
 
-The app icon is `icon.png`, and `update.png` is the same cloud without its tile, for the update
-screen (both square PNGs, at least 256 px). After changing either, run
-`npx tsx scripts/make-icons.mts`: it resizes them into `build/icon.ico` (the app, the installer
-and the uninstaller), `build/icon.png`, and `src/renderer/src/assets/update.png`.
+Gloom's cloud is `update.png` (a square PNG, at least 256 px). The app icon is the cloud on a
+violet tile, which `scripts/make-icons.mts` draws; the update screen shows the cloud on its own.
+After changing the cloud or the tile, run `npx tsx scripts/make-icons.mts`: it writes
+`build/icon.ico` (the app, the installer and the uninstaller), `build/icon.png`, and
+`src/renderer/src/assets/update.png`.
 
 ## Test
 

@@ -1,17 +1,22 @@
 // Updates the way Sync does them (and Discord before it). At launch the update
 // screen checks the private repo's latest GitHub release; while Gloom runs, a
 // check every half hour lights up the Update button. Either way the update
-// screen downloads the installer the release names, verifies its SHA-256 and
-// runs it silently; the installer closes Gloom and starts the new version.
+// screen downloads the app the release carries, verifies its SHA-256 and
+// unpacks it beside the running copy, which hands its window over to it
+// (versions.ts, handover.ts). Where that can't be done, the installer runs
+// silently instead, closing Gloom and starting the new version.
 //
-// A release carries the NSIS installer and update.json:
-//   { "version": "0.3.1", "installer": "Gloom-Setup-0.3.1.exe", "sha256": "…", "size": 123 }
-// (scripts/release.mjs makes both). The repo is private, so requests carry your
-// `gh` login's token, or GLOOM_GITHUB_TOKEN when set.
+// A release carries the NSIS installer, a zip of the app and update.json:
+//   { "version": "1.2.3", "installer": "Gloom-Setup-1.2.3.exe", "sha256": "…", "size": 123,
+//     "zip": "Gloom-1.2.3-win.zip", "zipSha256": "…", "zipSize": 456 }
+// (scripts/release.mjs makes them; older versions of Gloom read only the installer's
+// fields). The repo is private, so requests carry your `gh` login's token, or
+// GLOOM_GITHUB_TOKEN when set. GLOOM_UPDATE_FROM=<folder> reads update.json and
+// its files from a folder instead, to try an update without publishing it.
 import { app } from 'electron'
 import { execFile, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs'
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -25,13 +30,30 @@ const CHECK_EVERY_MS = 30 * 60 * 1000
 /** A download that receives nothing for this long has stalled. */
 const STALL_MS = 30_000
 
-export interface Release {
-  version: string
-  installer: string
+/** A file the release carries. */
+export interface Asset {
+  name: string
   sha256: string
   size: number
-  /** The installer's asset id in the release. */
+  /** Its id in the GitHub release. */
   assetId: number
+}
+
+export interface Release {
+  version: string
+  installer?: Asset
+  /** The app itself, to unpack beside the running copy. */
+  zip?: Asset
+}
+
+interface Manifest {
+  version: string
+  installer?: string
+  sha256?: string
+  size?: number
+  zip?: string
+  zipSha256?: string
+  zipSize?: number
 }
 interface ReleaseAsset {
   id: number
@@ -87,18 +109,37 @@ async function github(path: string, token: string, signal: AbortSignal, accept =
   return response
 }
 
+/** GLOOM_UPDATE_FROM: a folder standing in for the latest release. */
+const localSource = () => process.env.GLOOM_UPDATE_FROM || null
+
+/** The files update.json names, found by `idOf` (undefined when the release lacks one). */
+function releaseFrom(manifest: Manifest, idOf: (name: string) => number | undefined): Release {
+  const asset = (name: string | undefined, sha256: string | undefined, size: number | undefined): Asset | undefined => {
+    if (!name || !sha256 || size === undefined) return undefined
+    const assetId = idOf(name)
+    if (assetId === undefined) throw new Error(`The release lists ${name} but doesn't include it.`)
+    return { name, sha256, size, assetId }
+  }
+  const release = { version: manifest.version, installer: asset(manifest.installer, manifest.sha256, manifest.size), zip: asset(manifest.zip, manifest.zipSha256, manifest.zipSize) }
+  if (!release.installer && !release.zip) throw new Error(`${MANIFEST} names nothing to install.`)
+  return release
+}
+
 /** The latest release, if it's newer than this Gloom. Throws when GitHub can't be asked. */
 export async function findUpdate(timeoutMs: number): Promise<Release | null> {
+  const source = localSource()
+  if (source) {
+    const manifest = JSON.parse(readFileSync(join(source, MANIFEST), 'utf8')) as Manifest
+    return isNewer(manifest.version, app.getVersion()) ? releaseFrom(manifest, (name) => (existsSync(join(source, name)) ? 0 : undefined)) : null
+  }
   const signal = AbortSignal.timeout(timeoutMs)
   const token = await githubToken()
   const release = (await (await github(`/repos/${REPO}/releases/latest`, token, signal)).json()) as { assets: ReleaseAsset[] }
   const manifestAsset = release.assets.find((a) => a.name === MANIFEST)
   if (!manifestAsset) throw new Error(`The latest release has no ${MANIFEST}.`)
-  const manifest = (await (await github(`/repos/${REPO}/releases/assets/${manifestAsset.id}`, token, signal, 'application/octet-stream')).json()) as Omit<Release, 'assetId'>
+  const manifest = (await (await github(`/repos/${REPO}/releases/assets/${manifestAsset.id}`, token, signal, 'application/octet-stream')).json()) as Manifest
   if (!isNewer(manifest.version, app.getVersion())) return null
-  const installer = release.assets.find((a) => a.name === manifest.installer)
-  if (!installer) throw new Error(`The release lists ${manifest.installer} but doesn't include it.`)
-  return { ...manifest, assetId: installer.id }
+  return releaseFrom(manifest, (name) => release.assets.find((a) => a.name === name)?.id)
 }
 
 async function sha256Of(file: string): Promise<string> {
@@ -107,27 +148,40 @@ async function sha256Of(file: string): Promise<string> {
   return hash.digest('hex')
 }
 
+const downloads = () => join(app.getPath('userData'), 'updates')
+
+/** Downloads are kept until they're installed; Gloom up to date, they go. */
+export function removeDownloads(): void {
+  try {
+    rmSync(downloads(), { recursive: true, force: true })
+  } catch (error) {
+    console.warn('[updater]', error instanceof Error ? error.message : error)
+  }
+}
+
 /**
- * Downloads the release's installer, reporting the bytes received, and checks
- * its SHA-256. An intact earlier download is reused.
+ * Downloads one of the release's files, reporting the bytes received, and
+ * checks its SHA-256. An intact earlier download is reused.
  */
-export async function download(release: Release, onProgress: (received: number) => void): Promise<string> {
-  const dir = join(app.getPath('userData'), 'updates')
-  const file = join(dir, release.installer)
-  if (existsSync(file) && (await sha256Of(file)) === release.sha256) {
-    onProgress(release.size)
+export async function download(asset: Asset, onProgress: (received: number) => void): Promise<string> {
+  const file = join(downloads(), asset.name)
+  if (existsSync(file) && (await sha256Of(file)) === asset.sha256) {
+    onProgress(asset.size)
     return file
   }
-  mkdirSync(dir, { recursive: true })
+  mkdirSync(downloads(), { recursive: true })
   const part = `${file}.part`
   const stalled = new AbortController()
   let timer = setTimeout(() => stalled.abort(), STALL_MS)
   const hash = createHash('sha256')
   let received = 0
   try {
-    const response = await github(`/repos/${REPO}/releases/assets/${release.assetId}`, await githubToken(), stalled.signal, 'application/octet-stream')
+    const source = localSource()
+    const body = source
+      ? createReadStream(join(source, asset.name))
+      : Readable.fromWeb((await github(`/repos/${REPO}/releases/assets/${asset.assetId}`, await githubToken(), stalled.signal, 'application/octet-stream')).body as unknown as WebReadableStream)
     await pipeline(
-      Readable.fromWeb(response.body as unknown as WebReadableStream),
+      body,
       async function* (source: AsyncIterable<Buffer>) {
         for await (const chunk of source) {
           clearTimeout(timer)
@@ -146,7 +200,7 @@ export async function download(release: Release, onProgress: (received: number) 
   } finally {
     clearTimeout(timer)
   }
-  if (hash.digest('hex') !== release.sha256) {
+  if (hash.digest('hex') !== asset.sha256) {
     rmSync(part, { force: true })
     throw new Error('The download was damaged.')
   }
@@ -161,8 +215,6 @@ export async function download(release: Release, onProgress: (received: number) 
  * `--force-run` starts the new version when it's done.
  */
 export function install(file: string): void {
-  // GLOOM_UPDATE_DRY_RUN: everything but the install, for trying a packaged build.
-  if (process.env.GLOOM_UPDATE_DRY_RUN) return
   spawn(file, ['--updated', '/S', '--force-run'], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
 }
 

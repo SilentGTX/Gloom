@@ -8,7 +8,8 @@ const shared = { '@shared': resolve('src/shared') }
 export default defineConfig({
   main: {
     resolve: { alias: shared },
-    build: { externalizeDeps: true }
+    // original-fs is Electron's fs without asar support, built into Electron.
+    build: { externalizeDeps: true, rollupOptions: { external: ['original-fs'] } }
   },
   preload: {
     resolve: { alias: shared },

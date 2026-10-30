@@ -1,11 +1,17 @@
 // The update screen: Gloom's own window becomes Sync's update window (Discord's,
 // before it), at the size it is. It checks for an update at launch, downloads
-// and installs it with progress; the installer then starts the new version.
-// Clicking Update runs the same steps, and the app is back if they fail. This
-// module holds what the screen shows; index.ts hands it to the window.
-import { app, dialog, type BrowserWindow, type MessageBoxOptions } from 'electron'
+// it with progress and unpacks it beside the running copy, then the new
+// version takes the window over (handover.ts) and the screen gives way to it.
+// Where an update can't unpack beside it, the installer runs instead and
+// Gloom closes and reopens. Clicking Update runs the same steps, and the app
+// is back if they fail. This module holds what the screen shows; index.ts
+// hands it to the window.
+import { app, BrowserWindow, dialog, type MessageBoxOptions } from 'electron'
 import type { UpdateScreen } from '@shared/ipc'
-import { download, findUpdate, install, offerUpdate, pendingUpdate, updatesEnabled, type Release } from './updater'
+import { handOver } from './handover'
+import { download, findUpdate, install, offerUpdate, pendingUpdate, removeDownloads, updatesEnabled, type Release } from './updater'
+import { canInstallBeside, discard, unpack } from './versions'
+import { saveWindowState } from './window'
 
 /** How long the launch check may keep the screen up. */
 const LAUNCH_CHECK_MS = 6_000
@@ -35,17 +41,40 @@ function show(next: UpdateScreen | null): void {
 
 /** Downloads and installs on the screen. Resolves false, after saying so, if that failed. */
 async function apply(release: Release): Promise<boolean> {
-  const { version, size } = release
+  const { version } = release
   applying = true
   try {
+    const beside = release.zip !== undefined && canInstallBeside()
+    const asset = beside ? release.zip : release.installer
+    if (!asset) throw new Error(`Gloom ${version} can only install beside this copy, which can't be done here.`)
+    const { size } = asset
     let sentAt = 0
     show({ status: 'downloading', version, received: 0, total: size })
-    const file = await download(release, (received) => {
+    const file = await download(asset, (received) => {
       if (Date.now() - sentAt < 50 && received < size) return
       sentAt = Date.now()
       show({ status: 'downloading', version, received, total: size })
     })
-    show({ status: 'installing', version })
+    show({ status: 'installing', version, reopens: !beside })
+    // GLOOM_UPDATE_DRY_RUN: everything but installing, for trying a packaged build.
+    if (process.env.GLOOM_UPDATE_DRY_RUN) {
+      await pause(2_000)
+      app.quit()
+      return true
+    }
+    if (beside) {
+      const exe = await unpack(file, version)
+      removeDownloads()
+      // The new version opens its window where this one is, on top of it.
+      show({ status: 'starting', version })
+      for (const win of BrowserWindow.getAllWindows()) saveWindowState(win)
+      if (await handOver(exe)) {
+        app.quit()
+        return true
+      }
+      discard(exe)
+      throw new Error(`Gloom ${version} didn’t start.`)
+    }
     await pause(800)
     install(file)
     // The installer waits a moment for Gloom to close; the screen stays up meanwhile.
@@ -73,17 +102,34 @@ export async function launchCheck(): Promise<void> {
   if (!updatesEnabled() || process.argv.includes('--no-update')) return
   const startedAt = Date.now()
   show({ status: 'checking' })
-  const release = await findUpdate(LAUNCH_CHECK_MS).catch((error: unknown) => {
-    // Offline, or no GitHub sign-in: Gloom starts as it is.
-    console.warn('[updater]', error instanceof Error ? error.message : error)
-    return null
-  })
+  let checked = false
+  const release = await findUpdate(LAUNCH_CHECK_MS).then(
+    (found) => ((checked = true), found),
+    (error: unknown) => {
+      // Offline, or no GitHub sign-in: Gloom starts as it is.
+      console.warn('[updater]', error instanceof Error ? error.message : error)
+      return null
+    }
+  )
   if (release) {
     offerUpdate(release)
     if (await apply(release)) return
+  } else if (checked) {
+    // Up to date: whatever was downloaded before is installed.
+    removeDownloads()
   }
   await pause(MIN_SHOWN_MS - (Date.now() - startedAt))
   show(null)
+}
+
+/** Taking over from the previous version (handover.ts): the screen says this one is starting. */
+export function showStarting(): void {
+  show({ status: 'starting', version: app.getVersion() })
+}
+
+/** The app is drawn under the screen. After a moment, so the swap of windows has settled, the screen goes. */
+export function finishStarting(): void {
+  if (screen?.status === 'starting') setTimeout(() => screen?.status === 'starting' && show(null), 400)
 }
 
 /** The Update button: the window becomes the update screen, which downloads and installs. */
@@ -132,8 +178,10 @@ export async function preview(): Promise<void> {
     show({ status: 'downloading', version, received: Math.round((total * step) / 60), total })
     await pause(50)
   }
-  show({ status: 'installing', version })
+  show({ status: 'installing', version, reopens: false })
   await pause(2_200)
+  show({ status: 'starting', version })
+  await pause(1_200)
   show(null)
 }
 

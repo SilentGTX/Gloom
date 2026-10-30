@@ -94,6 +94,8 @@ D:\JS\Gloom
 │  ├─ notify.ts                 toasts, taskbar flash and badge
 │  ├─ updater.ts                GitHub releases check, download, silent install (Sync's updater)
 │  ├─ update-screen.ts          the update screen's steps: launch check, download, install, relaunch
+│  ├─ versions.ts               updates unpacked beside the running copy; the newest runs at launch
+│  ├─ handover.ts               the new version takes the window over from the old one
 │  └─ window.ts                 hidden title bar, titleBarOverlay, sky base colour, accent colour
 ├─ src/worker/transcripts.ts    utility process: index, read and watch ~/.claude/projects
 ├─ src/worker/indexer.ts        head and tail reads, the cache, appended bytes
@@ -224,8 +226,10 @@ back to Gloom with one overdue). When it finds a newer release, a download arrow
 title bar, like Sync's: just the arrow, in Gloom's indigo, in its own glass capsule, with "Update
 Ready" as its tooltip. Clicking it turns the window, at its size, into the update screen: the app
 goes from view and the window shows Sync's update window (the icon, what it's doing, the
-download's progress, the version), installs silently and reopens Gloom. At launch the same screen
-is the window's first frame while the check runs, and fades to the app when there's nothing new.
+download's progress, the version). The update unpacks beside the running copy and the new version
+takes the window over without it closing (Phase 1's notes, "After 0.6.2"); where it can't, the
+installer runs silently and reopens Gloom. At launch the same screen is the window's first frame
+while the check runs, and fades to the app when there's nothing new.
 Phase 4 adds the rest: clicking waits until no session is mid-turn (the Claude app defers its
 updates the same way), saves the window and the open session, and relaunches with both restored.
 Stopped sessions resume on their next send.
@@ -377,7 +381,9 @@ released. **Small changes before Phase 4, at your request, released as Gloom 0.5
 becomes the update screen instead of opening a second window, and the Update button is just a
 download arrow (Phase 1's notes, "After 0.5.0"). **One sidebar** (below) is out as Gloom 0.6.0,
 and **your new icon**, the gloomy cloud, as Gloom 0.6.1 (Phase 1's notes, "After 0.6.0"). The
-sidebar's click and motion fixes are out as Gloom 0.6.2. **Next: Phase 4**, live chat, on your OK.
+sidebar's click and motion fixes are out as Gloom 0.6.2. **Updates that don't close the window**,
+the cloud on a violet tile and the shimmering title of a running session are out as Gloom 0.6.3
+(Phase 1's notes and the sidebar's, "After 0.6.2"). **Next: Phase 4**, live chat, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -451,10 +457,11 @@ disclosure pages; `apple-design` for motion).
 - **After 0.6.2, at your request:** a running session's title shimmers, as in Claude Code (not on
   the selected row, which the indigo already marks), and the dot in front of it is gone; "Now"
   beside it stays, and a screen reader hears "Running in another app". The info card keeps its
-  small dot beside "Running in the Claude app". A group shows five sessions, then Show More for
-  five more. And sessions keep their places: sorting by last activity swapped two running
-  sessions every time either wrote, so the default is now date created, newest first (your
-  setting moved over; Last Activity is still in View › Sort Sessions By).
+  small dot beside "Running in the Claude app". Released as Gloom 0.6.3.
+- **After 0.6.4, at your request:** a group shows five sessions, then Show More for five more. And
+  sessions keep their places: sorting by last activity swapped two running sessions every time
+  either wrote, so the default is now date created, newest first (your setting moved over; Last
+  Activity is still in View › Sort Sessions By).
 - Built in its own worktree (`D:\JS\Gloom-sidebar`) while 0.5.1 was being made in the main
   checkout, then merged with it. Released as 0.6.0 after a check of the packaged build: it opens
   on the update screen, then the sidebar, a session and its info card, from inside the app archive.
@@ -521,6 +528,31 @@ disclosure pages; `apple-design` for motion).
      sparkle: there it means "new", not "Gloom". Released as Gloom 0.6.1 after a check of the
      packaged build: Gloom.exe carries the icon, and the update screen shows the cloud from inside
      the app archive.
+   - **After 0.6.2, at your request:** on the taskbar the icon looked odd beside Claude's. Its
+     dark tile was 1.13:1 against the dark taskbar (Claude's orange is 5.3:1), and it filled only
+     88% of its image, so Windows drew it at about 21 px against Claude's 24. You picked the
+     cloud on a violet tile from three mock-ups: `scripts/make-icons.mts` draws a rounded square
+     edge to edge (#a78bfa to #6d28d9) and puts `update.png` on it; `icon.png` is gone. Released
+     as Gloom 0.6.3.
+   - **After 0.6.2, at your request: updates without the window closing**, the way Discord
+     installs them. A release also carries the app as a zip, which unpacks beside the running copy
+     into `versions\<version>` in the install folder (`src/main/versions.ts`), so nothing has to
+     close. The screen says "Starting Gloom x", the new version opens its window on top of the old
+     one, in the same place and on the same screen, the old one quits, and the screen gives way to
+     the new app with "Updated to Gloom x" (`src/main/handover.ts`). The new version shows only the
+     screen until the old one has gone, because the app's settings live in storage the old one
+     holds; it opens fully clear and turns opaque once Windows' opening zoom is over, and the
+     cloud breathes in time with the clock, so the swap can't be seen. Checked with two packaged
+     builds: there was a Gloom window on screen at every moment, about 3 s from launch to the new
+     version. At launch the installer's copy starts the newest version that has shown its window
+     before, and once one has, Gloom's own shortcuts (Start menu, desktop, taskbar) point straight
+     at it, so launches don't go through the old copy (about 0.4 s). A version that never comes up
+     is removed and Gloom stays as it was; old versions go once a newer one has settled in. Where
+     an update can't unpack beside it (no zip, or a folder it can't write), the installer runs as
+     before. `GLOOM_UPDATE_FROM=<folder>` tries an update from a folder. Found on the way:
+     Electron's fs keeps any `app.asar` it touches open, which locked the new folder, so this uses
+     `original-fs`. Released as Gloom 0.6.3, whose packaged build was checked; your copy installs
+     0.6.3 the old way, since 0.6.2 runs that update, and the ones after it in place.
 2. **Library.** Transcript indexer in a utility process (tail reads, cache, subagent files skipped),
    watcher, library store, folder tree (nesting, rename, drag, keyboard, context menu, smart folders,
    search, filing rules, subtree delete with Undo), session list (pin, archive, rename).

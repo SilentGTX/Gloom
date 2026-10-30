@@ -32,6 +32,10 @@ export interface GloomApi {
   /** What the update screen shows, or null when it's down. */
   getUpdateScreen(): Promise<UpdateScreen | null>
   onUpdateScreen(listener: (screen: UpdateScreen | null) => void): () => void
+  /** Taking over from the previous version: resolves once that one has quit and the app may load. */
+  handoverWait(): Promise<void>
+  /** The app is drawn under the update screen, which can go. */
+  handoverDone(): Promise<void>
   getLibrary(): Promise<LibrarySnapshot>
   /** Rejects with the reason when the library refuses (e.g. a folder moved inside itself). */
   applyLibrary(op: LibraryOp): Promise<ApplyResult>

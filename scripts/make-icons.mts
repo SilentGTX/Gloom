@@ -1,8 +1,9 @@
-// Turns Gloom's artwork at the repo root into the files the app uses: the app
-// icon, icon.png, into build/icon.ico, which electron-builder puts on
-// Gloom.exe, the installer and the uninstaller, and build/icon.png; and the
-// cloud without its tile, update.png, into src/renderer/src/assets/update.png
-// for the update screen. Run after changing either:
+// Turns Gloom's cloud, update.png at the repo root, into the files the app
+// uses: the app icon, the cloud on a violet tile, into build/icon.ico, which
+// electron-builder puts on Gloom.exe, the installer and the uninstaller, and
+// build/icon.png; and the cloud on its own into
+// src/renderer/src/assets/update.png for the update screen. Run after
+// changing the cloud or the tile:
 //   npx tsx scripts/make-icons.mts [--preview <file.png>]
 // --preview also writes every size on a light and a dark taskbar, plus the
 // smallest ones blown up 4x.
@@ -14,14 +15,28 @@ import { Resvg } from '@resvg/resvg-js'
 const SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
 const root = join(import.meta.dirname, '..')
 
-/** The artwork's pixels as resvg decodes them: premultiplied RGBA. */
-function decode(file: string): { size: number; pixels: Buffer } {
+// The tile under the cloud: a rounded square edge to edge, since Windows
+// puts app icons on the taskbar with no plate of their own, in a violet light
+// enough to stand out on a dark taskbar as well as a light one. #a78bfa at
+// the top left to #6d28d9 at the bottom right.
+const TILE = { from: [167, 139, 250], to: [109, 40, 217], corner: 0.22 }
+/** The cloud's image, as a share of the tile's width. */
+const CLOUD_SCALE = 0.84
+
+/** Square artwork in premultiplied linear light. */
+interface Art {
+  size: number
+  pixels: Float32Array
+}
+
+/** The artwork, decoded by resvg. */
+function decode(file: string): Art {
   const png = readFileSync(file)
   if (png.toString('latin1', 1, 4) !== 'PNG') throw new Error(`${file} isn't a PNG`)
   const [width, height] = [png.readUInt32BE(16), png.readUInt32BE(20)]
   if (width !== height || width < 256) throw new Error(`${file} is ${width}×${height} px; the icon needs a square of at least 256 px`)
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${width}"><image href="data:image/png;base64,${png.toString('base64')}" width="${width}" height="${width}" image-rendering="optimizeSpeed"/></svg>`
-  return { size: width, pixels: new Resvg(svg).render().pixels }
+  return { size: width, pixels: linearize(new Resvg(svg).render().pixels) }
 }
 
 // Sizes are averaged in linear light, so the glowing details keep their
@@ -179,23 +194,49 @@ function ico(images: Rendered[]): Buffer {
   return Buffer.concat([directory, ...entries.map((e) => e.data)])
 }
 
-/** The artwork in `file` at the repo root, to render at any size. */
-function artwork(file: string): (size: number) => Rendered {
-  const art = decode(join(root, file))
-  const linear = linearize(art.pixels)
-  return (size) => {
-    const rgba = toRgba(resize(linear, art.size, size))
-    return { size, rgba, png: png(rgba, size) }
+/** The app icon: the cloud, centred on the tile. */
+function onTile(cloud: Art): Art {
+  const n = Math.round(cloud.size / CLOUD_SCALE)
+  const [from, to] = [TILE.from, TILE.to].map((rgb) => rgb.map((v) => toLinear[v]))
+  const radius = TILE.corner * n
+  const pixels = new Float32Array(n * n * 4)
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      // Distance outside the rounded square, for an antialiased edge.
+      const dx = Math.max(Math.abs(x + 0.5 - n / 2) - (n / 2 - radius), 0)
+      const dy = Math.max(Math.abs(y + 0.5 - n / 2) - (n / 2 - radius), 0)
+      const cover = Math.min(1, Math.max(0, 0.5 - (Math.hypot(dx, dy) - radius)))
+      const t = (x + y + 1) / (2 * n)
+      const i = (y * n + x) * 4
+      for (let c = 0; c < 3; c++) pixels[i + c] = (from[c] * (1 - t) + to[c] * t) * cover
+      pixels[i + 3] = cover
+    }
   }
+  const at = Math.round((n - cloud.size) / 2)
+  for (let y = 0; y < cloud.size; y++) {
+    for (let x = 0; x < cloud.size; x++) {
+      const s = (y * cloud.size + x) * 4
+      const d = ((y + at) * n + x + at) * 4
+      const under = 1 - cloud.pixels[s + 3]
+      for (let c = 0; c < 4; c++) pixels[d + c] = cloud.pixels[s + c] + pixels[d + c] * under
+    }
+  }
+  return { size: n, pixels }
 }
 
-const icon = artwork('icon.png')
-const images = SIZES.map(icon)
+function render(art: Art, size: number): Rendered {
+  const rgba = toRgba(resize(art.pixels, art.size, size))
+  return { size, rgba, png: png(rgba, size) }
+}
+
+const cloud = decode(join(root, 'update.png'))
+const icon = onTile(cloud)
+const images = SIZES.map((size) => render(icon, size))
 const screen = join(root, 'src', 'renderer', 'src', 'assets', 'update.png')
 mkdirSync(dirname(screen), { recursive: true })
 writeFileSync(join(root, 'build', 'icon.ico'), ico(images))
-writeFileSync(join(root, 'build', 'icon.png'), icon(512).png)
-writeFileSync(screen, artwork('update.png')(256).png)
+writeFileSync(join(root, 'build', 'icon.png'), render(icon, 512).png)
+writeFileSync(screen, render(cloud, 256).png)
 console.log(`build/icon.ico (${SIZES.join(', ')} px), build/icon.png (512 px) and src/renderer/src/assets/update.png (256 px)`)
 
 const previewAt = process.argv.indexOf('--preview')
