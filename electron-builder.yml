@@ -25,7 +25,10 @@ asarUnpack:
 # node-pty ships prebuilt N-API binaries; rebuilding would need MSVC and isn't required.
 npmRebuild: false
 win:
-  target: nsis
+  # The installer for a first install; the zip is the app itself, which updates
+  # unpack beside the running copy (src/main/versions.ts).
+  target: [nsis, zip]
+  artifactName: Gloom-${version}-win.${ext}
   executableName: Gloom
   # icon.png, resized by scripts/make-icons.mts; the installer and uninstaller use it too.
   icon: build/icon.ico

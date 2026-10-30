@@ -41,6 +41,11 @@ function loadBounds(): SavedBounds {
   return { ...DEFAULT_SIZE, maximized: false }
 }
 
+/** Saves the window's size and place, which the next window opens with. */
+export function saveWindowState(win: BrowserWindow): void {
+  if (!win.isDestroyed()) saveBounds(win)
+}
+
 function saveBounds(win: BrowserWindow) {
   const bounds = win.getNormalBounds()
   const saved: SavedBounds = { ...bounds, maximized: win.isMaximized() }
@@ -91,8 +96,18 @@ export function rendererUrl(): string {
   return process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(join(__dirname, '../renderer/index.html')).href
 }
 
-/** The main window. It shows once its page has painted, maximized if it was when it last closed. */
-export function createMainWindow(): BrowserWindow {
+/** How long Windows takes to zoom a new window in. */
+const OPENING_MS = 350
+/** A frame or so for the screen to show the window once it's opaque. */
+const COMPOSITED_MS = 50
+
+/**
+ * The main window. It shows once its page has painted, maximized if it was
+ * when it last closed. With `handover` it takes over from the previous
+ * version's window (handover.ts): it opens on top of it, shows only the update
+ * screen until the app may load, and calls `onShown` once it's fully in view.
+ */
+export function createMainWindow({ handover = false, onShown }: { handover?: boolean; onShown?: () => void } = {}): BrowserWindow {
   const saved = loadBounds()
   const win = new BrowserWindow({
     x: saved.x,
@@ -135,8 +150,18 @@ export function createMainWindow(): BrowserWindow {
 
   win.on('close', () => saveBounds(win))
   win.once('ready-to-show', () => {
+    // Taking over, Windows' opening zoom plays while the window is still clear;
+    // then it turns opaque at once over the old window, which shows the same.
+    if (onShown) win.setOpacity(0)
     if (saved.maximized) win.maximize()
     else win.show()
+    if (!onShown) return
+    win.moveTop()
+    setTimeout(() => {
+      if (win.isDestroyed()) return
+      win.setOpacity(1)
+      setTimeout(onShown, COMPOSITED_MS)
+    }, OPENING_MS)
   })
 
   // Model output is untrusted: no in-app navigation, no new windows, and only
@@ -149,7 +174,8 @@ export function createMainWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
-  if (process.env.ELECTRON_RENDERER_URL) void win.loadURL(process.env.ELECTRON_RENDERER_URL)
-  else void win.loadFile(join(__dirname, '../renderer/index.html'))
+  const query = handover ? '?handover' : ''
+  if (process.env.ELECTRON_RENDERER_URL) void win.loadURL(`${process.env.ELECTRON_RENDERER_URL}${query}`)
+  else void win.loadFile(join(__dirname, '../renderer/index.html'), handover ? { search: 'handover' } : undefined)
   return win
 }

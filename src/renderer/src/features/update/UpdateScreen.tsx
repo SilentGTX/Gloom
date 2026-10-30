@@ -1,9 +1,12 @@
-import { useLayoutEffect, useRef, type CSSProperties, type RefObject } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'motion/react'
 import type { UpdateScreen as Screen } from '@shared/ipc'
 import cloud from '../../assets/update.png'
 import { cn } from '../../lib/cn'
-import { useUpdateState } from '../../lib/update'
+import { useUpdateScreen, useUpdateState } from '../../lib/update'
+
+/** One full breath of the busy icon (1.6 s each way). */
+const BREATH_MS = 3_200
 
 const mb = (bytes: number) => Math.round(bytes / 1e6)
 
@@ -15,7 +18,9 @@ function words(screen: Screen): [string, string] {
     case 'downloading':
       return [`Downloading Gloom ${screen.version}…`, `${mb(screen.received)} MB of ${mb(screen.total)} MB`]
     case 'installing':
-      return [`Installing Gloom ${screen.version}…`, 'Gloom reopens when it’s done']
+      return [`Installing Gloom ${screen.version}…`, screen.reopens ? 'Gloom reopens when it’s done' : '']
+    case 'starting':
+      return [`Starting Gloom ${screen.version}…`, '']
     case 'failed':
       return ['Couldn’t update Gloom', `Back to Gloom in ${screen.seconds}…`]
   }
@@ -26,7 +31,10 @@ function words(screen: Screen): [string, string] {
  * or installs an update: its size stays, the app goes from view, and the
  * window shows the update window's page. At launch it is the window's first
  * frame; later it fades in over the app. When it's done the light comes up
- * behind the icon as it fades, and the app is there. The app is inert
+ * behind the icon as it fades, and the app is there. An update that unpacks
+ * beside the running copy ends with the new version's window opening on top
+ * of this one on the same screen (handover.ts), so the screen carries on
+ * across the swap and then gives way to the new app. The app is inert
  * meanwhile (App.tsx) and focus waits on the screen.
  */
 export function UpdateScreen({ screen }: { screen: Screen | null }) {
@@ -51,11 +59,19 @@ export function UpdateScreen({ screen }: { screen: Screen | null }) {
   return <AnimatePresence initial={false}>{screen && <Page key="update-screen" screen={screen} root={root} />}</AnimatePresence>
 }
 
+/** The screen on its own, before the app loads (taking over from the previous version, main.tsx). */
+export function UpdateScreenAlone() {
+  return <UpdateScreen screen={useUpdateScreen()} />
+}
+
 function Page({ screen, root }: { screen: Screen; root: RefObject<HTMLDivElement | null> }) {
   // Leaving, the app takes the pointer back at once while the screen fades.
   const present = useIsPresent()
   const reduce = useReducedMotion()
   const version = useUpdateState()?.current
+  // The icon breathes in time with the clock, so the next version's window,
+  // opening on top of this one, takes the breath up where this one is.
+  const [breath] = useState(() => Date.now() % BREATH_MS)
   const [status, detail] = words(screen)
   const progress = screen.status === 'downloading' && screen.total > 0 ? screen.received / screen.total : 0
   const bar =
@@ -78,6 +94,7 @@ function Page({ screen, root }: { screen: Screen; root: RefObject<HTMLDivElement
       data-status={screen.status}
       data-busy={screen.status === 'failed' ? undefined : ''}
       data-leaving={present ? undefined : ''}
+      style={{ '--breath': breath } as CSSProperties}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: reduce ? 0.2 : 0.35, ease: [0.23, 1, 0.32, 1] } }}

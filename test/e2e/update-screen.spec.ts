@@ -12,7 +12,9 @@ test.setTimeout(120_000)
 const STEPS: [name: string, screen: UpdateScreen, status: string, detail: string][] = [
   ['checking', { status: 'checking' }, 'Checking for updates…', ''],
   ['downloading', { status: 'downloading', version: '0.5.1', received: 48_000_000, total: 115_000_000 }, 'Downloading Gloom 0.5.1…', '48 MB of 115 MB'],
-  ['installing', { status: 'installing', version: '0.5.1' }, 'Installing Gloom 0.5.1…', 'Gloom reopens when it’s done'],
+  ['installing', { status: 'installing', version: '0.5.1', reopens: false }, 'Installing Gloom 0.5.1…', ''],
+  ['starting', { status: 'starting', version: '0.5.1' }, 'Starting Gloom 0.5.1…', ''],
+  ['installer', { status: 'installing', version: '0.5.1', reopens: true }, 'Installing Gloom 0.5.1…', 'Gloom reopens when it’s done'],
   ['failed', { status: 'failed', seconds: 3 }, 'Couldn’t update Gloom', 'Back to Gloom in 3…']
 ]
 

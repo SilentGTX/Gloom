@@ -47,7 +47,11 @@ export const IPC = {
   /** invoke → UpdateScreen | null: what the update screen shows, or null when it's down */
   updateScreen: 'update:screen',
   /** main → renderer: UpdateScreen | null */
-  updateScreenChanged: 'update:screen-changed'
+  updateScreenChanged: 'update:screen-changed',
+  /** invoke: resolves once the previous version has quit, when this window took it over */
+  handoverWait: 'handover:wait',
+  /** invoke: the app is drawn under the update screen, which can go */
+  handoverDone: 'handover:done'
 } as const
 
 export interface UpdateState {
@@ -62,7 +66,10 @@ export interface UpdateState {
 export type UpdateScreen =
   | { status: 'checking' }
   | { status: 'downloading'; version: string; received: number; total: number }
-  | { status: 'installing'; version: string }
+  /** `reopens`: the installer runs, so Gloom closes and reopens; otherwise it unpacks beside the running copy. */
+  | { status: 'installing'; version: string; reopens: boolean }
+  /** The new version is starting in this window (handover.ts). */
+  | { status: 'starting'; version: string }
   /** The update failed; the screen goes in `seconds` and Gloom carries on as it is. */
   | { status: 'failed'; seconds: number }
 

@@ -200,7 +200,10 @@
   /* The update screen (features/update/UpdateScreen.tsx): the window becomes
      Sync's update window, quiet like the app: paper, and Gloom's cloud
      (update.png, the icon without its tile) as the one coloured thing,
-     breathing while it works. Only transform and opacity animate. */
+     breathing while it works. Only transform and opacity animate. Sizes are
+     in pixels, not the app's text size: a new version taking the window over
+     (handover.ts) shows this screen before it can read that setting, and the
+     two must match. */
   .update-screen {
     /* The violet of the cloud's glow. */
     --halo: rgb(150 100 245 / 0.34);
@@ -246,12 +249,17 @@
     height: 96px;
     filter: drop-shadow(0 10px 18px rgb(36 24 110 / 0.3));
   }
-  /* While it works, the cloud breathes and the light behind it shines. */
+  /* While it works, the cloud breathes and the light behind it shines, in time
+     with the clock (--breath), so a window taking over carries on mid-breath. */
   .update-screen[data-busy] .update-icon img {
-    animation: update-breathe 1.6s ease-in-out infinite alternate;
+    animation: update-breathe 1.6s ease-in-out calc(var(--breath, 0) * -1ms) infinite alternate;
   }
   .update-screen[data-busy] .update-halo {
-    animation: update-shine 1.6s ease-in-out infinite alternate;
+    animation: update-shine 1.6s ease-in-out calc(var(--breath, 0) * -1ms) infinite alternate;
+  }
+  /* Starting is where a window taking over comes in, so it arrives already there. */
+  .update-screen[data-status='starting'] :is(.update-mark, .update-name, .update-status) {
+    animation: none;
   }
   /* Leaving: the light comes up and the cloud rises to meet the app as the screen fades. */
   .update-screen[data-leaving] .update-halo {
@@ -287,16 +295,16 @@
   }
   .update-name {
     margin: 0;
-    font: 700 1.5rem/1.15 var(--typeface-display);
+    font: 700 24px/1.15 var(--typeface-display);
     letter-spacing: -0.02em;
     animation: update-rise 500ms var(--curve-out) 80ms both;
   }
   .update-status {
-    min-height: 1.125rem;
+    min-height: 18px;
     margin: 8px 0 0;
     color: var(--label-secondary);
-    font-size: 0.8125rem;
-    line-height: 1.125rem;
+    font-size: 13px;
+    line-height: 18px;
     animation: update-rise 500ms var(--curve-out) 140ms both;
   }
   .update-screen[data-status='failed'] .update-status {
@@ -341,11 +349,11 @@
     }
   }
   .update-detail {
-    min-height: 1rem;
+    min-height: 16px;
     margin: 8px 0 0;
     color: var(--label-secondary);
-    font-size: 0.6875rem;
-    line-height: 1rem;
+    font-size: 11px;
+    line-height: 16px;
     font-variant-numeric: tabular-nums;
   }
   .update-version {
@@ -355,8 +363,8 @@
     left: 0;
     margin: 0;
     color: var(--label-secondary);
-    font-size: 0.6875rem;
-    line-height: 1rem;
+    font-size: 11px;
+    line-height: 16px;
   }
   @media (prefers-reduced-motion: reduce) {
     .update-mark,

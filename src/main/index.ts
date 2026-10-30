@@ -5,12 +5,19 @@ import { findCommand, type CommandId } from '@shared/commands'
 import { IPC, type AppInfo, type ResumeResult } from '@shared/ipc'
 import { parseRef, type Cursor } from '@shared/transcript'
 import { installApplicationMenu, runCommand } from './commands'
+import { parseTakeover, takeOver } from './handover'
 import { LibraryService } from './library/service'
 import { runPtySmoke } from './smoke'
 import { resumeInTerminal } from './terminal'
-import { installPending, launchCheck, onUpdateScreen, updateScreen } from './update-screen'
+import { finishStarting, installPending, launchCheck, onUpdateScreen, showStarting, updateScreen } from './update-screen'
 import { checkOnFocus, onUpdateState, startBackgroundChecks, updateState } from './updater'
+import { markStarted, removeOldVersions, startNewerVersion } from './versions'
 import { createMainWindow, rendererUrl, windowState } from './window'
+
+/** Started by the version it takes the window over from (handover.ts). */
+const takeover = parseTakeover(process.argv)
+/** Older versions are removed once this one has settled in. */
+const TIDY_AFTER_MS = 10_000
 
 // `Gloom.exe --smoke-pty[=<file>]` runs the packaging smoke test headless and
 // exits with its result, so an installed build can be checked from a script.
@@ -24,6 +31,8 @@ if (smokeArg) {
   })
 } else if (!app.requestSingleInstanceLock()) {
   app.quit()
+} else if (!takeover && startNewerVersion()) {
+  // A newer version installed beside this copy runs instead (versions.ts).
 } else {
   let mainWindow: BrowserWindow | null = null
 
@@ -75,7 +84,8 @@ if (smokeArg) {
       sessions: (change) => mainWindow?.webContents.send(IPC.sessionsChanged, change),
       transcript: (change) => mainWindow?.webContents.send(IPC.transcriptChanged, change)
     })
-    library.start()
+    // Taking over, the old version's library runs until it has quit.
+    if (!takeover) library.start()
     app.on('before-quit', () => library.stop())
     ipcMain.handle(IPC.library, (event) => {
       if (!trusted(event)) throw new Error('untrusted sender')
@@ -127,15 +137,41 @@ if (smokeArg) {
       return result.canceled ? null : (result.filePaths[0] ?? null)
     })
 
-    // The update screen checks for an update as the window opens. It goes up
-    // first, so the window's first paint is already the screen.
-    void launchCheck()
-    mainWindow = createMainWindow()
+    // Taking over from the previous version: this window opens on top of its
+    // window, on the update screen, and the app loads once that one has quit.
+    // Otherwise the update screen checks for an update as the window opens; it
+    // goes up first, so the window's first paint is already the screen.
+    let handedOver: Promise<void> = Promise.resolve()
+    if (takeover) {
+      showStarting()
+      let shown!: () => void
+      handedOver = new Promise<void>((resolve) => (shown = resolve))
+        .then(() => takeOver(takeover))
+        .then(() => {
+          library.start()
+          markStarted()
+          mainWindow?.focus()
+        })
+      mainWindow = createMainWindow({ handover: true, onShown: () => shown() })
+    } else {
+      void launchCheck()
+      mainWindow = createMainWindow()
+      mainWindow.once('ready-to-show', markStarted)
+    }
+    ipcMain.handle(IPC.handoverWait, (event) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      return handedOver
+    })
+    ipcMain.handle(IPC.handoverDone, (event) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      finishStarting()
+    })
     mainWindow.on('closed', () => {
       mainWindow = null
     })
     mainWindow.on('focus', checkOnFocus)
     startBackgroundChecks()
+    if (app.isPackaged) void handedOver.then(() => setTimeout(() => void removeOldVersions(), TIDY_AFTER_MS))
   })
 
   app.on('window-all-closed', () => app.quit())
