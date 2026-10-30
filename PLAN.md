@@ -367,8 +367,8 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 **Status, 2026-10-30: Phases 0, 1, 2 and 3 are done**, and Gloom 0.5.0 (Phase 3, the viewer) is
 released. **Small changes before Phase 4, at your request, released as Gloom 0.5.1:** the window
 becomes the update screen instead of opening a second window, and the Update button is just a
-download arrow (Phase 1's notes, "After 0.5.0"). **One sidebar** (below) is built on the branch
-`one-sidebar`, waiting for your OK; then Phase 4.
+download arrow (Phase 1's notes, "After 0.5.0"). **One sidebar** (below) is out as Gloom 0.6.0.
+**Next: Phase 4**, live chat, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -383,7 +383,7 @@ chat, instead of three:
   session's details as a card (working folder, folder, started, last active, started from,
   session ID, with Reveal Working Folder and Copy Session ID).
 
-**Done 2026-10-30, on the branch `one-sidebar`; not released yet.** Built with both Apple skills
+**Done 2026-10-30, released as Gloom 0.6.0.** Built with both Apple skills
 loaded (`apple-hig` with its foundation pages and the sidebar, outline view, toolbar, popover and
 disclosure pages; `apple-design` for motion).
 - **The tree:** `src/renderer/src/features/sidebar/` (`tree.ts` works out the rows, pure and
@@ -432,6 +432,9 @@ disclosure pages; `apple-design` for motion).
   layout; the end-to-end tests rewritten for the sidebar, plus Archived and the info card. The
   window captures in `screenshots.spec.ts` are updated but weren't run: they copy the screen
   where Gloom's window is, so they need it in front, and you were using the PC.
+- Built in its own worktree (`D:\JS\Gloom-sidebar`) while 0.5.1 was being made in the main
+  checkout, then merged with it. Released as 0.6.0 after a check of the packaged build: it opens
+  on the update screen, then the sidebar, a session and its info card, from inside the app archive.
 
 0. **SDK spike.** A node script drives the SDK against your real `claude.exe` and checks: two turns in
    one process, interrupt, resume keeping the session ID, a permission request answered from code,
