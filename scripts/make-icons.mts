@@ -1,31 +1,132 @@
-// Renders Gloom's app icon (src/shared/icon-art.ts) into build/icon.ico, which
-// electron-builder puts on Gloom.exe, the installer and the uninstaller, and
-// build/icon.png. Run after changing the drawing:
+// Turns Gloom's artwork at the repo root into the files the app uses: the app
+// icon, icon.png, into build/icon.ico, which electron-builder puts on
+// Gloom.exe, the installer and the uninstaller, and build/icon.png; and the
+// cloud without its tile, update.png, into src/renderer/src/assets/update.png
+// for the update screen. Run after changing either:
 //   npx tsx scripts/make-icons.mts [--preview <file.png>]
 // --preview also writes every size on a light and a dark taskbar, plus the
 // smallest ones blown up 4x.
-import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { crc32, deflateSync } from 'node:zlib'
 import { Resvg } from '@resvg/resvg-js'
-import { iconSvg } from '../src/shared/icon-art.ts'
 
 const SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
-const build = join(import.meta.dirname, '..', 'build')
+const root = join(import.meta.dirname, '..')
 
-function render(size: number) {
-  const image = new Resvg(iconSvg({ size }), { fitTo: { mode: 'width', value: size } }).render()
-  return { size, png: image.asPng(), rgba: straightAlpha(image.pixels) }
+/** The artwork's pixels as resvg decodes them: premultiplied RGBA. */
+function decode(file: string): { size: number; pixels: Buffer } {
+  const png = readFileSync(file)
+  if (png.toString('latin1', 1, 4) !== 'PNG') throw new Error(`${file} isn't a PNG`)
+  const [width, height] = [png.readUInt32BE(16), png.readUInt32BE(20)]
+  if (width !== height || width < 256) throw new Error(`${file} is ${width}×${height} px; the icon needs a square of at least 256 px`)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${width}"><image href="data:image/png;base64,${png.toString('base64')}" width="${width}" height="${width}" image-rendering="optimizeSpeed"/></svg>`
+  return { size: width, pixels: new Resvg(svg).render().pixels }
 }
 
-/** resvg hands back premultiplied RGBA; icon bitmaps want it straight. */
-function straightAlpha(premultiplied: Buffer): Buffer {
-  const out = Buffer.from(premultiplied)
-  for (let i = 0; i < out.length; i += 4) {
-    const a = out[i + 3]
-    if (a === 0 || a === 255) continue
-    for (let c = 0; c < 3; c++) out[i + c] = Math.min(255, Math.round((out[i + c] * 255) / a))
+// Sizes are averaged in linear light, so the glowing details keep their
+// brightness as they shrink instead of going dim.
+const toLinear = Float32Array.from({ length: 256 }, (_, i) => (i <= 10 ? i / 255 / 12.92 : ((i / 255 + 0.055) / 1.055) ** 2.4))
+const toSrgb = (l: number) => 255 * (l <= 0.0031308 ? l * 12.92 : 1.055 * l ** (1 / 2.4) - 0.055)
+
+/** Premultiplied 8-bit sRGB to premultiplied linear light. */
+function linearize(pixels: Buffer): Float32Array {
+  const out = new Float32Array(pixels.length)
+  for (let i = 0; i < pixels.length; i += 4) {
+    const a = pixels[i + 3] / 255
+    out[i + 3] = a
+    if (a === 0) continue
+    for (let c = 0; c < 3; c++) out[i + c] = toLinear[Math.min(255, Math.round(pixels[i + c] / a))] * a
   }
   return out
+}
+
+const lanczos = (x: number) => (x === 0 ? 1 : Math.abs(x) >= 3 ? 0 : (3 * Math.sin(Math.PI * x) * Math.sin((Math.PI * x) / 3)) / (Math.PI * Math.PI * x * x))
+
+/** For each pixel along one axis of the new size, the source pixels it reads and their weights. */
+function taps(from: number, to: number) {
+  const scale = from / to
+  const stretch = Math.max(scale, 1)
+  return Array.from({ length: to }, (_, i) => {
+    const center = (i + 0.5) * scale
+    const first = Math.max(0, Math.floor(center - 3 * stretch))
+    const last = Math.min(from - 1, Math.ceil(center + 3 * stretch))
+    const weights = Array.from({ length: last - first + 1 }, (_, k) => lanczos((first + k + 0.5 - center) / stretch))
+    const sum = weights.reduce((a, b) => a + b, 0)
+    return { first, weights: weights.map((w) => w / sum) }
+  })
+}
+
+/** A Lanczos-3 resize of square premultiplied RGBA, rows then columns. */
+function resize(src: Float32Array, from: number, to: number): Float32Array {
+  const t = taps(from, to)
+  const rows = new Float32Array(from * to * 4)
+  for (let y = 0; y < from; y++) {
+    for (let x = 0; x < to; x++) {
+      const { first, weights } = t[x]
+      const o = (y * to + x) * 4
+      for (let k = 0; k < weights.length; k++) {
+        const i = (y * from + first + k) * 4
+        for (let c = 0; c < 4; c++) rows[o + c] += src[i + c] * weights[k]
+      }
+    }
+  }
+  const out = new Float32Array(to * to * 4)
+  for (let y = 0; y < to; y++) {
+    const { first, weights } = t[y]
+    for (let x = 0; x < to; x++) {
+      const o = (y * to + x) * 4
+      for (let k = 0; k < weights.length; k++) {
+        const i = ((first + k) * to + x) * 4
+        for (let c = 0; c < 4; c++) out[o + c] += rows[i + c] * weights[k]
+      }
+    }
+  }
+  return out
+}
+
+/** Back to straight 8-bit sRGB, clamping the filter's overshoot. */
+function toRgba(linear: Float32Array): Buffer {
+  const out = Buffer.alloc(linear.length)
+  for (let i = 0; i < linear.length; i += 4) {
+    const a = Math.min(1, Math.max(0, linear[i + 3]))
+    out[i + 3] = Math.round(a * 255)
+    if (out[i + 3] === 0) continue
+    for (let c = 0; c < 3; c++) out[i + c] = Math.round(toSrgb(Math.min(1, Math.max(0, linear[i + c] / a))))
+  }
+  return out
+}
+
+/** An 8-bit RGBA PNG, every row Paeth-filtered. */
+function png(rgba: Buffer, size: number): Buffer {
+  const stride = size * 4
+  const raw = Buffer.alloc((stride + 1) * size)
+  for (let y = 0; y < size; y++) {
+    const at = y * (stride + 1)
+    raw[at] = 4
+    for (let x = 0; x < stride; x++) {
+      const i = y * stride + x
+      const left = x >= 4 ? rgba[i - 4] : 0
+      const up = y > 0 ? rgba[i - stride] : 0
+      const corner = x >= 4 && y > 0 ? rgba[i - stride - 4] : 0
+      const p = left + up - corner
+      const [pa, pb, pc] = [Math.abs(p - left), Math.abs(p - up), Math.abs(p - corner)]
+      raw[at + 1 + x] = rgba[i] - (pa <= pb && pa <= pc ? left : pb <= pc ? up : corner)
+    }
+  }
+  const chunk = (type: string, data: Buffer) => {
+    const out = Buffer.alloc(12 + data.length)
+    out.writeUInt32BE(data.length, 0)
+    out.write(type, 4, 'latin1')
+    data.copy(out, 8)
+    out.writeUInt32BE(crc32(out.subarray(4, 8 + data.length)), 8 + data.length)
+    return out
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(size, 0)
+  header.writeUInt32BE(size, 4)
+  header.set([8, 6], 8) // 8 bits per channel, RGBA
+  return Buffer.concat([Buffer.from('\x89PNG\r\n\x1a\n', 'latin1'), chunk('IHDR', header), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))])
 }
 
 /** A 32-bit BMP icon entry: header, bottom-up BGRA rows, and an empty AND mask. */
@@ -52,8 +153,14 @@ function bmpEntry(rgba: Buffer, size: number): Buffer {
   return Buffer.concat([header, pixels, mask])
 }
 
+interface Rendered {
+  size: number
+  rgba: Buffer
+  png: Buffer
+}
+
 /** Bitmap entries up to 128 px (what every Windows tool reads), PNG at 256. */
-function ico(images: ReturnType<typeof render>[]): Buffer {
+function ico(images: Rendered[]): Buffer {
   const entries = images.map((i) => ({ size: i.size, data: i.size >= 256 ? i.png : bmpEntry(i.rgba, i.size) }))
   const directory = Buffer.alloc(6 + entries.length * 16)
   directory.writeUInt16LE(1, 2) // type: icon
@@ -72,10 +179,24 @@ function ico(images: ReturnType<typeof render>[]): Buffer {
   return Buffer.concat([directory, ...entries.map((e) => e.data)])
 }
 
-const images = SIZES.map(render)
-writeFileSync(join(build, 'icon.ico'), ico(images))
-writeFileSync(join(build, 'icon.png'), render(512).png)
-console.log(`build/icon.ico (${SIZES.join(', ')} px) and build/icon.png (512 px)`)
+/** The artwork in `file` at the repo root, to render at any size. */
+function artwork(file: string): (size: number) => Rendered {
+  const art = decode(join(root, file))
+  const linear = linearize(art.pixels)
+  return (size) => {
+    const rgba = toRgba(resize(linear, art.size, size))
+    return { size, rgba, png: png(rgba, size) }
+  }
+}
+
+const icon = artwork('icon.png')
+const images = SIZES.map(icon)
+const screen = join(root, 'src', 'renderer', 'src', 'assets', 'update.png')
+mkdirSync(dirname(screen), { recursive: true })
+writeFileSync(join(root, 'build', 'icon.ico'), ico(images))
+writeFileSync(join(root, 'build', 'icon.png'), icon(512).png)
+writeFileSync(screen, artwork('update.png')(256).png)
+console.log(`build/icon.ico (${SIZES.join(', ')} px), build/icon.png (512 px) and src/renderer/src/assets/update.png (256 px)`)
 
 const previewAt = process.argv.indexOf('--preview')
 if (previewAt > 0) {

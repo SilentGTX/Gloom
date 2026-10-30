@@ -1,12 +1,9 @@
 import { useLayoutEffect, useRef, type CSSProperties, type RefObject } from 'react'
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'motion/react'
-import { iconSvg } from '@shared/icon-art'
 import type { UpdateScreen as Screen } from '@shared/ipc'
+import cloud from '../../assets/update.png'
 import { cn } from '../../lib/cn'
 import { useUpdateState } from '../../lib/update'
-
-/** Gloom's icon, its sparkles in groups the screen's CSS animates. */
-const ICON = { __html: iconSvg({ size: 96, detail: 'full', id: 'update-screen' }) }
 
 const mb = (bytes: number) => Math.round(bytes / 1e6)
 
@@ -88,7 +85,9 @@ function Page({ screen, root }: { screen: Screen; root: RefObject<HTMLDivElement
     >
       <div className="update-mark" aria-hidden>
         <div className="update-halo" />
-        <div className="update-icon" dangerouslySetInnerHTML={ICON} />
+        <div className="update-icon">
+          <img src={cloud} alt="" draggable={false} />
+        </div>
       </div>
       <h2 id="update-name" className="update-name">
         Gloom
