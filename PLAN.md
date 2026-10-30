@@ -490,6 +490,12 @@ disclosure pages; `apple-design` for motion).
      button is now just the download arrow in Gloom's indigo, in its own glass capsule, with
      "Update Ready" as its tooltip. While Gloom runs the check stays every half hour; coming back
      to Gloom when one is overdue (the PC slept) runs it then.
+   - **After 0.6.0, at your request:** your artwork replaces the sparkles. `icon.png`, the gloomy
+     cloud on its tile, is on the app, the installer and the uninstaller; the update screen shows
+     `update.png`, the same cloud without the tile, breathing while it works, with the light
+     behind it in the cloud's violet. `scripts/make-icons.mts` resizes both, averaging in linear
+     light so the glowing eyes and prompt stay bright down to 16 px. The "Updated" note keeps its
+     sparkle: there it means "new", not "Gloom".
 2. **Library.** Transcript indexer in a utility process (tail reads, cache, subagent files skipped),
    watcher, library store, folder tree (nesting, rename, drag, keyboard, context menu, smart folders,
    search, filing rules, subtree delete with Undo), session list (pin, archive, rename).
