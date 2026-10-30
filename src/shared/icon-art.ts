@@ -2,7 +2,7 @@
 // squircle edge to edge (Windows shows app icons full bleed), with white
 // sparkles. Small sizes get a simpler drawing, one bigger sparkle, since the
 // little ones turn to specks. scripts/make-icons.mts renders it into
-// build/icon.ico; the update window draws it inline and animates the sparkles.
+// build/icon.ico; the update screen draws it inline and animates the sparkles.
 
 export type IconDetail = 'full' | 'medium' | 'small'
 
@@ -64,7 +64,7 @@ const LAYOUT: Record<IconDetail, Sparkle[]> = {
 /**
  * The icon as an SVG string. `id` prefixes its gradient and filter ids, so
  * two copies on one page don't collide. Each sparkle is a `.sparkle-<name>`
- * group, for the update window to animate.
+ * group, for the update screen to animate.
  */
 export function iconSvg({ size, detail = iconDetailFor(size), id = 'gloom-icon' }: { size: number; detail?: IconDetail; id?: string }): string {
   const ref = (name: string) => `${id}-${name}`

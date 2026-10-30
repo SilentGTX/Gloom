@@ -8,9 +8,9 @@ import type {
   LibrarySnapshot,
   ResumeResult,
   SessionsChange,
-  SplashState,
   TranscriptChange,
   TranscriptRequest,
+  UpdateScreen,
   UpdateState,
   WindowState
 } from '../shared/ipc'
@@ -27,10 +27,11 @@ export interface GloomApi {
   onCommand(listener: (dispatch: CommandDispatch) => void): () => void
   getUpdateState(): Promise<UpdateState>
   onUpdateState(listener: (state: UpdateState) => void): () => void
-  /** Hands over to the update window, which downloads and installs the update and restarts Gloom. */
+  /** Turns the window into the update screen, which downloads and installs the update and restarts Gloom. */
   installUpdate(): Promise<void>
-  /** The update window's page listens here for what to show. */
-  onSplashState(listener: (state: SplashState) => void): () => void
+  /** What the update screen shows, or null when it's down. */
+  getUpdateScreen(): Promise<UpdateScreen | null>
+  onUpdateScreen(listener: (screen: UpdateScreen | null) => void): () => void
   getLibrary(): Promise<LibrarySnapshot>
   /** Rejects with the reason when the library refuses (e.g. a folder moved inside itself). */
   applyLibrary(op: LibraryOp): Promise<ApplyResult>

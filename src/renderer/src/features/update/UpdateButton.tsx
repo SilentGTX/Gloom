@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { ArrowDownToLine, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { GlassCapsule } from '../../components/ui/Glass'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { takeLastVersion, useUpdateState } from '../../lib/update'
 
 /**
- * The title bar's update button: absent until a check finds a newer Gloom,
- * then it lights up. Clicking it hands over to the update window. The one
- * prominent control, so its background carries the colour (Liquid Glass's
- * rule for primary actions).
+ * The title bar's update button: absent until a check finds a newer Gloom
+ * (one runs every half hour while Gloom is open), then the download arrow
+ * arrives in Gloom's dusk indigo, the one coloured symbol in the toolbar, and
+ * lights up once. Clicking it turns the window into the update screen.
  */
 export function UpdateButton() {
   const update = useUpdateState()
@@ -19,24 +20,24 @@ export function UpdateButton() {
       {ready && (
         <motion.div
           key="update"
-          className="no-drag"
           initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.86 }}
           animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1 }}
           exit={{ opacity: 0 }}
           transition={{ type: 'spring', bounce: 0, duration: 0.45 }}
         >
-          <Tooltip label={`Install Gloom ${update.available} and Restart`}>
-            <button
-              type="button"
-              aria-label={`Update to Gloom ${update.available}`}
-              onClick={() => void window.gloom?.installUpdate()}
-              className="update-capsule"
-            >
-              <span className="update-glow" aria-hidden />
-              <ArrowDownToLine size={15} strokeWidth={2} aria-hidden />
-              Update
-            </button>
-          </Tooltip>
+          <GlassCapsule>
+            <Tooltip label="Update Ready" detail={`Gloom ${update.available}`}>
+              <button
+                type="button"
+                aria-label={`Update to Gloom ${update.available}`}
+                onClick={() => void window.gloom?.installUpdate()}
+                className="update-button no-drag"
+              >
+                <span className="update-glow" aria-hidden />
+                <ArrowDownToLine size={16} strokeWidth={2} aria-hidden />
+              </button>
+            </Tooltip>
+          </GlassCapsule>
         </motion.div>
       )}
     </AnimatePresence>

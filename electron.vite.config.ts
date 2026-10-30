@@ -20,7 +20,6 @@ export default defineConfig({
     plugins: [react(), tailwindcss()],
     // The highlighting worker loads each language as its own chunk, which needs ES module workers.
     worker: { format: 'es' },
-    // The app, and the update window's small page (no React, so it opens at once).
-    build: { rollupOptions: { input: { index: resolve('src/renderer/index.html'), splash: resolve('src/renderer/splash.html') } } }
+    build: { rollupOptions: { input: { index: resolve('src/renderer/index.html') } } }
   }
 })

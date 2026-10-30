@@ -91,16 +91,8 @@ export function rendererUrl(): string {
   return process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(join(__dirname, '../renderer/index.html')).href
 }
 
-export interface MainWindow {
-  win: BrowserWindow
-  /** Resolves when the page has painted. */
-  ready: Promise<void>
-  /** Shows it, maximized if it was when it last closed. */
-  reveal(): void
-}
-
-/** The main window. With `show` false it stays hidden (behind the update window) until `reveal()`. */
-export function createMainWindow({ show = true }: { show?: boolean } = {}): MainWindow {
+/** The main window. It shows once its page has painted, maximized if it was when it last closed. */
+export function createMainWindow(): BrowserWindow {
   const saved = loadBounds()
   const win = new BrowserWindow({
     x: saved.x,
@@ -142,13 +134,10 @@ export function createMainWindow({ show = true }: { show?: boolean } = {}): Main
   })
 
   win.on('close', () => saveBounds(win))
-  const ready = new Promise<void>((resolve) => win.once('ready-to-show', () => resolve()))
-  const reveal = () => {
-    if (win.isDestroyed()) return
+  win.once('ready-to-show', () => {
     if (saved.maximized) win.maximize()
     else win.show()
-  }
-  if (show) void ready.then(reveal)
+  })
 
   // Model output is untrusted: no in-app navigation, no new windows, and only
   // http(s) links leave for the browser.
@@ -162,5 +151,5 @@ export function createMainWindow({ show = true }: { show?: boolean } = {}): Main
 
   if (process.env.ELECTRON_RENDERER_URL) void win.loadURL(process.env.ELECTRON_RENDERER_URL)
   else void win.loadFile(join(__dirname, '../renderer/index.html'))
-  return { win, ready, reveal }
+  return win
 }

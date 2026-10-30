@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { IPC, type CommandDispatch, type LibraryChange, type SessionsChange, type SplashState, type TranscriptChange, type UpdateState, type WindowState } from '@shared/ipc'
+import { IPC, type CommandDispatch, type LibraryChange, type SessionsChange, type TranscriptChange, type UpdateScreen, type UpdateState, type WindowState } from '@shared/ipc'
 import type { GloomApi } from './api'
 
 function subscribe<T>(channel: string, listener: (payload: T) => void): () => void {
@@ -17,7 +17,8 @@ const api: GloomApi = {
   getUpdateState: () => ipcRenderer.invoke(IPC.updateState),
   onUpdateState: (listener) => subscribe<UpdateState>(IPC.updateStateChanged, listener),
   installUpdate: () => ipcRenderer.invoke(IPC.installUpdate),
-  onSplashState: (listener) => subscribe<SplashState>(IPC.splashState, listener),
+  getUpdateScreen: () => ipcRenderer.invoke(IPC.updateScreen),
+  onUpdateScreen: (listener) => subscribe<UpdateScreen | null>(IPC.updateScreenChanged, listener),
   getLibrary: () => ipcRenderer.invoke(IPC.library),
   applyLibrary: (op) => ipcRenderer.invoke(IPC.libraryApply, op),
   onLibrary: (listener) => subscribe<LibraryChange>(IPC.libraryChanged, listener),

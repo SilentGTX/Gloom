@@ -60,6 +60,8 @@
      (the update button). White on it is 5.4:1. */
   --signal: #5b5bd6;
   --signal-glow: rgb(91 91 214 / 0.65);
+  /* The signal as a symbol (the update button's arrow): 4.6:1 on a toolbar capsule. */
+  --signal-symbol: #5b5bd6;
 
   /* Selection: a neutral base under the accent tint, so even a gray accent reads. */
   --selection: linear-gradient(var(--accent-fill), var(--accent-fill)), rgb(255 255 255 / 0.7);
@@ -178,6 +180,7 @@
     --capsule-shadow: 0 6px 16px -8px rgb(0 0 0 / 0.7);
     --glass-light: rgb(255 255 255 / 0.16);
     --scrim: rgb(4 2 14 / 0.4);
+    --signal-symbol: #8e90f8;
 
     --selection: linear-gradient(var(--accent-fill), var(--accent-fill)), rgb(255 255 255 / 0.12);
     --row-selected-blur: rgb(255 255 255 / 0.1);

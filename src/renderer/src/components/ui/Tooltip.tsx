@@ -10,7 +10,8 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
   )
 }
 
-export function Tooltip({ label, shortcut, children }: { label: string; shortcut?: string; children: ReactElement }) {
+/** `detail` follows the label in secondary ink; `shortcut` is a key combination. */
+export function Tooltip({ label, detail, shortcut, children }: { label: string; detail?: string; shortcut?: string; children: ReactElement }) {
   return (
     <Base.Root>
       <Base.Trigger render={children} />
@@ -25,6 +26,7 @@ export function Tooltip({ label, shortcut, children }: { label: string; shortcut
             ].join(' ')}
           >
             <span className="relative z-[2]">{label}</span>
+            {detail && <span className="relative z-[2] text-label-secondary tabular">{detail}</span>}
             {shortcut && <kbd className="relative z-[2] font-sans text-label-secondary tabular">{shortcut}</kbd>}
           </Base.Popup>
         </Base.Positioner>

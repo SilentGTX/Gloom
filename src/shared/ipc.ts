@@ -42,10 +42,12 @@ export const IPC = {
   updateState: 'update:state',
   /** main → renderer: UpdateState */
   updateStateChanged: 'update:state-changed',
-  /** invoke: the update window takes over, downloads and installs the update, and restarts Gloom */
+  /** invoke: the window becomes the update screen, which downloads and installs the update and restarts Gloom */
   installUpdate: 'update:install',
-  /** main → update window: SplashState */
-  splashState: 'splash:state'
+  /** invoke → UpdateScreen | null: what the update screen shows, or null when it's down */
+  updateScreen: 'update:screen',
+  /** main → renderer: UpdateScreen | null */
+  updateScreenChanged: 'update:screen-changed'
 } as const
 
 export interface UpdateState {
@@ -56,14 +58,13 @@ export interface UpdateState {
   available?: string
 }
 
-/** What the update window shows. */
-export type SplashState =
+/** What the update screen shows. */
+export type UpdateScreen =
   | { status: 'checking' }
   | { status: 'downloading'; version: string; received: number; total: number }
   | { status: 'installing'; version: string }
-  /** The update failed; Gloom carries on as it is in `seconds`. */
+  /** The update failed; the screen goes in `seconds` and Gloom carries on as it is. */
   | { status: 'failed'; seconds: number }
-  | { status: 'launching' }
 
 export interface WindowState {
   focused: boolean
