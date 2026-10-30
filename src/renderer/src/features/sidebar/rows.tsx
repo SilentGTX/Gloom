@@ -46,10 +46,13 @@ function useReveal() {
   const animate = layout && !instant
   return {
     layout: layout ? ('position' as const) : false,
-    initial: !layout ? false : reduce ? { opacity: 0 } : { height: 0, overflow: 'hidden' },
+    // Clipped while it moves, not hidden: an overflow-hidden box can still be
+    // scrolled, and pressing a row inside one (which focuses it) scrolled it
+    // into view, sliding another row under the pointer before the press let go.
+    initial: !layout ? false : reduce ? { opacity: 0 } : { height: 0, overflow: 'clip' },
     // Unclipped at rest, so focus rings and insertion lines at the edges show.
     animate: reduce ? { opacity: 1 } : { height: 'auto', transitionEnd: { overflow: 'visible' } },
-    exit: !animate ? { opacity: 0, transition: { duration: 0 } } : reduce ? { opacity: 0 } : { height: 0, overflow: 'hidden' }
+    exit: !animate ? { opacity: 0, transition: { duration: 0 } } : reduce ? { opacity: 0 } : { height: 0, overflow: 'clip' }
   }
 }
 

@@ -211,6 +211,18 @@ test('a group shows five sessions, and Show More five more at a time; the open o
   await expect(showing).toHaveCount(12)
   await expect(more).toHaveCount(0)
 
+  // Pressing a row focuses it. While its group is still opening, that mustn't
+  // scroll the group's contents: it slid another row under the pointer, and the
+  // click went nowhere.
+  await group('Unfiled').click()
+  await group('Unfiled').click()
+  const scrolled = await more.evaluate((el) => {
+    el.focus()
+    return (el.closest('li[role="none"]') as HTMLElement).scrollTop
+  })
+  expect(scrolled).toBe(0)
+  await settle(page)
+
   // Closing the group starts it over at five.
   await group('Unfiled').click()
   await openGroup(page, 'Unfiled')
