@@ -42,8 +42,9 @@ Kowalski's set supports them: `emil-design-eng`, `animate`, `review-animations`,
   - Load `apple-design` for motion and interaction too.
   - After building, review the new screens against both, plus `review-animations`, and fix what
     they find. The phase's notes record the fixes and any deliberate departures.
-- **Updates like Sync's:** you install Gloom once; when a new build is out, an icon in the title bar
-  installs it.
+- **Updates like Sync's:** you install Gloom once; when a new build is out, a download arrow in the
+  title bar installs it. Gloom's own window becomes the update window while it does, with nothing
+  of the app showing (no second window).
 
 **Not in v1:** command palette (planned next), `@` file mentions, browser pane, artifacts, task
 lists, side sessions, PRs, cloud sessions, multiple accounts, split view, fast mode, full-text
@@ -92,6 +93,7 @@ D:\JS\Gloom
 │  ├─ commands.ts               every command + shortcut in one registry (menu, accelerators, later the palette)
 │  ├─ notify.ts                 toasts, taskbar flash and badge
 │  ├─ updater.ts                GitHub releases check, download, silent install (Sync's updater)
+│  ├─ update-screen.ts          the update screen's steps: launch check, download, install, relaunch
 │  └─ window.ts                 hidden title bar, titleBarOverlay, sky base colour, accent colour
 ├─ src/worker/transcripts.ts    utility process: index, read and watch ~/.claude/projects
 ├─ src/worker/indexer.ts        head and tail reads, the cache, appended bytes
@@ -106,6 +108,7 @@ D:\JS\Gloom
 │  ├─ features/folders/         folder actions, menu, filing rules
 │  ├─ features/sessions/        session actions and menu
 │  ├─ features/chat/            transcript, tool rows, composer, prompt cards
+│  ├─ features/update/          the Update button and the update screen
 │  ├─ features/diff/            diff pane
 │  ├─ features/terminal/        terminal pane
 │  └─ features/settings/        settings, first run
@@ -216,10 +219,16 @@ resizable and remembered. A narrow window folds the sidebar into a sheet over th
 toolbar's sidebar button brings it back), and the diff pane turns into an overlay when the chat
 would drop below 560 px.
 
-**Updates.** When an update is ready, a download icon appears in the title bar, like Sync's.
-Clicking it waits until no session is mid-turn (the Claude app defers its updates the same way),
-saves the window and the open session, runs the installer silently and relaunches with both
-restored. Stopped sessions resume on their next send.
+**Updates.** A check runs at launch and every half hour while Gloom is open (and when you come
+back to Gloom with one overdue). When it finds a newer release, a download arrow appears in the
+title bar, like Sync's: just the arrow, in Gloom's indigo, in its own glass capsule, with "Update
+Ready" as its tooltip. Clicking it turns the window, at its size, into the update screen: the app
+goes from view and the window shows Sync's update window (the icon, what it's doing, the
+download's progress, the version), installs silently and reopens Gloom. At launch the same screen
+is the window's first frame while the check runs, and fades to the app when there's nothing new.
+Phase 4 adds the rest: clicking waits until no session is mid-turn (the Claude app defers its
+updates the same way), saves the window and the open session, and relaunches with both restored.
+Stopped sessions resume on their next send.
 
 **1. Sidebar (left).** One outline, like Finder's sidebar with its folders opened in place:
 - **Library at the top:** All Sessions, Recent (active in the last 7 days), Pinned, Unfiled, each
@@ -356,8 +365,10 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 ## Phases
 
 **Status, 2026-10-30: Phases 0, 1, 2 and 3 are done**, and Gloom 0.5.0 (Phase 3, the viewer) is
-released. **One sidebar** (below) is built on the branch `one-sidebar`, waiting for your OK; then
-Phase 4.
+released. **Small changes before Phase 4, at your request, released as Gloom 0.5.1:** the window
+becomes the update screen instead of opening a second window, and the Update button is just a
+download arrow (Phase 1's notes, "After 0.5.0"). **One sidebar** (below) is built on the branch
+`one-sidebar`, waiting for your OK; then Phase 4.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -465,6 +476,17 @@ disclosure pages; `apple-design` for motion).
      "Updated" note: a dusk-indigo squircle with white sparkles (`src/shared/icon-art.ts`), on the
      app, the installer and the update window, whose sparkles twinkle while it works. The silent
      install itself still shows no window for its few seconds, as Sync's doesn't.
+   - **After 0.5.0, at your request:** no second window. Gloom's own window, at the size it is,
+     becomes the update window: the app goes from view and the window shows the same page (icon,
+     status, progress, version at the bottom), and the whole of it drags. At launch it is the
+     window's first frame while the check runs; from the Update button it fades in over the app.
+     When it's done the light comes up behind the icon as it fades, and the app is there (or back,
+     if the update failed). `src/main/update-screen.ts` holds the steps,
+     `src/renderer/src/features/update/UpdateScreen.tsx` draws them; the app is inert underneath
+     and focus comes back where it was. Developer → Preview Update Screen plays it. The Update
+     button is now just the download arrow in Gloom's indigo, in its own glass capsule, with
+     "Update Ready" as its tooltip. While Gloom runs the check stays every half hour; coming back
+     to Gloom when one is overdue (the PC slept) runs it then.
 2. **Library.** Transcript indexer in a utility process (tail reads, cache, subagent files skipped),
    watcher, library store, folder tree (nesting, rename, drag, keyboard, context menu, smart folders,
    search, filing rules, subtree delete with Undo), session list (pin, archive, rename).
@@ -515,7 +537,7 @@ disclosure pages; `apple-design` for motion).
 3. **Read-only viewer, first release.** Paged transcript renderer (newest chain, compaction cut, lazy
    images, find in chat). Gloom is now a usable organizer next to the Claude app; "Resume in
    terminal" opens `claude --resume <id>` in a new terminal window. The installer, the release
-   script (publishes to GitHub releases) and the update window that every later phase reaches you
+   script (publishes to GitHub releases) and the updater that every later phase reaches you
    through came early, in Phase 1 (see its notes).
    **Starts with both Apple skills loaded**, `apple-hig` and `apple-design` (see "Decided with you"),
    and ends with their review of the transcript, tool rows and find bar before it's released.
@@ -609,8 +631,9 @@ disclosure pages; `apple-design` for motion).
 - **Manual check against the Claude app:** a session made in the Claude app opens in Gloom with the
   same conversation and continues there, and the Claude app still opens it afterwards. A session
   running in a terminal shows as running elsewhere in Gloom, and Take over unlocks it.
-- **Updates:** publish a test release, see the title-bar icon appear, click it, and Gloom relaunches
-  on the new version.
+- **Updates:** publish a test release, see the download arrow appear (at the next launch, or within
+  half an hour), click it, watch the window become the update screen, and Gloom relaunches on the
+  new version.
 - **Skill reviews:** every UI phase is built with both Apple skills loaded (`apple-hig` with its
   foundation pages, and `apple-design`). It ends with a review of its new screens against both,
   plus `review-animations`. The full audit is Phase 7.

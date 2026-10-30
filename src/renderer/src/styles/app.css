@@ -148,40 +148,41 @@
     opacity: 1;
   }
 
-  /* The update button: prominent glass, the background carries the colour. */
-  .update-capsule {
+  /* The update button: Gloom's download arrow in its dusk indigo, the one
+     coloured symbol in the toolbar. A round control in its own capsule. */
+  .update-button {
     position: relative;
-    display: flex;
-    height: 32px;
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
     align-items: center;
-    gap: 6px;
-    padding: 0 14px 0 11px;
+    justify-content: center;
     border-radius: 999px;
-    color: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    background: linear-gradient(180deg, rgb(255 255 255 / 0.24), transparent 70%), var(--signal);
-    box-shadow:
-      inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
-      inset 0 1px 0 rgb(255 255 255 / 0.4),
-      0 6px 18px -6px var(--signal-glow);
-    transition: transform var(--duration-press) var(--curve-out);
+    color: var(--signal-symbol);
+    outline: none;
+    transition:
+      transform var(--duration-press) var(--curve-out),
+      background-color var(--duration-press) var(--curve-out);
   }
-  .update-capsule:active {
-    transform: scale(1.06);
+  .update-button:hover {
+    background: var(--fill-strong);
   }
-  .update-capsule:focus-visible {
-    outline: 2px solid var(--signal);
-    outline-offset: 2px;
+  /* Inside a glass capsule the glass swells under the finger, as Apple's does. */
+  .update-button:active {
+    background: var(--fill-pressed);
+    transform: scale(1.08);
   }
-  /* A halo behind the capsule that lights up once when it arrives, then
-     settles to a glow. A fixed shadow on its own layer: only opacity animates. */
+  .update-button:focus-visible {
+    outline: 2px solid var(--accent-ring);
+  }
+  /* A light behind the arrow that comes up once when it arrives, then lets go.
+     A fixed shadow on its own layer: only opacity animates. */
   .update-glow {
     position: absolute;
     inset: 0;
     z-index: -1;
     border-radius: inherit;
-    box-shadow: 0 0 22px 4px var(--signal-glow);
+    box-shadow: 0 0 18px 4px var(--signal-glow);
     opacity: 0;
     animation: update-light 1.6s var(--curve-out) 0.2s 1 both;
     pointer-events: none;
@@ -189,10 +190,217 @@
   @keyframes update-light {
     0% { opacity: 0; }
     35% { opacity: 1; }
-    100% { opacity: 0.4; }
+    100% { opacity: 0; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .update-capsule:active { transform: none; }
+    .update-button:active { transform: none; }
+    .update-glow { animation: none; }
+  }
+
+  /* The update screen (features/update/UpdateScreen.tsx): the window becomes
+     Sync's update window, quiet like the app: paper, and Gloom's icon as the
+     one coloured thing, its sparkles twinkling while it works. Only transform
+     and opacity animate. */
+  .update-screen {
+    --halo: rgb(118 120 245 / 0.34);
+    display: flex;
+    box-sizing: border-box;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: 22px;
+    background: var(--surface);
+    color: var(--label);
+    text-align: center;
+    outline: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    .update-screen {
+      --halo: rgb(112 114 242 / 0.3);
+    }
+  }
+  /* The icon, with a soft dusk light behind it that comes up as Gloom opens. */
+  .update-mark {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    margin-bottom: 22px;
+    animation: update-arrive 700ms var(--curve-out) both;
+  }
+  .update-halo {
+    position: absolute;
+    inset: -76px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, var(--halo), transparent);
+    opacity: 0.7;
+    transition: transform 350ms var(--curve-out);
+  }
+  .update-icon {
+    position: relative;
+    transition: transform 350ms var(--curve-out);
+  }
+  .update-icon svg {
+    display: block;
+    width: 96px;
+    height: 96px;
+    filter: drop-shadow(0 10px 18px rgb(36 24 110 / 0.3));
+  }
+  .update-icon .sparkle {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  /* While it works, the small sparkles twinkle in turn and the big one breathes. */
+  .update-screen[data-busy] .sparkle-top {
+    animation: update-twinkle 2.4s ease-in-out infinite;
+  }
+  .update-screen[data-busy] .sparkle-low {
+    animation: update-twinkle 2.4s ease-in-out 1.2s infinite;
+  }
+  .update-screen[data-busy] .sparkle-big {
+    animation: update-breathe 1.6s ease-in-out infinite alternate;
+  }
+  .update-screen[data-busy] .sparkle-glow,
+  .update-screen[data-busy] .update-halo {
+    animation: update-shine 1.6s ease-in-out infinite alternate;
+  }
+  /* Leaving: the light comes up and the icon rises to meet the app as the screen fades. */
+  .update-screen[data-leaving] .update-halo {
+    transform: scale(1.15);
+  }
+  .update-screen[data-leaving] .update-icon {
+    transform: scale(1.05);
+  }
+  @keyframes update-arrive {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+  }
+  @keyframes update-rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  /* A quarter turn with a dip: the four-point sparkle ends where it started. */
+  @keyframes update-twinkle {
+    from {
+      transform: scale(1) rotate(0deg);
+    }
+    50% {
+      opacity: 0.35;
+      transform: scale(0.45) rotate(45deg);
+    }
+    to {
+      transform: scale(1) rotate(90deg);
+    }
+  }
+  @keyframes update-breathe {
+    to {
+      transform: scale(1.05);
+    }
+  }
+  @keyframes update-shine {
+    from {
+      opacity: 0.45;
+    }
+    to {
+      opacity: 0.9;
+    }
+  }
+  .update-name {
+    margin: 0;
+    font: 700 1.5rem/1.15 var(--typeface-display);
+    letter-spacing: -0.02em;
+    animation: update-rise 500ms var(--curve-out) 80ms both;
+  }
+  .update-status {
+    min-height: 1.125rem;
+    margin: 8px 0 0;
+    color: var(--label-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+    animation: update-rise 500ms var(--curve-out) 140ms both;
+  }
+  .update-screen[data-status='failed'] .update-status {
+    color: var(--label);
+  }
+  /* Determinate while downloading; a sweep while installing, which reports no progress. */
+  .update-progress {
+    position: relative;
+    width: 168px;
+    height: 4px;
+    margin-top: 16px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--fill-pressed);
+    opacity: 0;
+    transition: opacity 250ms var(--curve-out);
+  }
+  .update-progress > span {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #8e90f8, var(--signal));
+    transform: translateX(calc((var(--progress, 0) - 1) * 100%));
+    transition: transform 200ms linear;
+  }
+  .update-screen[data-status='downloading'] .update-progress,
+  .update-screen[data-status='installing'] .update-progress {
+    opacity: 1;
+  }
+  .update-screen[data-status='installing'] .update-progress > span {
+    right: auto;
+    width: 40%;
+    transition: none;
+    animation: update-sweep 1.2s var(--curve-in-out) infinite;
+  }
+  @keyframes update-sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+  .update-detail {
+    min-height: 1rem;
+    margin: 8px 0 0;
+    color: var(--label-secondary);
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .update-version {
+    position: absolute;
+    right: 0;
+    bottom: 14px;
+    left: 0;
+    margin: 0;
+    color: var(--label-secondary);
+    font-size: 0.6875rem;
+    line-height: 1rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .update-mark,
+    .update-name,
+    .update-status,
+    .update-screen[data-busy] .sparkle,
+    .update-screen[data-busy] .sparkle-glow,
+    .update-screen[data-busy] .update-halo {
+      animation: none;
+    }
+    .update-screen[data-leaving] .update-halo,
+    .update-screen[data-leaving] .update-icon {
+      transform: none;
+    }
+    .update-screen[data-status='installing'] .update-progress > span {
+      right: 0;
+      width: auto;
+      opacity: 0.6;
+      animation: none;
+      transform: none;
+    }
   }
 
   /* Content: the paper the session list and chat sit on, edge to edge. */

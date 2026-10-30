@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { IPC, type SplashState, type UpdateState } from '../../src/shared/ipc'
+import { IPC, type UpdateScreen, type UpdateState } from '../../src/shared/ipc'
 import { writeTranscript, type FakeSession } from '../support/transcripts'
 
 export interface LaunchOptions {
@@ -124,14 +124,14 @@ export async function pressRealKeys(app: ElectronApplication, keys: string): Pro
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script])
 }
 
-/** A window as Windows draws it, caption buttons included. Brings it to the front. */
-export async function captureWindow(app: ElectronApplication, file: string, which: 'main' | 'update' = 'main'): Promise<void> {
-  const hwnd = await app.evaluate(({ BrowserWindow }, update) => {
-    const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('splash.html') === update)!
+/** The window as Windows draws it, caption buttons included. Brings it to the front. */
+export async function captureWindow(app: ElectronApplication, file: string): Promise<void> {
+  const hwnd = await app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0]
     win.show()
     win.focus()
     return win.getNativeWindowHandle().readBigInt64LE().toString()
-  }, which === 'update')
+  })
   const script = join(__dirname, 'capture-window.ps1')
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Hwnd', hwnd, '-Out', file])
 }
@@ -145,21 +145,13 @@ export async function sendUpdateReady(app: ElectronApplication, available: strin
   })
 }
 
-interface UpdateWindowHook {
-  gloomUpdateWindow: { open(): Promise<unknown>; show(state: SplashState): void }
+interface UpdateScreenHook {
+  gloomUpdateScreen: { show(screen: UpdateScreen | null): void }
 }
 
-/** Opens the update window (development builds hand tests its controls) and returns its page. */
-export async function openUpdateWindow(app: ElectronApplication): Promise<Page> {
-  await app.evaluate(() => (globalThis as unknown as UpdateWindowHook).gloomUpdateWindow.open())
-  // Playwright can learn of the new window a moment after it opens.
-  const find = () => app.windows().find((p) => p.url().includes('splash.html'))
-  await expect.poll(() => !!find(), { message: 'the update window did not open', timeout: 5000 }).toBe(true)
-  return find()!
-}
-
-export async function showInUpdateWindow(app: ElectronApplication, state: SplashState): Promise<void> {
-  await app.evaluate((_electron, s) => (globalThis as unknown as UpdateWindowHook).gloomUpdateWindow.show(s), state)
+/** Puts up the update screen showing this, or takes it down (development builds hand tests its controls). */
+export async function showUpdateScreen(app: ElectronApplication, screen: UpdateScreen | null): Promise<void> {
+  await app.evaluate((_electron, s) => (globalThis as unknown as UpdateScreenHook).gloomUpdateScreen.show(s), screen)
 }
 
 export async function setWindowSize(app: ElectronApplication, width: number, height = 800): Promise<void> {

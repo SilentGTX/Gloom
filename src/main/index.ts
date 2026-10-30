@@ -8,8 +8,8 @@ import { installApplicationMenu, runCommand } from './commands'
 import { LibraryService } from './library/service'
 import { runPtySmoke } from './smoke'
 import { resumeInTerminal } from './terminal'
-import { installPending, launch, updateWindow } from './update-window'
-import { onUpdateState, startBackgroundChecks, updateState } from './updater'
+import { installPending, launchCheck, onUpdateScreen, updateScreen } from './update-screen'
+import { checkOnFocus, onUpdateState, startBackgroundChecks, updateState } from './updater'
 import { createMainWindow, rendererUrl, windowState } from './window'
 
 // `Gloom.exe --smoke-pty[=<file>]` runs the packaging smoke test headless and
@@ -28,10 +28,9 @@ if (smokeArg) {
   let mainWindow: BrowserWindow | null = null
 
   app.on('second-instance', () => {
-    const win = mainWindow ?? updateWindow()
-    if (!win) return
-    if (win.isMinimized()) win.restore()
-    win.focus()
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
   })
 
   /** IPC from anything but our own page's main frame is ignored. */
@@ -64,7 +63,12 @@ if (smokeArg) {
       if (!trusted(event)) throw new Error('untrusted sender')
       void installPending()
     })
+    ipcMain.handle(IPC.updateScreen, (event) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      return updateScreen()
+    })
     onUpdateState((state) => mainWindow?.webContents.send(IPC.updateStateChanged, state))
+    onUpdateScreen((screen) => mainWindow?.webContents.send(IPC.updateScreenChanged, screen))
 
     const library = new LibraryService({
       library: (change) => mainWindow?.webContents.send(IPC.libraryChanged, change),
@@ -123,18 +127,14 @@ if (smokeArg) {
       return result.canceled ? null : (result.filePaths[0] ?? null)
     })
 
-    // The update window checks for an update first, then hands over to the main window.
-    void launch({
-      open: (show) => {
-        const created = createMainWindow({ show })
-        mainWindow = created.win
-        created.win.on('closed', () => {
-          if (mainWindow === created.win) mainWindow = null
-        })
-        return created
-      },
-      current: () => mainWindow
+    // The update screen checks for an update as the window opens. It goes up
+    // first, so the window's first paint is already the screen.
+    void launchCheck()
+    mainWindow = createMainWindow()
+    mainWindow.on('closed', () => {
+      mainWindow = null
     })
+    mainWindow.on('focus', checkOnFocus)
     startBackgroundChecks()
   })
 

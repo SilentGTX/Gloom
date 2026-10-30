@@ -1,7 +1,7 @@
 // Updates the way Sync does them (and Discord before it). At launch the update
-// window checks the private repo's latest GitHub release; while Gloom runs, a
+// screen checks the private repo's latest GitHub release; while Gloom runs, a
 // check every half hour lights up the Update button. Either way the update
-// window downloads the installer the release names, verifies its SHA-256 and
+// screen downloads the installer the release names, verifies its SHA-256 and
 // runs it silently; the installer closes Gloom and starts the new version.
 //
 // A release carries the NSIS installer and update.json:
@@ -166,12 +166,35 @@ export function install(file: string): void {
   spawn(file, ['--updated', '/S', '--force-run'], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
 }
 
-/** Every half hour, a quiet check that lights up the Update button when there's something new. */
+let lastCheck = 0
+let checking = false
+let nextCheck: ReturnType<typeof setTimeout> | undefined
+
+/** A quiet check that lights up the Update button when there's something new. The next is due half an hour on. */
+async function checkQuietly(): Promise<void> {
+  if (checking) return
+  checking = true
+  lastCheck = Date.now()
+  try {
+    const release = await findUpdate(20_000)
+    if (release && release.version !== pending?.version) offerUpdate(release)
+  } catch (error) {
+    console.warn('[updater]', error instanceof Error ? error.message : error)
+  } finally {
+    checking = false
+    clearTimeout(nextCheck)
+    nextCheck = setTimeout(() => void checkQuietly(), CHECK_EVERY_MS)
+  }
+}
+
+/** While Gloom runs, a quiet check every half hour. Starts after the launch check. */
 export function startBackgroundChecks(): void {
   if (!updatesEnabled()) return
-  setInterval(() => {
-    findUpdate(20_000)
-      .then((release) => release && release.version !== pending?.version && offerUpdate(release))
-      .catch((error) => console.warn('[updater]', error instanceof Error ? error.message : error))
-  }, CHECK_EVERY_MS)
+  lastCheck = Date.now()
+  nextCheck = setTimeout(() => void checkQuietly(), CHECK_EVERY_MS)
+}
+
+/** Coming back to Gloom when a check is overdue (the PC slept, say) runs it then. */
+export function checkOnFocus(): void {
+  if (updatesEnabled() && Date.now() - lastCheck >= CHECK_EVERY_MS) void checkQuietly()
 }

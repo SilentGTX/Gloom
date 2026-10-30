@@ -20,12 +20,12 @@ npm run release -- "What changed"   # builds the installer from HEAD, publishes 
 ```
 
 Bump `version` in package.json, commit and push first: the release is tagged at HEAD. Updates
-work like Sync's (and Discord's): at launch a small update window checks the latest release,
-through your `gh` login since the repo is private. A newer one downloads there with progress, is
-checked against its SHA-256, installs silently and Gloom reopens on it. While Gloom runs, a check
-every half hour lights up **Update** in the title bar; clicking it hands over to the same window.
-Help → Check for Updates… checks right away, and Developer → Preview Update Window plays the
-window's steps without installing anything. `GLOOM_UPDATE_DRY_RUN=1` makes a packaged build do
+work like Sync's (and Discord's): at launch Gloom's window shows the update screen while it checks
+the latest release, through your `gh` login since the repo is private. A newer one downloads there
+with progress, is checked against its SHA-256, installs silently and Gloom reopens on it. While
+Gloom runs, a check every half hour lights up the download arrow in the title bar; clicking it
+turns the window into the same screen. Help → Check for Updates… checks right away, and
+Developer → Preview Update Screen plays the screen's steps without installing anything. `GLOOM_UPDATE_DRY_RUN=1` makes a packaged build do
 everything but run the installer.
 
 The app icon is drawn in `src/shared/icon-art.ts`; `npx tsx scripts/make-icons.mts` renders it
