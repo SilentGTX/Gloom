@@ -81,7 +81,10 @@ test('filing rules claim new and Unfiled sessions; sessions you placed stay put'
   // Placed by hand, before any rule.
   await openGroup(page, 'All Sessions')
   await row('Login page fix').click({ button: 'right' })
-  await page.getByRole('menuitem', { name: 'Move To' }).click()
+  // Submenus open on hover intent (Base UI ignores presses on their trigger); the arrow key opens it for sure.
+  const moveTo = page.getByRole('menuitem', { name: 'Move To' })
+  await moveTo.hover()
+  await moveTo.press('ArrowRight')
   await page.getByRole('menuitem', { name: 'Home' }).click()
   await expect(group('Home')).toContainText('1')
 
@@ -173,6 +176,18 @@ test('the sidebar answers the keyboard', async () => {
   expect(Math.abs(menuBox.y - (rowBox.y + rowBox.height / 2))).toBeLessThan(40)
   await page.keyboard.press('Escape')
   await expect(menu).toHaveCount(0)
+})
+
+test('a group opens and closes on every click, however fast they come', async () => {
+  ;({ app, page } = await launch({ claudeDir: fakeClaude(SESSIONS) }))
+  const all = group('All Sessions')
+  await expect(all).toHaveAttribute('aria-expanded', 'false')
+  const box = (await all.boundingBox())!
+  // Close enough together to count as a double and a triple click.
+  for (const open of ['true', 'false', 'true']) {
+    await page.mouse.click(box.x + 60, box.y + box.height / 2)
+    await expect(all).toHaveAttribute('aria-expanded', open)
+  }
 })
 
 test('Ctrl+Z undoes library changes, newest first, and the menu says what it will undo', async () => {

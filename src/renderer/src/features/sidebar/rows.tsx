@@ -1,6 +1,7 @@
 // The sidebar's rows: library groups and your folders, which open to show what's
-// inside them, and the sessions nested in them. Rows spring to their new places
-// when a group opens or closes, and what arrives is wiped open in step with them.
+// inside them, and the sessions nested in them. What opens grows into its room
+// and what closes gives it back, so everything below moves with it; rows spring
+// to their new places when the order changes.
 import { createContext, useContext, useEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type Ref } from 'react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { Archive, ChevronRight, Clock3, Folder as FolderIcon, Inbox, MessagesSquare, Pin, type LucideIcon } from 'lucide-react'
@@ -30,14 +31,14 @@ const guideX = (level: number) => 12 + level * INDENT
  */
 export const RowMotion = createContext({ instant: false, layout: true })
 
-const SHUT = 'inset(0 0 100% 0)'
-const OPEN = 'inset(0 0 0% 0)'
-
 /**
- * What comes and goes in the tree (a row, an open group's contents) is wiped
- * open from the top by an edge on the same spring as the rows below, which
- * slide to make room: the edge and the next row move together, so nothing
- * ever passes over anything. Reduced motion fades instead.
+ * What comes and goes in the tree (a row, an open group's contents) grows from
+ * nothing into its room and shrinks back out of it, in the layout itself: the
+ * rows and headings below, and the scroll, follow it in the same frame, so
+ * nothing gets ahead of anything. It turns around from wherever it is when
+ * clicked again mid-way. Reduced motion fades instead.
+ * (A departure from transform-only motion: transforms let a heading or a
+ * scrolled list run ahead of a closing group.)
  */
 function useReveal() {
   const { instant, layout } = useContext(RowMotion)
@@ -45,37 +46,19 @@ function useReveal() {
   const animate = layout && !instant
   return {
     layout: layout ? ('position' as const) : false,
-    initial: !layout ? false : reduce ? { opacity: 0 } : { clipPath: SHUT },
-    // Left unclipped at rest, so focus rings and insertion lines at the edges show.
-    animate: reduce ? { opacity: 1 } : { clipPath: OPEN, transitionEnd: { clipPath: 'none' } },
-    exit: !animate ? { opacity: 0, transition: { duration: 0 } } : reduce ? { opacity: 0 } : { clipPath: [OPEN, SHUT] }
+    initial: !layout ? false : reduce ? { opacity: 0 } : { height: 0, overflow: 'hidden' },
+    // Unclipped at rest, so focus rings and insertion lines at the edges show.
+    animate: reduce ? { opacity: 1 } : { height: 'auto', transitionEnd: { overflow: 'visible' } },
+    exit: !animate ? { opacity: 0, transition: { duration: 0 } } : reduce ? { opacity: 0 } : { height: 0, overflow: 'hidden' }
   }
 }
 
-/**
- * An open group's contents: its subfolders and sessions, wiped open and shut as
- * one. The clip stays at rest, with room at the sides and top for rings and
- * insertion lines, so a second click mid-way turns the wipe around where it is.
- */
+/** An open group's contents: its subfolders and sessions, opening and closing as one. */
 export function GroupContents({ ref, children }: { ref?: Ref<HTMLLIElement>; children: ReactNode }) {
-  const { instant, layout } = useContext(RowMotion)
-  const reduce = useReducedMotion()
-  const shut = reduce ? { opacity: 0 } : { clipPath: 'inset(0px -12px 100% -12px)' }
-  const open = reduce ? { opacity: 1 } : { clipPath: 'inset(-12px -12px 0% -12px)' }
   return (
-    <motion.li
-      ref={ref}
-      role="none"
-      layout={layout ? 'position' : false}
-      initial={layout ? shut : false}
-      animate={open}
-      exit={layout && !instant ? shut : { opacity: 0, transition: { duration: 0 } }}
-      className="relative"
-    >
+    <motion.li ref={ref} role="none" {...useReveal()} className="relative">
       <ul role="none" className="relative flex flex-col">
-        <AnimatePresence initial={false} mode="popLayout">
-          {children}
-        </AnimatePresence>
+        <AnimatePresence initial={false}>{children}</AnimatePresence>
       </ul>
     </motion.li>
   )
@@ -116,14 +99,7 @@ function Count({ value }: { value: number }) {
 }
 
 /** One shape for the rows that hold things: a library group, a folder, Archived. */
-function groupClass(extra?: string) {
-  return cn(
-    'no-drag relative flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-row)] py-1 pr-2.5 text-left text-label outline-none select-none',
-    'hover:bg-fill active:bg-fill-pressed',
-    'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent-ring)]',
-    extra
-  )
-}
+const groupBox = 'relative flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-row)] py-1 pr-2.5 text-left text-label hover:bg-fill active:bg-fill-pressed'
 
 /**
  * A library group or one of your folders. A click anywhere on it opens or
@@ -170,12 +146,11 @@ export function GroupRow({
   const refs = useRefs(ref, dragRef, dropRef)
   const trail = row.kind === 'folder' ? row.trail : []
 
-  const click = (e: MouseEvent) => {
-    // A double click opens it once, not twice. (dnd kit swallows the click a drag ends with.)
-    if (e.detail > 1) return
-    onToggle(e.altKey)
-  }
+  // Every click counts, however fast they come. (dnd kit swallows the click a drag ends with.)
+  const click = (e: MouseEvent) => onToggle(e.altKey)
 
+  // The item that comes and goes is the list item; the row you see is inside it,
+  // so its height can open from nothing.
   return (
     <motion.li
       {...motionProps}
@@ -191,34 +166,38 @@ export function GroupRow({
       data-folder-id={folder?.id}
       onPointerDown={(e: PointerEvent<HTMLLIElement>) => listeners?.onPointerDown?.(e)}
       onClick={click}
-      className={groupClass(
-        cn(
+      className="group/row no-drag relative outline-none select-none"
+    >
+      <Guides trail={trail} lit={lit} />
+      <div
+        className={cn(
+          groupBox,
+          'group-focus-visible/row:outline-2 group-focus-visible/row:-outline-offset-2 group-focus-visible/row:outline-[var(--accent-ring)]',
           zone === 'inside' && 'drop-inside',
           landed && 'drop-landed',
           menuOpen && 'outline-2 -outline-offset-2 outline-[var(--accent-ring)]',
           dragging && 'opacity-45'
-        )
-      )}
-      style={{ paddingLeft: 4 + row.depth * INDENT }}
-    >
-      <Guides trail={trail} lit={lit} />
-      <span aria-hidden className="flex size-4 shrink-0 items-center justify-center text-label-secondary">
-        {row.hasChildren && (
-          <ChevronRight
-            size={12}
-            strokeWidth={2.25}
-            className={cn('disclosure transition-transform duration-[var(--duration-press)] ease-out motion-reduce:transition-none', row.open && 'rotate-90')}
-          />
         )}
-      </span>
-      <Icon size={16} strokeWidth={1.75} aria-hidden className="shrink-0 text-accent-text" />
-      {renaming ? (
-        <RenameField initial={label} label="Folder name" onDone={onRenameEnd} />
-      ) : (
-        <span className="min-w-0 flex-1 truncate font-semibold">{label}</span>
-      )}
-      {!renaming && <Count value={row.count} />}
-      {(zone === 'before' || zone === 'after') && <InsertionLine at={zone} indent={4 + row.depth * INDENT + 22} />}
+        style={{ paddingLeft: 4 + row.depth * INDENT }}
+      >
+        <span aria-hidden className="flex size-4 shrink-0 items-center justify-center text-label-secondary">
+          {row.hasChildren && (
+            <ChevronRight
+              size={12}
+              strokeWidth={2.25}
+              className={cn('disclosure transition-transform duration-[var(--duration-press)] ease-out motion-reduce:transition-none', row.open && 'rotate-90')}
+            />
+          )}
+        </span>
+        <Icon size={16} strokeWidth={1.75} aria-hidden className="shrink-0 text-accent-text" />
+        {renaming ? (
+          <RenameField initial={label} label="Folder name" onDone={onRenameEnd} />
+        ) : (
+          <span className="min-w-0 flex-1 truncate font-semibold">{label}</span>
+        )}
+        {!renaming && <Count value={row.count} />}
+        {(zone === 'before' || zone === 'after') && <InsertionLine at={zone} indent={4 + row.depth * INDENT + 22} />}
+      </div>
     </motion.li>
   )
 }
@@ -289,14 +268,15 @@ export function SessionRow({
         listeners?.onPointerDown?.(e)
       }}
       onClick={onClick}
-      className="group/row no-drag relative py-px outline-none select-none"
+      className="group/row no-drag relative flex flex-col outline-none select-none"
       style={{ paddingLeft: row.depth ? guideX(row.depth - 1) + 10 : 0 }}
     >
       <Guides trail={row.trail} lit={lit} />
       <div
         className={cn(
           // No transition: selection follows the arrow keys and must keep up.
-          'session-row relative rounded-[var(--radius-row)] py-[5px] pr-2.5 pl-2.5',
+          // Its spacing is a margin inside the item, so a closing row shrinks to nothing.
+          'session-row relative my-px rounded-[var(--radius-row)] py-[5px] pr-2.5 pl-2.5',
           // The keyboard's ring; on the selected row the selection itself shows where you are, as on the Mac.
           !selected && 'group-focus-visible/row:outline-2 group-focus-visible/row:-outline-offset-2 group-focus-visible/row:outline-[var(--accent-ring)]',
           selected ? 'is-selected' : 'hover:bg-fill active:bg-fill-pressed',
@@ -347,7 +327,14 @@ export function ArchiveRow({ open, tabbable, onToggle }: { open: boolean; tabbab
       data-nav="archive"
       data-label="Archived"
       onClick={onToggle}
-      className={groupClass(cn('pl-2.5', open && '[background:var(--row-selected-tint)]', zone && 'drop-inside', landed && 'drop-landed'))}
+      className={cn(
+        'no-drag outline-none select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent-ring)]',
+        groupBox,
+        'pl-2.5',
+        open && '[background:var(--row-selected-tint)]',
+        zone && 'drop-inside',
+        landed && 'drop-landed'
+      )}
     >
       <Archive size={16} strokeWidth={1.75} aria-hidden className="shrink-0 text-accent-text" />
       <span className="min-w-0 flex-1 truncate font-medium">Archived</span>

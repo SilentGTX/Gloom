@@ -512,9 +512,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
                       {empty(section) ?? (
                         <RowMotion.Provider value={{ instant: viaKeyboard || !settled, layout: settled && layout && (section.key === 'library' || section.key === 'folders') }}>
                           <ul role="tree" aria-label={section.label} aria-multiselectable className="relative flex flex-col">
-                            <AnimatePresence initial={false} mode="popLayout">
-                              {renderNodes(nest(section.rows))}
-                            </AnimatePresence>
+                            <AnimatePresence initial={false}>{renderNodes(nest(section.rows))}</AnimatePresence>
                           </ul>
                         </RowMotion.Provider>
                       )}

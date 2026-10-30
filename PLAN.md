@@ -409,10 +409,10 @@ disclosure pages; `apple-design` for motion).
   **Show or Hide Session List** (Ctrl+Shift+B) are gone: a folder's sessions are inside it now.
   The window's saved settings move over (version 3): the sidebar keeps the folder column's width,
   at least the new 288 px default.
-- **Motion:** a row or an open group's contents is wiped open from the top by an edge on the same
-  spring as the rows below, which slide to make room, so nothing ever passes over anything (a
-  first try let the rows below slide across the new ones). A second click mid-way turns it
-  around. The sidebar slides out the way it came; keyboard toggles snap; reduced motion fades.
+- **Motion:** a row or an open group's contents grows into its room and shrinks back out of it,
+  in the layout itself, so the rows and headings below, and the scroll, move with it in the same
+  frame and nothing passes over anything. A second click mid-way turns it around. The sidebar
+  slides out the way it came; keyboard toggles snap; reduced motion fades.
 - **Toasts** now centre over the chat (Sonner left-aligned our capsule inside its 356 px box, so
   they sat off-centre; you spotted it).
 - **Review** with both skills; fixes made: no white ring on the selected row (the fill shows where
@@ -425,13 +425,19 @@ disclosure pages; `apple-design` for motion).
   - the sidebar toggle sits in the trailing capsule, as in your mockup (Apple puts it at the
     leading edge);
   - the selection keeps its colour when the keyboard is elsewhere (your mockup); only an inactive
-    window mutes it.
+    window mutes it;
+  - opening and closing animate height, not only transforms: 0.6.0 wiped the contents open over
+    rows sliding by transform, and closing your 91-session Unfiled let the "Folders" heading,
+    which didn't slide, run ahead into the sessions (you spotted it).
 - **Found on the way:** dnd kit swallows clicks for 50 ms after a drag, and rows read mid-spring
   are where they were, not where they'll be; the end-to-end tests now wait a beat for both.
 - **Tests:** unit tests for the tree (groups, nesting, sets, guides, search, Archived) and the
   layout; the end-to-end tests rewritten for the sidebar, plus Archived and the info card. The
   window captures in `screenshots.spec.ts` are updated but weren't run: they copy the screen
   where Gloom's window is, so they need it in front, and you were using the PC.
+- **After 0.6.0, at your request:** every click opens or closes a group, however fast (clicks close
+  together counted as a double click and were dropped for about half a second); the opening and
+  closing above replaced 0.6.0's wipe.
 - Built in its own worktree (`D:\JS\Gloom-sidebar`) while 0.5.1 was being made in the main
   checkout, then merged with it. Released as 0.6.0 after a check of the packaged build: it opens
   on the update screen, then the sidebar, a session and its info card, from inside the app archive.
