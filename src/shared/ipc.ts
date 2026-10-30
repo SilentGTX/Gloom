@@ -16,20 +16,28 @@ export const IPC = {
   updateState: 'update:state',
   /** main → renderer: UpdateState */
   updateStateChanged: 'update:state-changed',
-  /** invoke: quit, install the downloaded update silently and relaunch */
-  installUpdate: 'update:install'
+  /** invoke: the update window takes over, downloads and installs the update, and restarts Gloom */
+  installUpdate: 'update:install',
+  /** main → update window: SplashState */
+  splashState: 'splash:state'
 } as const
 
 export interface UpdateState {
-  /** 'disabled' in development builds. */
-  status: 'idle' | 'checking' | 'downloading' | 'ready' | 'error' | 'disabled'
+  /** 'available' lights up the Update button; 'disabled' in development builds. */
+  status: 'idle' | 'available' | 'disabled'
   current: string
-  /** The newer version, once one is found. */
+  /** The newer version, once a check finds one. */
   available?: string
-  /** 0..1 while downloading. */
-  progress?: number
-  error?: string
 }
+
+/** What the update window shows. */
+export type SplashState =
+  | { status: 'checking' }
+  | { status: 'downloading'; version: string; received: number; total: number }
+  | { status: 'installing'; version: string }
+  /** The update failed; Gloom carries on as it is in `seconds`. */
+  | { status: 'failed'; seconds: number }
+  | { status: 'launching' }
 
 export interface WindowState {
   focused: boolean

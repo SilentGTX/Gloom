@@ -1,6 +1,6 @@
 // The typed `window.gloom` bridge, as the renderer sees it.
 import type { CommandId } from '../shared/commands'
-import type { AppInfo, CommandDispatch, UpdateState, WindowState } from '../shared/ipc'
+import type { AppInfo, CommandDispatch, SplashState, UpdateState, WindowState } from '../shared/ipc'
 
 export interface GloomApi {
   getWindowState(): Promise<WindowState | null>
@@ -12,8 +12,10 @@ export interface GloomApi {
   onCommand(listener: (dispatch: CommandDispatch) => void): () => void
   getUpdateState(): Promise<UpdateState>
   onUpdateState(listener: (state: UpdateState) => void): () => void
-  /** Quits, installs the downloaded update silently and relaunches. */
+  /** Hands over to the update window, which downloads and installs the update and restarts Gloom. */
   installUpdate(): Promise<void>
+  /** The update window's page listens here for what to show. */
+  onSplashState(listener: (state: SplashState) => void): () => void
 }
 
 declare global {

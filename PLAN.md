@@ -367,6 +367,12 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
    - **Updates came early** (planned for Phase 3), in 0.2.0, so you could watch one arrive:
      `src/main/updater.ts`, `npm run release`, and an indigo **Update** capsule in the chat toolbar,
      the one coloured control. The busy-deferral waits for Phase 4, when sessions run.
+   - **0.3.0, at your request:** Sync's update window (`src/main/update-window.ts`): a 300×350
+     frameless window that checks at launch, downloads with progress, installs and reopens Gloom;
+     the Update button hands over to it too. And an app icon from the sparkles you liked in the
+     "Updated" note: a dusk-indigo squircle with white sparkles (`src/shared/icon-art.ts`), on the
+     app, the installer and the update window, whose sparkles twinkle while it works. The silent
+     install itself still shows no window for its few seconds, as Sync's doesn't.
 2. **Library.** Transcript indexer in a utility process (tail reads, cache, subagent files skipped),
    watcher, library store, folder tree (nesting, rename, drag, keyboard, context menu, smart folders,
    search, filing rules, subtree delete with Undo), session list (pin, archive, rename).

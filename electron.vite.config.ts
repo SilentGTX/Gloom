@@ -17,6 +17,8 @@ export default defineConfig({
   },
   renderer: {
     resolve: { alias: { ...shared, '@renderer': resolve('src/renderer/src') } },
-    plugins: [react(), tailwindcss()]
+    plugins: [react(), tailwindcss()],
+    // The app, and the update window's small page (no React, so it opens at once).
+    build: { rollupOptions: { input: { index: resolve('src/renderer/index.html'), splash: resolve('src/renderer/splash.html') } } }
   }
 })

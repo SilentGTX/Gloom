@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["sdk-spike/**/*.mts", "fake-claude/**/*.mts"]
+  "include": ["sdk-spike/**/*.mts", "fake-claude/**/*.mts", "../scripts/*.mts"]
 }

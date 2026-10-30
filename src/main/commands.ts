@@ -5,7 +5,7 @@ import { app, BrowserWindow, dialog, Menu, type MenuItemConstructorOptions } fro
 import { COMMANDS, GROUP_LABELS, type CommandGroup, type CommandId, type CommandSpec } from '@shared/commands'
 import { IPC, type CommandDispatch } from '@shared/ipc'
 import { runPtySmoke } from './smoke'
-import { checkForUpdates } from './updater'
+import { checkNow, preview } from './update-window'
 
 type MainHandler = (win: BrowserWindow | null) => void | Promise<void>
 
@@ -14,7 +14,8 @@ const mainHandlers: Partial<Record<CommandId, MainHandler>> = {
   'view.fullScreen': (win) => win?.setFullScreen(!win.isFullScreen()),
   'dev.reload': (win) => win?.webContents.reload(),
   'dev.devTools': (win) => win?.webContents.toggleDevTools(),
-  'help.checkUpdates': () => checkForUpdates(true),
+  'dev.previewUpdateWindow': () => preview(),
+  'help.checkUpdates': (win) => checkNow(win),
   'help.about': async (win) => {
     const detail = [`Version ${app.getVersion()}`, `Electron ${process.versions.electron}`, `Chromium ${process.versions.chrome}`, `Node ${process.versions.node}`].join('\n')
     const options = { type: 'none' as const, title: 'About Gloom', message: 'Gloom', detail, buttons: ['OK'] }

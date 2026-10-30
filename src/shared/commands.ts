@@ -35,7 +35,8 @@ export const COMMANDS = [
   { id: 'help.smokeTest', label: 'Run Packaging Smoke Test', group: 'help', runs: 'main' },
   { id: 'help.about', label: 'About Gloom', group: 'help', runs: 'main' },
   { id: 'dev.reload', label: 'Reload', group: 'developer', accelerator: 'CmdOrCtrl+R', runs: 'main' },
-  { id: 'dev.devTools', label: 'Developer Tools', group: 'developer', accelerator: 'CmdOrCtrl+Shift+I', runs: 'main' }
+  { id: 'dev.devTools', label: 'Developer Tools', group: 'developer', accelerator: 'CmdOrCtrl+Shift+I', runs: 'main' },
+  { id: 'dev.previewUpdateWindow', label: 'Preview Update Window', group: 'developer', runs: 'main' }
 ] as const satisfies readonly CommandSpec[]
 
 export type CommandId = (typeof COMMANDS)[number]['id']

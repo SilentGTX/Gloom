@@ -5,7 +5,8 @@ import { findCommand, type CommandId } from '@shared/commands'
 import { IPC, type AppInfo } from '@shared/ipc'
 import { installApplicationMenu, runCommand } from './commands'
 import { runPtySmoke } from './smoke'
-import { installUpdate, onUpdateState, startUpdater, updateState } from './updater'
+import { installPending, launch, updateWindow } from './update-window'
+import { onUpdateState, startBackgroundChecks, updateState } from './updater'
 import { createMainWindow, rendererUrl, windowState } from './window'
 
 // `Gloom.exe --smoke-pty[=<file>]` runs the packaging smoke test headless and
@@ -24,9 +25,10 @@ if (smokeArg) {
   let mainWindow: BrowserWindow | null = null
 
   app.on('second-instance', () => {
-    if (!mainWindow) return
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
+    const win = mainWindow ?? updateWindow()
+    if (!win) return
+    if (win.isMinimized()) win.restore()
+    win.focus()
   })
 
   /** IPC from anything but our own page's main frame is ignored. */
@@ -57,13 +59,23 @@ if (smokeArg) {
     })
     ipcMain.handle(IPC.installUpdate, (event) => {
       if (!trusted(event)) throw new Error('untrusted sender')
-      installUpdate()
+      void installPending()
     })
     onUpdateState((state) => mainWindow?.webContents.send(IPC.updateStateChanged, state))
 
-    mainWindow = createMainWindow()
-    mainWindow.on('closed', () => (mainWindow = null))
-    startUpdater()
+    // The update window checks for an update first, then hands over to the main window.
+    void launch({
+      open: (show) => {
+        const created = createMainWindow({ show })
+        mainWindow = created.win
+        created.win.on('closed', () => {
+          if (mainWindow === created.win) mainWindow = null
+        })
+        return created
+      },
+      current: () => mainWindow
+    })
+    startBackgroundChecks()
   })
 
   app.on('window-all-closed', () => app.quit())

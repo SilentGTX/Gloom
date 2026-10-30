@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { IPC, type CommandDispatch, type UpdateState, type WindowState } from '@shared/ipc'
+import { IPC, type CommandDispatch, type SplashState, type UpdateState, type WindowState } from '@shared/ipc'
 import type { GloomApi } from './api'
 
 function subscribe<T>(channel: string, listener: (payload: T) => void): () => void {
@@ -16,7 +16,8 @@ const api: GloomApi = {
   onCommand: (listener) => subscribe<CommandDispatch>(IPC.dispatchCommand, listener),
   getUpdateState: () => ipcRenderer.invoke(IPC.updateState),
   onUpdateState: (listener) => subscribe<UpdateState>(IPC.updateStateChanged, listener),
-  installUpdate: () => ipcRenderer.invoke(IPC.installUpdate)
+  installUpdate: () => ipcRenderer.invoke(IPC.installUpdate),
+  onSplashState: (listener) => subscribe<SplashState>(IPC.splashState, listener)
 }
 
 contextBridge.exposeInMainWorld('gloom', api)

@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { IPC, type UpdateState } from '../../src/shared/ipc'
+import { IPC, type SplashState, type UpdateState } from '../../src/shared/ipc'
 
 /** Launches the built app with a throwaway profile, so tests never see your real state. */
 export async function launch(): Promise<{ app: ElectronApplication; page: Page }> {
@@ -64,25 +64,41 @@ export async function pressRealKeys(app: ElectronApplication, keys: string): Pro
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script])
 }
 
-/** The whole window as Windows draws it, caption buttons included. Brings it to the front. */
-export async function captureWindow(app: ElectronApplication, file: string): Promise<void> {
-  const hwnd = await app.evaluate(({ BrowserWindow }) => {
-    const win = BrowserWindow.getAllWindows()[0]
+/** A window as Windows draws it, caption buttons included. Brings it to the front. */
+export async function captureWindow(app: ElectronApplication, file: string, which: 'main' | 'update' = 'main'): Promise<void> {
+  const hwnd = await app.evaluate(({ BrowserWindow }, update) => {
+    const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('splash.html') === update)!
     win.show()
     win.focus()
     return win.getNativeWindowHandle().readBigInt64LE().toString()
-  })
+  }, which === 'update')
   const script = join(__dirname, 'capture-window.ps1')
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Hwnd', hwnd, '-Out', file])
 }
 
-/** Tells the window an update is downloaded and verified. Development builds never check for real. */
+/** Tells the main window a newer Gloom is out. Development builds never check for real. */
 export async function sendUpdateReady(app: ElectronApplication, available: string): Promise<void> {
-  const state: UpdateState = { status: 'ready', current: '0.0.0', available }
+  const state: UpdateState = { status: 'available', current: '0.0.0', available }
   await app.evaluate(({ BrowserWindow }, { channel, state }) => BrowserWindow.getAllWindows()[0].webContents.send(channel, state), {
     channel: IPC.updateStateChanged,
     state
   })
+}
+
+interface UpdateWindowHook {
+  gloomUpdateWindow: { open(): Promise<unknown>; show(state: SplashState): void }
+}
+
+/** Opens the update window (development builds hand tests its controls) and returns its page. */
+export async function openUpdateWindow(app: ElectronApplication): Promise<Page> {
+  await app.evaluate(() => (globalThis as unknown as UpdateWindowHook).gloomUpdateWindow.open())
+  const page = app.windows().find((p) => p.url().includes('splash.html'))
+  if (!page) throw new Error('the update window did not open')
+  return page
+}
+
+export async function showInUpdateWindow(app: ElectronApplication, state: SplashState): Promise<void> {
+  await app.evaluate((_electron, s) => (globalThis as unknown as UpdateWindowHook).gloomUpdateWindow.show(s), state)
 }
 
 export async function setWindowSize(app: ElectronApplication, width: number, height = 800): Promise<void> {

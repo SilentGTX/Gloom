@@ -27,6 +27,8 @@ npmRebuild: false
 win:
   target: nsis
   executableName: Gloom
+  # The sparkle tile (scripts/make-icons.mts); the installer and uninstaller use it too.
+  icon: build/icon.ico
 nsis:
   oneClick: true
   perMachine: false

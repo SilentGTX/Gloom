@@ -5,14 +5,15 @@ import { Tooltip } from '../../components/ui/Tooltip'
 import { takeLastVersion, useUpdateState } from '../../lib/update'
 
 /**
- * The title bar's update button: absent until an update is downloaded and
- * verified, then it lights up. The one prominent control, so its background
- * carries the colour (Liquid Glass's rule for primary actions).
+ * The title bar's update button: absent until a check finds a newer Gloom,
+ * then it lights up. Clicking it hands over to the update window. The one
+ * prominent control, so its background carries the colour (Liquid Glass's
+ * rule for primary actions).
  */
 export function UpdateButton() {
   const update = useUpdateState()
   const reduce = useReducedMotion()
-  const ready = update?.status === 'ready'
+  const ready = update?.status === 'available'
   return (
     <AnimatePresence>
       {ready && (

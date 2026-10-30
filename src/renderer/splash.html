@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Gloom</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+  </head>
+  <body>
+    <main id="splash" data-status="checking" data-busy>
+      <div class="mark" aria-hidden="true">
+        <div class="halo"></div>
+        <div class="icon" id="icon"></div>
+      </div>
+      <h1 class="name">Gloom</h1>
+      <p class="status" id="status" role="status">Checking for updates…</p>
+      <div class="progress" aria-hidden="true"><span></span></div>
+      <p class="detail" id="detail"></p>
+    </main>
+    <p class="version" id="version"></p>
+    <script type="module" src="/src/splash/main.ts"></script>
+  </body>
+</html>
