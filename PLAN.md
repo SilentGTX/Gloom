@@ -342,9 +342,8 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 
 ## Phases
 
-**Status, 2026-10-30: Phases 0 to 3 are built**; Gloom 0.4.0 (Phase 2, the library) is released, and
-Phase 3 (the viewer) waits for your OK to ship as 0.5.0. **Next, at your request: one sidebar**
-(below), started fresh after Phase 3 ships, then Phase 4.
+**Status, 2026-10-30: Phases 0, 1, 2 and 3 are done**, and Gloom 0.5.0 (Phase 3, the viewer) is
+released. **Next, at your request: one sidebar** (below), started fresh, then Phase 4.
 
 **Planned next: one sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder
 tree and the session list merge into the one floating glass sidebar, so the window has two columns,
@@ -456,7 +455,7 @@ sidebar and chat, instead of three:
    through came early, in Phase 1 (see its notes).
    **Starts with both Apple skills loaded**, `apple-hig` and `apple-design` (see "Decided with you"),
    and ends with their review of the transcript, tool rows and find bar before it's released.
-   **Built 2026-10-30, waiting for your OK to ship as 0.5.0.**
+   **Done 2026-10-30, released as Gloom 0.5.0.**
    - **Reading:** `src/worker/reader.ts`, in the same "Gloom Transcripts" process as the index. The
      newest page is read back from the end of the file along the chain of parent links, so a
      branch a rewind left behind drops out. Parallel tool calls hang their results off side
