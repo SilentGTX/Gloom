@@ -10,10 +10,12 @@ It runs the official `claude` CLI underneath through the Claude Agent SDK, so ch
 and your login behave exactly as in Claude Code. **Its behaviour copies Claude Code; its look does
 not.** Gloom should look like an app Apple released: Liquid Glass, a dusk sky, its own identity
 (direction set by you on 2026-10-30, after Phase 1 came out too close to the Claude app). Where
-behaviour is copied, it comes from observing the Claude app, not from its code. Design and motion follow two installed skills:
-`apple-hig` (Apple's Human Interface Guidelines) and Emil Kowalski's set (`apple-design`,
-`emil-design-eng`, `animate`, `review-animations`, `animation-performance`, `pick-ui-library`,
-`break-ui`, `ask-sonner`).
+behaviour is copied, it comes from observing the Claude app, not from its code. Design and motion
+follow **two Apple skills, used together in every phase that touches the UI**: `apple-hig`
+(Apple's Human Interface Guidelines) for design, and `apple-design` (Apple's WWDC talks on fluid,
+physical interfaces, translated for the web) for motion and interaction. The rest of Emil
+Kowalski's set supports them: `emil-design-eng`, `animate`, `review-animations`,
+`animation-performance`, `pick-ui-library`, `break-ui`, `ask-sonner`.
 
 **Decided with you**
 - Layout: three columns, like Apple Notes/Mail: **folder tree | session list | chat**.
@@ -30,6 +32,14 @@ behaviour is copied, it comes from observing the Claude app, not from its code. 
   Claude app's Code tab, apart from the features listed below.
 - **Build rhythm:** every phase ends with something you can run and try; work stops for your OK
   before the next phase starts.
+- **Both Apple skills, every UI phase** (your rule, set 2026-10-30 after Phase 2's first build had
+  loaded only part of `apple-hig`):
+  - Before building, load `apple-hig` with its foundation pages (accessibility, layout,
+    typography, color, designing for macOS, the cross-platform translation) and the component
+    pages for what's on screen.
+  - Load `apple-design` for motion and interaction too.
+  - After building, review the new screens against both, plus `review-animations`, and fix what
+    they find. The phase's notes record the fixes and any deliberate departures.
 - **Updates like Sync's:** you install Gloom once; when a new build is out, an icon in the title bar
   installs it.
 
@@ -332,9 +342,10 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 
 ## Phases
 
-**Status, 2026-10-30: Phases 0 and 1 are done**, and Gloom 0.3.1 is released. **Phase 2 is built
-and waiting for you to try it** (see its notes). Phase 3's installer, release script and update
-window came early (see Phase 1's notes), so what's left of Phase 3 is the viewer itself.
+**Status, 2026-10-30: Phases 0, 1 and 2 are done**, and Gloom 0.4.0 (Phase 2, the library) is
+released. **Next is Phase 3, the viewer**, built with both Apple skills (see "Decided with you").
+Phase 3's installer, release script and update window came early (see Phase 1's notes), so what's
+left of Phase 3 is the viewer itself.
 
 0. **SDK spike.** A node script drives the SDK against your real `claude.exe` and checks: two turns in
    one process, interrupt, resume keeping the session ID, a permission request answered from code,
@@ -382,7 +393,7 @@ window came early (see Phase 1's notes), so what's left of Phase 3 is the viewer
 2. **Library.** Transcript indexer in a utility process (tail reads, cache, subagent files skipped),
    watcher, library store, folder tree (nesting, rename, drag, keyboard, context menu, smart folders,
    search, filing rules, subtree delete with Undo), session list (pin, archive, rename).
-   **Built 2026-10-30, waiting for your try.**
+   **Done 2026-10-30, released as Gloom 0.4.0.**
    - **Index:** `src/worker/indexer.ts` in the "Gloom Transcripts" utility process, watched with
      chokidar. Your 91 transcripts (1.5 GB, the biggest 520 MB) index in **38 ms cold and 5 ms
      warm**, against the 3 s and 300 ms targets: the CLI re-appends its title and last prompt as it
@@ -422,13 +433,17 @@ window came early (see Phase 1's notes), so what's left of Phase 3 is the viewer
      scrolled. Deliberate departures: the sidebar nests without limit (Gloom's reason to exist,
      where Apple suggests two levels), and Move To lists where things are now, dimmed, so the
      folder tree keeps its shape.
-   - Tests: 38 new unit tests (indexer, operations, filing rules, store recovery) and 5 end-to-end
-     tests; the end-to-end tests now run against a throwaway Claude folder, never yours.
+   - Tests: 39 new unit tests (indexer, operations and their Undo, filing rules, store recovery) and
+     6 end-to-end tests; the end-to-end tests now run against a throwaway Claude folder, never yours.
+   - Released as 0.4.0 after a check of the packaged build: its indexer runs from inside the app
+     archive.
 3. **Read-only viewer, first release.** Paged transcript renderer (newest chain, compaction cut, lazy
    images, find in chat). Gloom is now a usable organizer next to the Claude app; "Resume in
    terminal" opens `claude --resume <id>` in a new terminal window. The installer, the release
    script (publishes to GitHub releases) and the update window that every later phase reaches you
    through came early, in Phase 1 (see its notes).
+   **Starts with both Apple skills loaded**, `apple-hig` and `apple-design` (see "Decided with you"),
+   and ends with their review of the transcript, tool rows and find bar before it's released.
 4. **Live chat.** Session runner (streaming, stop, queued messages, resume, idle close, process-tree
    kill), composer with `/` commands, New Session with the trust prompt and folder defaults, model,
    mode and effort pickers, all three prompt cards (a live session can't do much without them),
@@ -438,10 +453,10 @@ window came early (see Phase 1's notes), so what's left of Phase 3 is the viewer
 6. **Rewind, edit and worktrees.** Edit and rewind with the conversation / code / both choice;
    worktree sessions in git repos, Merge, cleanup on archive, and the missing-folder behaviour
    recorded in Phase 0.
-7. **Polish pass with the skills.** An `apple-hig` review of every screen, then `review-animations`,
-   `animation-performance`, and `break-ui` with worst-case data (500 sessions, folders 8 levels
-   deep, 200-character titles, empty folders, your 496 MB transcript). Then reduced motion,
-   transparency and contrast, a full keyboard audit, and a check of the security settings.
+7. **Polish pass with the skills.** An `apple-hig` and `apple-design` review of every screen, then
+   `review-animations`, `animation-performance`, and `break-ui` with worst-case data (500 sessions,
+   folders 8 levels deep, 200-character titles, empty folders, your 496 MB transcript). Then reduced
+   motion, transparency and contrast, a full keyboard audit, and a check of the security settings.
 8. **Package.** Installer polish (the app icon came in 0.3.0).
 
 ## Verification
@@ -467,5 +482,6 @@ window came early (see Phase 1's notes), so what's left of Phase 3 is the viewer
   running in a terminal shows as running elsewhere in Gloom, and Take over unlocks it.
 - **Updates:** publish a test release, see the title-bar icon appear, click it, and Gloom relaunches
   on the new version.
-- **Skill reviews:** each phase gets a quick `apple-hig` and `review-animations` look at its new
-  screens; the full audit is Phase 7.
+- **Skill reviews:** every UI phase is built with both Apple skills loaded (`apple-hig` with its
+  foundation pages, and `apple-design`). It ends with a review of its new screens against both,
+  plus `review-animations`. The full audit is Phase 7.
