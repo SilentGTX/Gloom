@@ -5,15 +5,19 @@ import { Button } from '../../components/ui/Button'
 import { MenuCheckItem, MenuGroup, MenuGroupLabel, MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger } from '../../components/ui/Menu'
 import { runCommand } from '../../lib/commands'
 import { useLibrary } from '../../stores/library'
+import { useTranscript } from '../../stores/transcript'
 import { useUi } from '../../stores/ui'
 import { computeLayout } from './layout'
 
 const ORDER: CommandGroup[] = ['file', 'edit', 'view', 'help', 'developer']
+/** Commands that act on the open session's transcript. */
+const NEEDS_TRANSCRIPT = new Set<string>(['session.resume', 'edit.find', 'edit.findNext', 'edit.findPrevious'])
 
 /** Every command, since Windows draws no menu bar here. Toggles say what they will do. */
 export function AppMenu({ shape = 'rounded' }: { shape?: 'rounded' | 'round' }) {
   const ui = useUi()
   const lastUndo = useLibrary((s) => s.undoStack.at(-1))
+  const reading = useTranscript((s) => s.status === 'ready')
   const layout = computeLayout(window.innerWidth, ui)
   const foldersShown = layout.foldersInline || ui.overlay === 'folders'
   const sessionsShown = layout.sessionsInline || ui.overlay === 'sessions'
@@ -49,7 +53,7 @@ export function AppMenu({ shape = 'rounded' }: { shape?: 'rounded' | 'round' }) 
                     key={c.id}
                     label={labelOf(c)}
                     shortcut={c.accelerator ? formatAccelerator(c.accelerator) : undefined}
-                    disabled={!!c.arrivesIn || (c.id === 'edit.undo' && !lastUndo)}
+                    disabled={!!c.arrivesIn || (c.id === 'edit.undo' && !lastUndo) || (NEEDS_TRANSCRIPT.has(c.id) && !reading)}
                     note={c.arrivesIn}
                     onClick={() => runCommand(c.id as CommandId)}
                   />

@@ -2,8 +2,11 @@
 // owns, and the bridge that receives accelerators from the main process.
 import { useEffect } from 'react'
 import { COMMANDS, findCommand, type CommandId, type CommandSpec } from '@shared/commands'
+import { useFind } from '../features/chat/find'
 import { newFolder } from '../features/folders/FolderColumn'
+import { resumeSession } from '../features/sessions/SessionMenu'
 import { useLibrary } from '../stores/library'
+import { useTranscript } from '../stores/transcript'
 import { useUi } from '../stores/ui'
 
 /** Runs once the folders have rendered, wherever they were. */
@@ -17,6 +20,16 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
     const field = document.activeElement as HTMLElement | null
     if (field && (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' || field.isContentEditable)) document.execCommand('undo')
     else void useLibrary.getState().undo()
+  },
+  'edit.find': (k) => {
+    if (useTranscript.getState().status === 'ready') useFind.getState().show(k)
+  },
+  // With Find closed, F3 opens it on the last search, as on the Mac.
+  'edit.findNext': (k) => (useFind.getState().open ? useFind.getState().step(1) : handlers['edit.find']?.(k)),
+  'edit.findPrevious': (k) => (useFind.getState().open ? useFind.getState().step(-1) : handlers['edit.find']?.(k)),
+  'session.resume': () => {
+    const id = useTranscript.getState().id
+    if (id) void resumeSession(id)
   },
   'folder.new': (k) => afterFolders(k, () => void newFolder(null)),
   'view.search': (k) =>

@@ -6,12 +6,14 @@ import { useCommandBridge } from './lib/commands'
 import { Toasts } from './lib/toast'
 import { useApplyWindowState, useWindowState } from './lib/window-state'
 import { useLibrary, useLibraryBridge } from './stores/library'
+import { useTranscriptBridge } from './stores/transcript'
 import { useUi } from './stores/ui'
 
 export function App() {
   useApplyWindowState(useWindowState())
   useCommandBridge()
   useLibraryBridge()
+  useTranscriptBridge()
   usePlaceGuard()
   const textScale = useUi((s) => s.textScale)
   const glassAlways = useUi((s) => s.glassAlways)

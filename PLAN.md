@@ -63,7 +63,7 @@ that use a Claude.ai login first.
 | Long transcripts and session lists | **Virtuoso** | pick-ui-library |
 | State | **zustand** | pick-ui-library |
 | Class names and variants | **clsx + cva** | pick-ui-library |
-| Code highlighting (chat, diffs) | **shiki**: JS regex engine, languages loaded on demand, run in a worker | pick-ui-library |
+| Code highlighting (chat, diffs) | **shiki**: JS regex engine, languages loaded on demand, run in a worker, an Xcode-like theme in CSS variables | pick-ui-library |
 | Markdown | react-markdown + remark-gfm (never rehype-raw) | not on the list |
 | Diff computation | `diff` (jsdiff) | not on the list |
 | Terminal | @xterm/xterm + node-pty: native, rebuilt for Electron with @electron/rebuild and unpacked from the asar | not on the list |
@@ -342,10 +342,22 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 
 ## Phases
 
-**Status, 2026-10-30: Phases 0, 1 and 2 are done**, and Gloom 0.4.0 (Phase 2, the library) is
-released. **Next is Phase 3, the viewer**, built with both Apple skills (see "Decided with you").
-Phase 3's installer, release script and update window came early (see Phase 1's notes), so what's
-left of Phase 3 is the viewer itself.
+**Status, 2026-10-30: Phases 0 to 3 are built**; Gloom 0.4.0 (Phase 2, the library) is released, and
+Phase 3 (the viewer) waits for your OK to ship as 0.5.0. **Next, at your request: one sidebar**
+(below), started fresh after Phase 3 ships, then Phase 4.
+
+**Planned next: one sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder
+tree and the session list merge into the one floating glass sidebar, so the window has two columns,
+sidebar and chat, instead of three:
+- **Library:** All Sessions, Recent, Pinned and Unfiled, each with a disclosure that opens to show
+  its sessions, with counts.
+- **Folders:** your folders, opening to show their sessions nested inside. A session row keeps its
+  title, time and last prompt, and the selected one is tinted with the accent.
+- **Archived** sits at the bottom, as now.
+- **Chat toolbar:** the title with the session's state beside it ("Active now"). On the right, one
+  capsule holds the sidebar toggle, the terminal (Resume in Terminal) and ⓘ, which opens the
+  session's details as a card (working folder, folder, started, last active, started from,
+  session ID, with Reveal Working Folder and Copy Session ID).
 
 0. **SDK spike.** A node script drives the SDK against your real `claude.exe` and checks: two turns in
    one process, interrupt, resume keeping the session ID, a permission request answered from code,
@@ -444,6 +456,60 @@ left of Phase 3 is the viewer itself.
    through came early, in Phase 1 (see its notes).
    **Starts with both Apple skills loaded**, `apple-hig` and `apple-design` (see "Decided with you"),
    and ends with their review of the transcript, tool rows and find bar before it's released.
+   **Built 2026-10-30, waiting for your OK to ship as 0.5.0.**
+   - **Reading:** `src/worker/reader.ts`, in the same "Gloom Transcripts" process as the index. The
+     newest page is read back from the end of the file along the chain of parent links, so a
+     branch a rewind left behind drops out. Parallel tool calls hang their results off side
+     branches (only the last is on the chain), so results are matched to calls by ID from every
+     line read. A page ends at the start of a turn once it shows 150 entries (inside one huge turn,
+     at a response past 800 entries or 24 MB parsed). A compaction ends the chain; Show Earlier
+     reads on from the conversation before it, and says so when a fork's file doesn't hold it.
+     Your 520 MB transcript's newest page reads in about 20 ms and shows in about half a second.
+   - **The model:** `src/shared/transcript.ts` turns each line into entries (prompts, one per
+     reply block, notices, command output, compactions) and tool results with what the tool
+     reported (diff hunks and +/− counts, stdout and stderr, exit state, answers, to-dos).
+     Images and long text stay in the file: entries carry a reference (line offset, length, path
+     into the line), read when a row is drawn or Show All is clicked. Unknown entry types are
+     logged once with the CLI version.
+   - **Following:** the open transcript is followed as Claude Code writes it. Lines that continue
+     the chain are appended, results arriving on side branches fill in their calls, and a rewind
+     or a rewritten file sends the newest page again, merged with what's loaded. A session
+     running elsewhere shows the live dot by its title and a spinner on calls still waiting.
+   - **The window:** Virtuoso, opening at the bottom; older pages load as you scroll up, and the
+     view stays pinned to the bottom while you're there. Your prompts sit in bubbles on the
+     trailing side (pasted blocks fold into a chip, images in a strip of fixed height, so nothing
+     moves when they load). Replies are markdown (react-markdown + remark-gfm, no raw HTML); code
+     is highlighted by shiki in a web worker with its JavaScript engine, a curated set of 61
+     languages loaded on demand, and an Xcode-like palette in CSS variables. Thinking folds,
+     tool calls are one line each ("Edited server.ts +3 −1", "Ran npm test", "Failed" in words),
+     and each finished turn says how long it took and on which model. A click on an image zooms
+     it out of its thumbnail.
+   - **Find (Ctrl+F, F3 and Shift+F3):** a glass bar at the top trailing corner. It searches the
+     loaded transcript as you type, including folded thinking and tool output (which opens to
+     show the match), marks matches with the CSS Highlight API, and the current match pops once,
+     as in Safari.
+   - **Resume in Terminal** (chat toolbar, File menu, session menu) runs `claude --resume <id>`
+     in a new PowerShell window in the session's folder, through `Start-Process`, so Windows'
+     default terminal opens it. It says why when it can't: the folder is gone, or the session ran
+     on another machine.
+   - **Review** with `apple-hig` and `apple-design`. Fixes made:
+     - a focus ring on the transcript when the keyboard is on it;
+     - press feedback on tool rows and disclosures;
+     - a `--warning` colour, instead of borrowing a syntax colour;
+     - a retried request reads "retried 2 times";
+     - the lightbox grows out of its thumbnail and goes back into it.
+   - **Departures**, deliberate:
+     - the jump-to-latest button sits at the bottom of the chat, as in Messages; End does the same;
+     - thinking the model didn't show gets no row (it was a "Thought for 1s" line between every
+       call).
+   - **Not run:** `review-animations` only runs when you start it (`/review-animations`).
+   - **Found on the way:** an IntersectionObserver inside the virtualized list never reported
+     images in view, so an image loads when its row is drawn (the list only draws rows near the
+     screen).
+   - **Tests:** 21 new unit tests (the reader: chain, parallel results, rewinds, compactions,
+     paging, references, following; the rows and Find) and 4 end-to-end tests on a made-up session
+     (`test/support/demo.ts`), plus viewer captures in light and dark. The packaged build was
+     checked: the reader and the highlighting worker run from inside the app archive.
 4. **Live chat.** Session runner (streaming, stop, queued messages, resume, idle close, process-tree
    kill), composer with `/` commands, New Session with the trust prompt and folder defaults, model,
    mode and effort pickers, all three prompt cards (a live session can't do much without them),

@@ -78,6 +78,39 @@
   --status-elsewhere: #6f7ff0;
   --status-elsewhere-glow: rgb(111 127 240 / 0.55);
 
+  /* The transcript. What you sent sits in a bubble that carries a breath of the
+     accent; code and tool output sit on a lighter card on the paper. */
+  --bubble: color-mix(in oklab, var(--accent) 12%, #fdfcff);
+  --bubble-shadow: 0 0.5px 1px rgb(40 24 80 / 0.1), 0 1px 3px rgb(40 24 80 / 0.06);
+  --card: rgb(255 255 255 / 0.6);
+  --card-edge: rgb(22 18 38 / 0.07);
+  /* Something needs attention but nothing failed (a retried request, a model switch): an amber, 4.4:1 on the paper, for icons. */
+  --warning: #8a5a00;
+  /* Lines added and removed: 5.1:1 on the paper, so "+12 −3" reads at caption size. */
+  --added-text: #17692b;
+  --removed-text: #b8000f;
+  --added-fill: rgb(52 199 89 / 0.16);
+  --removed-fill: rgb(255 59 48 / 0.12);
+  /* Find: Apple's find yellow; the current match is solid, with dark text in both appearances. */
+  --find-match: rgb(255 214 10 / 0.4);
+  --find-current: #ffd60a;
+  --find-current-text: #1d1d1f;
+
+  /* Code, after Xcode's default theme; every colour is 4.8:1 or better on the card. */
+  --code-foreground: var(--label);
+  --code-token-keyword: #9b2393;
+  --code-token-string: #c41a16;
+  --code-token-string-expression: #c41a16;
+  --code-token-comment: #5d6c79;
+  --code-token-constant: #1c00cf;
+  --code-token-function: #326d74;
+  --code-token-parameter: #4a4458;
+  --code-token-punctuation: rgb(22 18 38 / 0.74);
+  --code-token-link: #0e0eff;
+  --code-token-inserted: #17692b;
+  --code-token-deleted: #c41a16;
+  --code-token-changed: #815f03;
+
   /* Type: the system face, size-specific tracking, rem so text size scales. */
   --typeface-text: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   --typeface-display: 'Segoe UI Variable Display', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
@@ -152,6 +185,30 @@
     --field: rgb(0 0 0 / 0.28);
     --status-elsewhere: #8f9cff;
     --status-elsewhere-glow: rgb(143 156 255 / 0.5);
+
+    --bubble: color-mix(in oklab, var(--accent) 24%, #2a2833);
+    --bubble-shadow: 0 0.5px 1px rgb(0 0 0 / 0.4);
+    --card: rgb(255 255 255 / 0.045);
+    --card-edge: rgb(255 255 255 / 0.06);
+    --warning: #ffb340;
+    --added-text: #6bd68a;
+    --removed-text: #ff8a80;
+    --added-fill: rgb(48 209 88 / 0.16);
+    --removed-fill: rgb(255 69 58 / 0.16);
+    --find-match: rgb(255 214 10 / 0.3);
+
+    --code-token-keyword: #fc5fa3;
+    --code-token-string: #fc6a5d;
+    --code-token-string-expression: #fc6a5d;
+    --code-token-comment: #7f8c98;
+    --code-token-constant: #d0bf69;
+    --code-token-function: #67b7a4;
+    --code-token-parameter: #c8c2d8;
+    --code-token-punctuation: rgb(246 243 255 / 0.7);
+    --code-token-link: #5482ff;
+    --code-token-inserted: #6bd68a;
+    --code-token-deleted: #fc6a5d;
+    --code-token-changed: #fd8f3f;
   }
 }
 
@@ -190,6 +247,7 @@
     --label-secondary: rgb(22 18 38 / 0.8);
     --label-tertiary: rgb(22 18 38 / 0.68);
     --glass-rim: linear-gradient(rgb(22 18 38 / 0.45), rgb(22 18 38 / 0.45));
+    --card-edge: rgb(22 18 38 / 0.4);
   }
 }
 @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
@@ -199,5 +257,6 @@
     --label-secondary: rgb(255 255 255 / 0.82);
     --label-tertiary: rgb(255 255 255 / 0.7);
     --glass-rim: linear-gradient(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.5));
+    --card-edge: rgb(255 255 255 / 0.4);
   }
 }

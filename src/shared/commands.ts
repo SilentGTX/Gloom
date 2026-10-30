@@ -19,11 +19,16 @@ export interface CommandSpec {
 export const COMMANDS = [
   { id: 'session.new', label: 'New Session', group: 'file', accelerator: 'CmdOrCtrl+N', runs: 'renderer', arrivesIn: 'Phase 4' },
   { id: 'folder.new', label: 'New Folder', group: 'file', accelerator: 'CmdOrCtrl+Shift+N', runs: 'renderer' },
+  // Opens the open session in a terminal window, until Gloom can send messages itself.
+  { id: 'session.resume', label: 'Resume in Terminal', group: 'file', runs: 'renderer' },
   { id: 'app.settings', label: 'Settings…', group: 'file', accelerator: 'CmdOrCtrl+,', runs: 'renderer', arrivesIn: 'Phase 4' },
   { id: 'app.quit', label: 'Quit Gloom', group: 'file', accelerator: 'CmdOrCtrl+Q', runs: 'main' },
   // Undoes typing in a field, otherwise the last change to your folders and sessions.
   { id: 'edit.undo', label: 'Undo', group: 'edit', accelerator: 'CmdOrCtrl+Z', runs: 'renderer' },
-  // Ctrl+F stays for finding in a chat (Phase 3); this searches every session.
+  // Finds in the open chat's transcript; Search Sessions looks through every session.
+  { id: 'edit.find', label: 'Find…', group: 'edit', accelerator: 'CmdOrCtrl+F', runs: 'renderer' },
+  { id: 'edit.findNext', label: 'Find Next', group: 'edit', accelerator: 'F3', runs: 'renderer' },
+  { id: 'edit.findPrevious', label: 'Find Previous', group: 'edit', accelerator: 'Shift+F3', runs: 'renderer' },
   { id: 'view.search', label: 'Search Sessions', group: 'view', accelerator: 'CmdOrCtrl+Shift+F', runs: 'renderer' },
   { id: 'view.toggleFolders', label: 'Show or Hide Folders', group: 'view', accelerator: 'CmdOrCtrl+B', runs: 'renderer' },
   // Not Ctrl+Alt: that is AltGr on many keyboard layouts.

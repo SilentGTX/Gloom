@@ -49,7 +49,8 @@ export function isTranscript(file: string, projectsDir: string): boolean {
   return name.endsWith('.jsonl') && !name.startsWith('agent-') && samePath(dirname(dirname(file)), projectsDir)
 }
 
-function samePath(a: string, b: string): boolean {
+/** Paths compare case-insensitively on Windows, whichever way their slashes lean. */
+export function samePath(a: string, b: string): boolean {
   const norm = (p: string) => p.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase()
   return norm(a) === norm(b)
 }
@@ -78,12 +79,15 @@ export function listTranscripts(projectsDir: string): string[] {
 
 // ─── Lines ───────────────────────────────────────────────────────────────────
 
+/** Called with a line, its byte offset in the file and its length in bytes (without the newline). */
+export type LineFn = (line: string, offset: number, length: number) => boolean | void
+
 /**
  * Calls `fn` with each complete line in [start, end), oldest first, until it
  * returns true or `limit` bytes are read. Returns the offset just past the last
  * newline it reached, which is where an incomplete last line starts.
  */
-export function readLinesForward(fd: number, start: number, end: number, fn: (line: string) => boolean | void, limit = Infinity): number {
+export function readLinesForward(fd: number, start: number, end: number, fn: LineFn, limit = Infinity): number {
   let pos = start
   let lineStart = start
   let pending: Buffer[] = []
@@ -97,9 +101,10 @@ export function readLinesForward(fd: number, start: number, end: number, fn: (li
       const piece = buf.subarray(from, nl)
       const line = pending.length ? Buffer.concat([...pending, piece]).toString('utf8') : piece.toString('utf8')
       pending = []
+      const offset = lineStart
       from = nl + 1
       lineStart = pos + from
-      if (fn(line)) return lineStart
+      if (fn(line, offset, pos + nl - offset)) return lineStart
     }
     if (from < n) pending.push(buf.subarray(from))
     pos += n
@@ -113,7 +118,7 @@ export function readLinesForward(fd: number, start: number, end: number, fn: (li
  * no newline yet is still being written, so it's skipped. Returns the offset
  * just past the file's last newline (0 if none was found).
  */
-export function readLinesBackward(fd: number, end: number, fn: (line: string) => boolean | void, limit = Infinity): number {
+export function readLinesBackward(fd: number, end: number, fn: LineFn, limit = Infinity): number {
   let pos = end
   let carry: Buffer | null = null
   let lastNewline = -1
@@ -143,12 +148,13 @@ export function readLinesBackward(fd: number, end: number, fn: (line: string) =>
     while (lineEnd > 0) {
       const nl = data.lastIndexOf(NEWLINE, lineEnd - 1)
       if (nl === -1) break
-      if (fn(data.toString('utf8', nl + 1, lineEnd))) return lastNewline + 1
+      // data[0] sits at `start` in the file.
+      if (fn(data.toString('utf8', nl + 1, lineEnd), start + nl + 1, lineEnd - nl - 1)) return lastNewline + 1
       lineEnd = nl
     }
     // data[0, lineEnd) began in an earlier chunk, unless this is the file's start.
     if (start === 0) {
-      if (lineEnd > 0) fn(data.toString('utf8', 0, lineEnd))
+      if (lineEnd > 0) fn(data.toString('utf8', 0, lineEnd), 0, lineEnd)
       break
     }
     carry = data.subarray(0, lineEnd)

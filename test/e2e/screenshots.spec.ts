@@ -1,8 +1,9 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { DEMO_ID, demoSession } from '../support/demo'
 import type { FakeSession } from '../support/transcripts'
-import { captureWindow, fakeClaude, launch, minutesAgo, sendUpdateReady, setWindowSize } from './app'
+import { captureWindow, fakeClaude, launch, minutesAgo, sendUpdateReady, setWindowSize, triggerShortcut } from './app'
 
 // Captures of the window as Windows draws it (caption buttons, border), in
 // light and dark, with glass as this PC's settings give it and with glass on:
@@ -101,6 +102,36 @@ for (const theme of ['light', 'dark'] as const) {
       await app.close()
     })
   }
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`the transcript viewer, ${theme}`, async () => {
+    mkdirSync(dir, { recursive: true })
+    const claudeDir = fakeClaude(DEMO)
+    demoSession('D:\\Work\\api').write(join(claudeDir, 'projects'))
+    const { app, page } = await launch({ claudeDir })
+    await setWindowSize(app, 1280, 860)
+    await app.evaluate(({ nativeTheme }, t) => (nativeTheme.themeSource = t), theme)
+    await page.locator(`[data-session-id="${DEMO_ID}"]`).click()
+    await page.locator('img[alt="Attached image"]').waitFor()
+    await page.waitForTimeout(500)
+    await captureWindow(app, join(dir, `viewer-${theme}.png`))
+
+    // An edit's diff opened, under the plan's code block.
+    const transcript = page.getByLabel('Transcript')
+    await transcript.evaluate((el) => (el.scrollTop = 0))
+    await page.getByRole('button', { name: 'Edited server.ts +3 −1' }).click()
+    await transcript.evaluate((el) => (el.scrollTop = 300))
+    await page.waitForTimeout(500)
+    await captureWindow(app, join(dir, `viewer-diff-${theme}.png`))
+
+    await triggerShortcut(app, 'CmdOrCtrl+F')
+    await page.locator('input[data-find]').fill('limit')
+    await page.locator('input[data-find]').press('Enter')
+    await page.waitForTimeout(600)
+    await captureWindow(app, join(dir, `viewer-find-${theme}.png`))
+    await app.close()
+  })
 }
 
 test('a drag in progress', async () => {

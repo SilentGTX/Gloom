@@ -1,7 +1,21 @@
 // The typed `window.gloom` bridge, as the renderer sees it.
 import type { CommandId } from '../shared/commands'
-import type { AppInfo, ApplyResult, CommandDispatch, LibraryChange, LibrarySnapshot, SessionsChange, SplashState, UpdateState, WindowState } from '../shared/ipc'
+import type {
+  AppInfo,
+  ApplyResult,
+  CommandDispatch,
+  LibraryChange,
+  LibrarySnapshot,
+  ResumeResult,
+  SessionsChange,
+  SplashState,
+  TranscriptChange,
+  TranscriptRequest,
+  UpdateState,
+  WindowState
+} from '../shared/ipc'
 import type { LibraryOp } from '../shared/library'
+import type { BlobRef, TranscriptPage } from '../shared/transcript'
 
 export interface GloomApi {
   getWindowState(): Promise<WindowState | null>
@@ -27,6 +41,14 @@ export interface GloomApi {
   copySessionId(id: string): Promise<void>
   /** A folder chosen in the system's folder picker, or null. */
   pickFolder(): Promise<string | null>
+  /** A page of a session's transcript, newest first; following it sends its changes to `onTranscript`. */
+  readTranscript(request: TranscriptRequest): Promise<TranscriptPage>
+  /** What a page left in the file: an image's data URL, a long text, a whole diff. */
+  transcriptBlob(id: string, ref: BlobRef): Promise<unknown>
+  unfollowTranscript(): Promise<void>
+  onTranscript(listener: (change: TranscriptChange) => void): () => void
+  /** Opens `claude --resume` in a terminal window; with `check`, only says whether it can. */
+  resumeSession(id: string, options?: { check?: boolean }): Promise<ResumeResult>
 }
 
 declare global {

@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, Copy, FolderInput, FolderOpen, Pencil, Pin, PinOff } from 'lucide-react'
+import { Archive, ArchiveRestore, Copy, FolderInput, FolderOpen, Pencil, Pin, PinOff, SquareChevronRight } from 'lucide-react'
 import type { Place } from '@shared/library'
 import { ContextMenuPopup, MenuGroup, MenuGroupLabel, MenuItem, MenuSeparator, MenuSubmenu } from '../../components/ui/Menu'
 import { notify } from '../../lib/toast'
@@ -22,6 +22,13 @@ export async function revealSession(id: string): Promise<void> {
 export async function copySessionId(id: string): Promise<void> {
   await window.gloom?.copySessionId(id)
   notify('Copied the session ID')
+}
+
+/** Opens `claude --resume` for the session in a terminal window, or says why it can't. */
+export async function resumeSession(id: string): Promise<void> {
+  const result = await window.gloom?.resumeSession(id)
+  if (!result) return
+  notify(result.ok ? 'Resumed in a terminal window' : `Can’t resume this session. ${result.reason}`)
 }
 
 /**
@@ -57,6 +64,7 @@ export function SessionMenu({ ids, place }: { ids: string[]; place: Place }) {
         {single && (
           <>
             <MenuSeparator />
+            {!single.remote && <MenuItem label="Resume in Terminal" icon={<SquareChevronRight />} onClick={() => void resumeSession(single.id)} />}
             {!single.remote && <MenuItem label="Reveal Working Folder" icon={<FolderOpen />} onClick={() => void revealSession(single.id)} />}
             <MenuItem label="Copy Session ID" icon={<Copy />} onClick={() => void copySessionId(single.id)} />
           </>

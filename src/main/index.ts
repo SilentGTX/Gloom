@@ -2,10 +2,12 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvo
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { findCommand, type CommandId } from '@shared/commands'
-import { IPC, type AppInfo } from '@shared/ipc'
+import { IPC, type AppInfo, type ResumeResult } from '@shared/ipc'
+import { parseRef, type Cursor } from '@shared/transcript'
 import { installApplicationMenu, runCommand } from './commands'
 import { LibraryService } from './library/service'
 import { runPtySmoke } from './smoke'
+import { resumeInTerminal } from './terminal'
 import { installPending, launch, updateWindow } from './update-window'
 import { onUpdateState, startBackgroundChecks, updateState } from './updater'
 import { createMainWindow, rendererUrl, windowState } from './window'
@@ -66,7 +68,8 @@ if (smokeArg) {
 
     const library = new LibraryService({
       library: (change) => mainWindow?.webContents.send(IPC.libraryChanged, change),
-      sessions: (change) => mainWindow?.webContents.send(IPC.sessionsChanged, change)
+      sessions: (change) => mainWindow?.webContents.send(IPC.sessionsChanged, change),
+      transcript: (change) => mainWindow?.webContents.send(IPC.transcriptChanged, change)
     })
     library.start()
     app.on('before-quit', () => library.stop())
@@ -87,6 +90,30 @@ if (smokeArg) {
     ipcMain.handle(IPC.copySessionId, (event, id: unknown) => {
       if (!trusted(event)) throw new Error('untrusted sender')
       if (typeof id === 'string' && library.session(id)) clipboard.writeText(id)
+    })
+    ipcMain.handle(IPC.readTranscript, (event, request: unknown) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      const { id, cursor, follow } = (request ?? {}) as Record<string, unknown>
+      if (typeof id !== 'string') throw new Error('bad transcript request')
+      const c = cursor as Cursor | null
+      const valid = c === null || (typeof c === 'object' && Number.isSafeInteger(c.offset) && c.offset >= 0 && typeof c.want === 'string' && c.want.length < 200)
+      if (!valid) throw new Error('bad transcript cursor')
+      return library.readTranscript(id, c, follow === true)
+    })
+    ipcMain.handle(IPC.transcriptBlob, (event, id: unknown, ref: unknown) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      if (typeof id !== 'string' || !parseRef(ref)) throw new Error('bad transcript reference')
+      return library.readBlob(id, ref as string)
+    })
+    ipcMain.handle(IPC.unfollowTranscript, (event) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      library.unfollow()
+    })
+    ipcMain.handle(IPC.resumeSession, (event, id: unknown, options: unknown): ResumeResult => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      const session = typeof id === 'string' ? library.session(id) : undefined
+      if (!session) return { ok: false, reason: 'That session’s transcript is gone.' }
+      return resumeInTerminal(session, { check: (options as { check?: unknown } | undefined)?.check === true })
     })
     ipcMain.handle(IPC.pickFolder, async (event) => {
       if (!trusted(event)) throw new Error('untrusted sender')

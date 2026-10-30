@@ -1,11 +1,13 @@
-// The transcript indexer's utility process: indexes ~/.claude/projects at start
-// (reusing its cache), then watches it and reports what changed. It runs outside
-// the main process, so reading a big transcript never stalls the window.
+// The transcripts' utility process: indexes ~/.claude/projects at start
+// (reusing its cache), then watches it and reports what changed; reads pages of
+// a transcript for the chat, and follows the open one as it grows. It runs
+// outside the main process, so reading a big transcript never stalls the window.
 import { watch, type FSWatcher } from 'chokidar'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import type { WorkerReply, WorkerRequest } from '@shared/ipc'
-import { collectSessions, INDEX_VERSION, indexAll, indexAppended, indexFile, isTranscript, type FileIndex, type IndexCache } from './indexer'
+import { collectSessions, INDEX_VERSION, indexAll, indexAppended, indexFile, isTranscript, samePath, type FileIndex, type IndexCache } from './indexer'
+import { Follower, readBlob, readPage } from './reader'
 
 /** Changes are batched: a session streaming in the Claude app writes several lines a second. */
 const BATCH_MS = 150
@@ -20,6 +22,8 @@ let projectsDir = ''
 let cacheFile = ''
 let files: Record<string, FileIndex> = {}
 let watcher: FSWatcher | null = null
+/** The transcript open in the chat, kept current as it grows. */
+let follower: Follower | null = null
 
 function post(reply: WorkerReply): void {
   port.postMessage(reply)
@@ -68,6 +72,7 @@ function queue(path: string): void {
 function flush(): void {
   batchTimer = null
   const ids = new Set<string>()
+  const followed = follower && [...dirty].some((path) => samePath(path, follower!.file)) ? follower : null
   for (const path of dirty) {
     ids.add(basename(path, '.jsonl'))
     try {
@@ -88,6 +93,31 @@ function flush(): void {
   const remove = [...ids].filter((id) => !now.has(id))
   if (upsert.length || remove.length) post({ type: 'changed', upsert, remove })
   saveCacheSoon()
+  if (followed) {
+    try {
+      const update = followed.update()
+      if (update) post({ type: 'transcript', file: followed.file, update })
+    } catch (error) {
+      post({ type: 'error', message: `following ${basename(followed.file)}: ${String(error)}` })
+    }
+  }
+}
+
+// ─── Reading for the chat ────────────────────────────────────────────────────
+
+function answer(request: Extract<WorkerRequest, { type: 'page' | 'blob' }>): void {
+  try {
+    if (request.type === 'blob') {
+      post({ type: 'answer', reqId: request.reqId, value: readBlob(request.file, request.ref) })
+      return
+    }
+    const read = readPage(request.file, request.cursor)
+    if (request.follow) follower = new Follower(request.file, read)
+    if (read.unknown.length) post({ type: 'unknown', file: request.file, types: read.unknown })
+    post({ type: 'answer', reqId: request.reqId, value: read.page })
+  } catch (error) {
+    post({ type: 'failed', reqId: request.reqId, message: error instanceof Error ? error.message : String(error) })
+  }
 }
 
 function startWatching(): void {
@@ -129,10 +159,18 @@ function index(): void {
 }
 
 port.on('message', ({ data }: { data: WorkerRequest }) => {
-  if (data.type === 'start') start(data)
-  else if (data.type === 'stop') {
-    void watcher?.close()
-    saveCache()
-    process.exit(0)
+  switch (data.type) {
+    case 'start':
+      return start(data)
+    case 'page':
+    case 'blob':
+      return answer(data)
+    case 'unfollow':
+      follower = null
+      return
+    case 'stop':
+      void watcher?.close()
+      saveCache()
+      process.exit(0)
   }
 })

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { IPC, type CommandDispatch, type LibraryChange, type SessionsChange, type SplashState, type UpdateState, type WindowState } from '@shared/ipc'
+import { IPC, type CommandDispatch, type LibraryChange, type SessionsChange, type SplashState, type TranscriptChange, type UpdateState, type WindowState } from '@shared/ipc'
 import type { GloomApi } from './api'
 
 function subscribe<T>(channel: string, listener: (payload: T) => void): () => void {
@@ -24,7 +24,12 @@ const api: GloomApi = {
   onSessions: (listener) => subscribe<SessionsChange>(IPC.sessionsChanged, listener),
   revealSession: (id) => ipcRenderer.invoke(IPC.revealSession, id),
   copySessionId: (id) => ipcRenderer.invoke(IPC.copySessionId, id),
-  pickFolder: () => ipcRenderer.invoke(IPC.pickFolder)
+  pickFolder: () => ipcRenderer.invoke(IPC.pickFolder),
+  readTranscript: (request) => ipcRenderer.invoke(IPC.readTranscript, request),
+  transcriptBlob: (id, ref) => ipcRenderer.invoke(IPC.transcriptBlob, id, ref),
+  unfollowTranscript: () => ipcRenderer.invoke(IPC.unfollowTranscript),
+  onTranscript: (listener) => subscribe<TranscriptChange>(IPC.transcriptChanged, listener),
+  resumeSession: (id, options) => ipcRenderer.invoke(IPC.resumeSession, id, options)
 }
 
 contextBridge.exposeInMainWorld('gloom', api)

@@ -305,6 +305,184 @@
       animation: none;
     }
   }
+
+  /* ─── The transcript ──────────────────────────────────────────────────── */
+
+  /* Claude's replies: content on the paper, set for long reading (loose
+     leading, body near zero tracking), selectable like any document. */
+  .prose-gloom {
+    font-size: 0.9375rem;
+    line-height: 1.62;
+    color: var(--label);
+    overflow-wrap: anywhere;
+    user-select: text;
+    cursor: auto;
+  }
+  .prose-gloom > :first-child {
+    margin-top: 0;
+  }
+  .prose-gloom > :last-child {
+    margin-bottom: 0;
+  }
+  .prose-gloom :is(p, ul, ol, blockquote, table, .code-card, hr) {
+    margin: 0.7em 0;
+  }
+  .prose-gloom :is(h1, h2, h3, h4, h5, h6) {
+    margin: 1.15em 0 0.45em;
+    font-family: var(--typeface-display);
+    font-weight: 650;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+  .prose-gloom h1 {
+    font-size: 1.3rem;
+    letter-spacing: -0.016em;
+  }
+  .prose-gloom h2 {
+    font-size: 1.15rem;
+  }
+  .prose-gloom :is(h3, h4, h5, h6) {
+    font-size: 1rem;
+  }
+  .prose-gloom :is(ul, ol) {
+    padding-left: 1.45em;
+  }
+  .prose-gloom ul {
+    list-style: disc;
+  }
+  .prose-gloom ol {
+    list-style: decimal;
+  }
+  .prose-gloom li {
+    margin: 0.22em 0;
+  }
+  .prose-gloom li > :is(ul, ol) {
+    margin: 0.2em 0;
+  }
+  .prose-gloom li::marker {
+    color: var(--label-secondary);
+  }
+  .prose-gloom :is(strong, b) {
+    font-weight: 650;
+  }
+  .prose-gloom a {
+    color: var(--accent-text);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in oklab, var(--accent-text) 40%, transparent);
+    text-underline-offset: 2px;
+  }
+  .prose-gloom a:hover {
+    text-decoration-color: currentColor;
+  }
+  .prose-gloom :not(pre) > code {
+    padding: 0.08em 0.36em;
+    border-radius: 5px;
+    background: var(--fill-strong);
+    font-family: var(--typeface-mono);
+    font-size: 0.85em;
+  }
+  .prose-gloom blockquote {
+    padding-left: 0.9em;
+    border-left: 3px solid var(--separator-strong);
+    color: var(--label-secondary);
+  }
+  .prose-gloom hr {
+    border: 0;
+    border-top: 1px solid var(--separator-strong);
+  }
+  .prose-gloom .table-scroll {
+    overflow-x: auto;
+  }
+  .prose-gloom table {
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  .prose-gloom :is(th, td) {
+    padding: 0.35em 0.8em;
+    border-bottom: 1px solid var(--separator);
+    text-align: left;
+    vertical-align: top;
+  }
+  .prose-gloom th {
+    border-bottom-color: var(--separator-strong);
+    font-weight: 650;
+  }
+
+  /* Code and tool output: a lighter card on the paper with a hairline edge. */
+  .code-card {
+    border-radius: 10px;
+    background: var(--card);
+    box-shadow: inset 0 0 0 0.5px var(--card-edge);
+  }
+  .code-text {
+    font-family: var(--typeface-mono);
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    tab-size: 4;
+    color: var(--code-foreground);
+    user-select: text;
+    cursor: auto;
+  }
+
+  /* A diff line: the fill tells added from removed, and so does the sign. */
+  .diff-added {
+    background: var(--added-fill);
+  }
+  .diff-removed {
+    background: var(--removed-fill);
+  }
+
+  /* An image arriving from the file fades in where its frame already stands. */
+  .image-in {
+    animation: image-in 200ms var(--curve-out) both;
+  }
+  @keyframes image-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* Find: every match on screen, and the current one, as Safari marks them. */
+  ::highlight(find) {
+    background-color: var(--find-match);
+  }
+  ::highlight(find-current) {
+    background-color: var(--find-current);
+    color: var(--find-current-text);
+  }
+  /* The current match pops once as Find lands on it, then lets go. */
+  .find-pop {
+    position: fixed;
+    z-index: 30;
+    border-radius: 4px;
+    background: var(--find-current);
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+    pointer-events: none;
+    animation: find-pop 420ms var(--curve-out) forwards;
+  }
+  @keyframes find-pop {
+    0% {
+      transform: scale(1);
+      opacity: 0.95;
+    }
+    35% {
+      transform: scale(1.18);
+      opacity: 0.95;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .image-in,
+    .find-pop {
+      animation: none;
+    }
+    .find-pop {
+      display: none;
+    }
+  }
 }
 
 @utility drag {

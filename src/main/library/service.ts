@@ -5,9 +5,10 @@
 import { app, utilityProcess, type UtilityProcess } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
-import type { ApplyResult, LibrarySnapshot, SessionsChange, WorkerReply, WorkerRequest } from '@shared/ipc'
+import { basename, join } from 'node:path'
+import type { ApplyResult, LibrarySnapshot, SessionsChange, TranscriptChange, WorkerReply, WorkerRequest } from '@shared/ipc'
 import { applyOp, LibraryError, noticeSessions, type LibraryData, type LibraryOp, type SessionMeta } from '@shared/library'
+import type { Cursor, TranscriptPage } from '@shared/transcript'
 import transcriptsWorker from '../../worker/transcripts?modulePath'
 import { parseOp } from './ops'
 import { LibraryStore } from './store'
@@ -22,7 +23,11 @@ const RESTART_DELAYS_MS = [1_000, 5_000, 30_000]
 export interface LibraryEvents {
   library(change: { rev: number; library: LibraryData }): void
   sessions(change: SessionsChange): void
+  transcript(change: TranscriptChange): void
 }
+
+type Asked = Extract<WorkerRequest, { reqId: number }>
+type Ask = Asked extends infer R ? (R extends Asked ? Omit<R, 'reqId'> : never) : never
 
 export class LibraryService {
   private readonly store: LibraryStore
@@ -32,6 +37,10 @@ export class LibraryService {
   private worker: UtilityProcess | null = null
   private restarts = 0
   private stopping = false
+  private nextReq = 1
+  private readonly pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>()
+  /** Entry types already logged as new, so each is logged once. */
+  private readonly unknownLogged = new Set<string>()
 
   constructor(private readonly events: LibraryEvents) {
     this.store = new LibraryStore(join(app.getPath('userData'), 'library.json'))
@@ -44,6 +53,8 @@ export class LibraryService {
     child.on('message', (reply: WorkerReply) => this.onWorker(reply))
     child.on('exit', (code) => {
       if (this.worker === child) this.worker = null
+      for (const { reject } of this.pending.values()) reject(new LibraryError('The transcript reader stopped. Try again.'))
+      this.pending.clear()
       if (this.stopping) return
       console.error(`Gloom: the transcript indexer exited (${code})`)
       const delay = RESTART_DELAYS_MS[this.restarts++]
@@ -74,6 +85,35 @@ export class LibraryService {
     return this.index.get(id)
   }
 
+  /** A page of a session's transcript; with `follow`, its changes are sent as `transcript` events. */
+  readTranscript(id: string, cursor: Cursor | null, follow: boolean): Promise<TranscriptPage> {
+    const meta = this.index.get(id)
+    if (!meta) return Promise.reject(new LibraryError('That session’s transcript is gone.'))
+    return this.ask({ type: 'page', file: meta.file, cursor, follow }) as Promise<TranscriptPage>
+  }
+
+  /** An image or a long text a page left in the file. */
+  readBlob(id: string, ref: string): Promise<unknown> {
+    const meta = this.index.get(id)
+    if (!meta) return Promise.reject(new LibraryError('That session’s transcript is gone.'))
+    return this.ask({ type: 'blob', file: meta.file, ref })
+  }
+
+  unfollow(): void {
+    const request: WorkerRequest = { type: 'unfollow' }
+    this.worker?.postMessage(request)
+  }
+
+  private ask(request: Ask): Promise<unknown> {
+    const worker = this.worker
+    if (!worker) return Promise.reject(new LibraryError('The transcript reader is starting. Try again.'))
+    const reqId = this.nextReq++
+    return new Promise((resolve, reject) => {
+      this.pending.set(reqId, { resolve, reject })
+      worker.postMessage({ ...request, reqId } as WorkerRequest)
+    })
+  }
+
   /** Runs an operation from the window. Throws a LibraryError the window can show. */
   apply(raw: unknown): ApplyResult {
     const op: LibraryOp = parseOp(raw)
@@ -90,9 +130,29 @@ export class LibraryService {
   }
 
   private onWorker(reply: WorkerReply): void {
-    if (reply.type === 'error') {
-      console.error('Gloom: transcript watcher:', reply.message)
-      return
+    switch (reply.type) {
+      case 'error':
+        console.error('Gloom: transcript watcher:', reply.message)
+        return
+      case 'answer':
+      case 'failed': {
+        const waiting = this.pending.get(reply.reqId)
+        this.pending.delete(reply.reqId)
+        if (reply.type === 'answer') waiting?.resolve(reply.value)
+        else waiting?.reject(new LibraryError(reply.message))
+        return
+      }
+      case 'transcript':
+        this.events.transcript({ id: basename(reply.file, '.jsonl'), update: reply.update })
+        return
+      case 'unknown': {
+        // The format is undocumented and the CLI updates itself: note what's new, with the CLI that wrote it.
+        const fresh = reply.types.filter((t) => !this.unknownLogged.has(t))
+        fresh.forEach((t) => this.unknownLogged.add(t))
+        const version = this.index.get(basename(reply.file, '.jsonl'))?.version ?? 'unknown'
+        if (fresh.length) console.warn(`Gloom: transcript entries new to Gloom: ${fresh.join(', ')} (CLI ${version})`)
+        return
+      }
     }
     this.restarts = 0
     const now = Date.now()

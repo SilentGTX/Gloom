@@ -1,6 +1,7 @@
 // IPC channel names and payloads shared by main, preload and renderer.
 import type { CommandId } from './commands'
 import type { LibraryData, LibraryOp, SessionMeta } from './library'
+import type { Cursor, TranscriptUpdate } from './transcript'
 
 export const IPC = {
   /** invoke → LibrarySnapshot */
@@ -17,6 +18,16 @@ export const IPC = {
   copySessionId: 'library:copy-id',
   /** invoke → string | null: a folder chosen in the system's folder picker */
   pickFolder: 'library:pick-folder',
+  /** invoke(TranscriptRequest) → TranscriptPage */
+  readTranscript: 'transcript:read',
+  /** invoke(sessionId, BlobRef) → an image's data URL, a long text, a whole diff */
+  transcriptBlob: 'transcript:blob',
+  /** invoke: stops reporting the open transcript's changes */
+  unfollowTranscript: 'transcript:unfollow',
+  /** main → renderer: TranscriptChange, as the open transcript grows */
+  transcriptChanged: 'transcript:changed',
+  /** invoke(sessionId, { check }) → ResumeResult: opens `claude --resume` in a terminal window */
+  resumeSession: 'session:resume',
   /** invoke → WindowState */
   windowState: 'window:state',
   /** main → renderer: WindowState */
@@ -99,6 +110,22 @@ export interface SessionsChange {
   indexed: boolean
 }
 
+export interface TranscriptRequest {
+  id: string
+  /** Null for the newest page. */
+  cursor: Cursor | null
+  /** Report the transcript's changes from now on (the newest page only). */
+  follow: boolean
+}
+
+export interface TranscriptChange {
+  id: string
+  update: TranscriptUpdate
+}
+
+/** Whether a session can be opened in a terminal, and if not, why. */
+export type ResumeResult = { ok: true; command: string } | { ok: false; reason: string }
+
 export interface ApplyResult {
   rev: number
   library: LibraryData
@@ -109,10 +136,23 @@ export interface ApplyResult {
 }
 
 /** main → transcripts worker */
-export type WorkerRequest = { type: 'start'; projectsDir: string; cacheFile: string } | { type: 'stop' }
+export type WorkerRequest =
+  | { type: 'start'; projectsDir: string; cacheFile: string }
+  | { type: 'stop' }
+  /** A page of a transcript; with `follow`, its appended entries are reported from then on. */
+  | { type: 'page'; reqId: number; file: string; cursor: Cursor | null; follow: boolean }
+  /** An image or a long text left out of a page. */
+  | { type: 'blob'; reqId: number; file: string; ref: string }
+  | { type: 'unfollow' }
 
 /** transcripts worker → main */
 export type WorkerReply =
   | { type: 'ready'; sessions: SessionMeta[]; stats: { files: number; read: number; ms: number } }
   | { type: 'changed'; upsert: SessionMeta[]; remove: string[] }
   | { type: 'error'; message: string }
+  | { type: 'answer'; reqId: number; value: unknown }
+  | { type: 'failed'; reqId: number; message: string }
+  /** The followed transcript grew. */
+  | { type: 'transcript'; file: string; update: TranscriptUpdate }
+  /** Entry types Gloom doesn't know yet, met while reading `file`. */
+  | { type: 'unknown'; file: string; types: string[] }
