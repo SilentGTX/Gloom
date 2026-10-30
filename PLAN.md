@@ -384,7 +384,8 @@ and **your new icon**, the gloomy cloud, as Gloom 0.6.1 (Phase 1's notes, "After
 sidebar's click and motion fixes are out as Gloom 0.6.2. **Updates that don't close the window**,
 the cloud on a violet tile and the shimmering title of a running session are out as Gloom 0.6.3
 (Phase 1's notes and the sidebar's, "After 0.6.2"). Show More and a sidebar that keeps its order
-are out as Gloom 0.6.5. **Next: Phase 4**, live chat, on your OK.
+are out as Gloom 0.6.5, and a fix for clicks lost while a group opens as Gloom 0.6.6. **Next:
+Phase 4**, live chat, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -464,6 +465,13 @@ disclosure pages; `apple-design` for motion).
   either wrote, so the default is now date created, newest first (your setting moved over; Last
   Activity is still in View › Sort Sessions By). Released as Gloom 0.6.5, after a check of the
   packaged build (Show More, a session that comes alive keeping its place, and node-pty).
+- **Found in 0.6.5's packaged build:** a click on Show More (or a session) while its group was
+  still opening could go nowhere. Pressing a row focuses it, and the half-open group's contents
+  were `overflow: hidden`, which a browser can still scroll: focus scrolled the row into view and
+  slid the session above it under the pointer before the press let go. They're `overflow: clip`
+  now, which can't be scrolled; a test checks that focusing a row in an opening group leaves it
+  where it is (it moved 74 px before). Released as Gloom 0.6.6: the same quick clicks that lost
+  their way on the packaged 0.6.5 land every time on the packaged 0.6.6.
 - Built in its own worktree (`D:\JS\Gloom-sidebar`) while 0.5.1 was being made in the main
   checkout, then merged with it. Released as 0.6.0 after a check of the packaged build: it opens
   on the update screen, then the sidebar, a session and its info card, from inside the app archive.
