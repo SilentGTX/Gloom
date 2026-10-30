@@ -383,7 +383,8 @@ download arrow (Phase 1's notes, "After 0.5.0"). **One sidebar** (below) is out 
 and **your new icon**, the gloomy cloud, as Gloom 0.6.1 (Phase 1's notes, "After 0.6.0"). The
 sidebar's click and motion fixes are out as Gloom 0.6.2. **Updates that don't close the window**,
 the cloud on a violet tile and the shimmering title of a running session are out as Gloom 0.6.3
-(Phase 1's notes and the sidebar's, "After 0.6.2"). **Next: Phase 4**, live chat, on your OK.
+(Phase 1's notes and the sidebar's, "After 0.6.2"). Show More and a sidebar that keeps its order
+are out as Gloom 0.6.5. **Next: Phase 4**, live chat, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -461,7 +462,8 @@ disclosure pages; `apple-design` for motion).
 - **After 0.6.4, at your request:** a group shows five sessions, then Show More for five more. And
   sessions keep their places: sorting by last activity swapped two running sessions every time
   either wrote, so the default is now date created, newest first (your setting moved over; Last
-  Activity is still in View › Sort Sessions By).
+  Activity is still in View › Sort Sessions By). Released as Gloom 0.6.5, after a check of the
+  packaged build (Show More, a session that comes alive keeping its place, and node-pty).
 - Built in its own worktree (`D:\JS\Gloom-sidebar`) while 0.5.1 was being made in the main
   checkout, then merged with it. Released as 0.6.0 after a check of the packaged build: it opens
   on the update screen, then the sidebar, a session and its info card, from inside the app archive.
