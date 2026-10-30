@@ -353,9 +353,9 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 
 **Status, 2026-10-30: Phases 0, 1, 2 and 3 are done**, and Gloom 0.5.0 (Phase 3, the viewer) is
 released. **Next, at your request: one sidebar** (below), started fresh, then Phase 4.
-**Small changes before Phase 4, at your request** (branch `update-in-window`, not released yet):
-the window becomes the update screen instead of opening a second window, and the Update button
-is just a download arrow (Phase 1's notes, "After 0.5.0").
+**Small changes before Phase 4, at your request, released as Gloom 0.5.1:** the window becomes
+the update screen instead of opening a second window, and the Update button is just a download
+arrow (Phase 1's notes, "After 0.5.0").
 
 **Planned next: one sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder
 tree and the session list merge into the one floating glass sidebar, so the window has two columns,
