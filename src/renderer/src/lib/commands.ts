@@ -9,7 +9,8 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
   'view.toggleSessions': (k) => useUi.getState().toggleSessions(k),
   'view.textBigger': () => useUi.getState().stepText(1),
   'view.textSmaller': () => useUi.getState().stepText(-1),
-  'view.textReset': () => useUi.getState().resetText()
+  'view.textReset': () => useUi.getState().resetText(),
+  'view.toggleGlass': () => useUi.getState().toggleGlass()
 }
 
 export function runCommand(id: CommandId, viaKeyboard = false): void {

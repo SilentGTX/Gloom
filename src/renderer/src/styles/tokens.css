@@ -1,6 +1,8 @@
-/* Gloom's design tokens: colour, materials, type and motion, in light and dark.
-   The window paints Mica behind a transparent page; columns layer materials on
-   top of it, heaviest on the folder column, solid in the chat. */
+/* Gloom's design tokens. Two layers, as Apple draws them:
+   - content: soft lavender-gray paper, edge to edge across the whole window;
+   - functional: Liquid Glass, only on the floating sidebar (which carries
+     Gloom's dusk sky inside it, its signature), the toolbar capsules, menus,
+     tooltips and sheets. */
 
 :root {
   color-scheme: light dark;
@@ -9,43 +11,56 @@
   --accent: #5b5bd6;
   --on-accent: #ffffff;
   --accent-text: color-mix(in oklab, var(--accent) 82%, black);
-  --accent-fill: color-mix(in oklab, var(--accent) 16%, transparent);
+  --accent-fill: color-mix(in oklab, var(--accent) 20%, transparent);
   --accent-ring: color-mix(in oklab, var(--accent) 70%, transparent);
 
-  /* Labels, from primary down. */
-  --label: rgb(0 0 0 / 0.88);
-  --label-secondary: rgb(0 0 0 / 0.6);
-  --label-tertiary: rgb(0 0 0 / 0.42);
-  --label-quaternary: rgb(0 0 0 / 0.24);
+  /* Labels: a violet-tinted ink, so text sits in the sky's light. Informative
+     text uses secondary (5.5:1 or better); tertiary is for placeholders only. */
+  --label: rgb(22 18 38 / 0.9);
+  --label-secondary: rgb(22 18 38 / 0.68);
+  --label-tertiary: rgb(22 18 38 / 0.44);
+  --label-quaternary: rgb(22 18 38 / 0.24);
 
-  /* Control fills and separators. */
-  --fill: rgb(0 0 0 / 0.05);
-  --fill-strong: rgb(0 0 0 / 0.08);
-  --fill-pressed: rgb(0 0 0 / 0.11);
-  --separator: rgb(0 0 0 / 0.08);
-  --separator-strong: rgb(0 0 0 / 0.14);
+  --fill: rgb(22 18 38 / 0.05);
+  --fill-strong: rgb(22 18 38 / 0.08);
+  --fill-pressed: rgb(22 18 38 / 0.12);
+  --separator: rgb(22 18 38 / 0.08);
+  --separator-strong: rgb(22 18 38 / 0.16);
 
-  /* Materials over Mica (window focused). */
-  --material-folders: rgb(243 243 246 / 0.32);
-  --material-sessions: rgb(250 250 252 / 0.74);
-  --surface-chat: #ffffff;
-  --material-bar: rgb(255 255 255 / 0.74);
-  --material-popover: rgb(250 250 251 / 0.9);
-  --material-sheet: rgb(246 246 248 / 0.94);
-  --scrim: rgb(0 0 0 / 0.08);
+  /* The sky: early dusk down the sidebar's column. Periwinkle above, a warm
+     glow low on the left. Fixed to the window, so a sheet carries the same sky. */
+  --sky:
+    radial-gradient(160% 55% at 0% 100%, rgb(255 186 146 / 0.75), transparent 70%),
+    linear-gradient(180deg, #c9d2f6 0%, #d6d3f4 38%, #e7d5ec 70%, #f3dad0 100%);
+  --sky-base: #d6d3f4;
 
-  /* Mica only shows while the window is focused; these are the designed stand-ins. */
-  --inactive-folders: #efeff1;
-  --inactive-sessions: #f7f7f8;
+  /* Content layer: a soft lavender gray, edge to edge (under the sidebar too).
+     Floating glass reads as an object against it; secondary ink is 5.6:1. */
+  --surface: #dfdee3;
 
-  --selection: var(--accent-fill);
-  --selection-label: var(--accent-text);
+  /* Functional layer: Liquid Glass. Regular glass (sidebar, popovers) is the
+     more opaque variant because it carries text; capsules are lighter. */
+  /* "Whisper" (your pick): near-white frosted glass; the dusk only hints through. */
+  --glass-fill: rgb(250 249 253 / 0.8);
+  --sky-saturation: 0.35;
+  --glass-fill-strong: rgb(252 251 255 / 0.78);
+  --glass-sheen: rgb(255 255 255 / 0.4);
+  --glass-blur: blur(28px) saturate(1.7);
+  /* Capsules float on white paper, so they carry a faint body, as Apple's toolbar glass does. */
+  --capsule-fill: rgb(242 241 248 / 0.78);
+  --capsule-blur: blur(16px) saturate(1.7);
+  /* The rim: light catching the edge, brightest at the top left. */
+  --glass-rim: linear-gradient(140deg, rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.3) 28%, rgb(255 255 255 / 0.12) 62%, rgb(255 255 255 / 0.55));
+  --glass-shadow: 0 1px 2px rgb(40 24 80 / 0.08), 0 16px 40px -18px rgb(40 24 80 / 0.42);
+  --capsule-shadow: 0 0 0 0.5px rgb(40 24 80 / 0.08), 0 1px 2px rgb(40 24 80 / 0.08), 0 6px 16px -8px rgb(40 24 80 / 0.3);
+  --glass-light: rgb(255 255 255 / 0.55);
+  --scrim: rgb(30 18 60 / 0.14);
 
-  --shadow-popover: 0 0 0 0.5px rgb(0 0 0 / 0.14), 0 2px 6px rgb(0 0 0 / 0.08), 0 12px 32px -6px rgb(0 0 0 / 0.2);
-  --shadow-sheet: 0 0 0 0.5px rgb(0 0 0 / 0.12), 0 16px 48px -8px rgb(0 0 0 / 0.28);
+  /* Selection: a neutral base under the accent tint, so even a gray accent reads. */
+  --selection: linear-gradient(var(--accent-fill), var(--accent-fill)), rgb(255 255 255 / 0.7);
+  --selection-label: var(--label);
 
-  /* Type: the system face with size-specific tracking; sizes in rem so the
-     app text-size setting scales everything. */
+  /* Type: the system face, size-specific tracking, rem so text size scales. */
   --typeface-text: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   --typeface-display: 'Segoe UI Variable Display', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   --typeface-mono: 'Cascadia Code', 'Cascadia Mono', ui-monospace, Consolas, monospace;
@@ -55,7 +70,7 @@
   --size-headline: 0.9375rem;
   --size-title: 1.25rem;
   --tracking-caption: 0.01em;
-  --tracking-title: -0.012em;
+  --tracking-title: -0.018em;
 
   /* Motion: never ease-in; everything under 300 ms. */
   --curve-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -66,77 +81,100 @@
   --duration-menu: 180ms;
   --duration-panel: 250ms;
 
-  /* Geometry. */
-  --titlebar-h: 44px;
-  --radius-control: 6px;
-  --radius-row: 6px;
-  --radius-popover: 10px;
+  /* Geometry. The sidebar floats 8px inside its column; its top row is inset by
+     the same 8px top and bottom, so its controls centre on the title bar line. */
+  --titlebar-h: 48px;
+  --frame: 8px;
+  --radius-control: 8px;
+  --radius-row: 8px;
+  --radius-panel: 14px;
+  --radius-popover: 12px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --accent-text: color-mix(in oklab, var(--accent) 62%, white);
-    --accent-fill: color-mix(in oklab, var(--accent) 26%, transparent);
+    --accent-fill: color-mix(in oklab, var(--accent) 30%, transparent);
 
-    --label: rgb(255 255 255 / 0.92);
-    --label-secondary: rgb(255 255 255 / 0.62);
-    --label-tertiary: rgb(255 255 255 / 0.42);
-    --label-quaternary: rgb(255 255 255 / 0.24);
+    --label: rgb(246 243 255 / 0.94);
+    --label-secondary: rgb(246 243 255 / 0.66);
+    --label-tertiary: rgb(246 243 255 / 0.46);
+    --label-quaternary: rgb(246 243 255 / 0.24);
 
     --fill: rgb(255 255 255 / 0.06);
-    --fill-strong: rgb(255 255 255 / 0.09);
-    --fill-pressed: rgb(255 255 255 / 0.13);
+    --fill-strong: rgb(255 255 255 / 0.1);
+    --fill-pressed: rgb(255 255 255 / 0.14);
     --separator: rgb(255 255 255 / 0.07);
     --separator-strong: rgb(255 255 255 / 0.14);
 
-    --material-folders: rgb(26 26 30 / 0.3);
-    --material-sessions: rgb(30 30 34 / 0.72);
-    --surface-chat: #1c1c1f;
-    --material-bar: rgb(28 28 31 / 0.76);
-    --material-popover: rgb(44 44 48 / 0.9);
-    --material-sheet: rgb(36 36 40 / 0.95);
-    --scrim: rgb(0 0 0 / 0.24);
+    /* Late gloaming: night above, an ember of the sunset low on the left. */
+    --sky:
+      radial-gradient(160% 50% at 0% 100%, rgb(176 72 92 / 0.6), transparent 72%),
+      linear-gradient(180deg, #0b0e21 0%, #141634 38%, #221a3f 72%, #33203f 100%);
+    --sky-base: #141634;
 
-    --inactive-folders: #202022;
-    --inactive-sessions: #1e1e21;
+    --surface: #16151b;
 
-    --shadow-popover: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 2px 6px rgb(0 0 0 / 0.3), 0 12px 32px -6px rgb(0 0 0 / 0.5);
-    --shadow-sheet: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 16px 48px -8px rgb(0 0 0 / 0.6);
+    /* Whisper in the dark: near-neutral graphite glass; the night sky behind is far more
+       saturated than the light one, so it gets less of a say. */
+    --glass-fill: rgb(38 37 43 / 0.86);
+    --sky-saturation: 0.2;
+    --glass-fill-strong: rgb(34 31 52 / 0.84);
+    --glass-sheen: rgb(255 255 255 / 0.08);
+    --capsule-fill: rgb(255 255 255 / 0.12);
+    --glass-rim: linear-gradient(140deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.12) 30%, rgb(255 255 255 / 0.05) 64%, rgb(255 255 255 / 0.26));
+    --glass-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -16px rgb(0 0 0 / 0.75);
+    --capsule-shadow: 0 6px 16px -8px rgb(0 0 0 / 0.7);
+    --glass-light: rgb(255 255 255 / 0.16);
+    --scrim: rgb(4 2 14 / 0.4);
+
+    --selection: linear-gradient(var(--accent-fill), var(--accent-fill)), rgb(255 255 255 / 0.12);
   }
 }
 
-/* Inactive window: Mica is gone, so swap in the solid stand-ins, and selection
-   turns neutral the way it does in macOS sidebars. */
+/* An inactive window: the sky fades toward gray and selection turns neutral,
+   the way macOS mutes a window you've stepped away from. */
 :root[data-focused='false'] {
-  --material-folders: var(--inactive-folders);
-  --material-sessions: var(--inactive-sessions);
-  --selection: var(--fill-strong);
-  --selection-label: var(--label);
+  --accent-fill: transparent;
+  --sky-saturation: 0.12;
 }
 
+/* Reduce Transparency: opaque glass, no blur. The sky stays; it is content.
+   "Always Show Glass" (View menu) opts out, for people who turned transparency
+   off for other reasons. */
 @media (prefers-reduced-transparency: reduce) {
-  :root {
-    --material-folders: var(--inactive-folders);
-    --material-sessions: var(--inactive-sessions);
-    --material-bar: var(--surface-chat);
-    --material-popover: var(--surface-chat);
-    --material-sheet: var(--inactive-sessions);
+  :root:not([data-glass='on']) {
+    --glass-fill: #f2f0fa;
+    --glass-fill-strong: #faf9fe;
+    --capsule-fill: #fbfaff;
+    --glass-blur: none;
+    --capsule-blur: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
+  :root:not([data-glass='on']) {
+    --glass-fill: #23212f;
+    --glass-fill-strong: #262433;
+    --capsule-fill: #2a2838;
   }
 }
 
+/* Increase Contrast: defined edges and stronger secondary text. */
 @media (prefers-contrast: more) {
   :root {
-    --separator: rgb(0 0 0 / 0.4);
-    --separator-strong: rgb(0 0 0 / 0.6);
-    --label-secondary: rgb(0 0 0 / 0.78);
-    --label-tertiary: rgb(0 0 0 / 0.66);
+    --separator: rgb(22 18 38 / 0.4);
+    --separator-strong: rgb(22 18 38 / 0.6);
+    --label-secondary: rgb(22 18 38 / 0.8);
+    --label-tertiary: rgb(22 18 38 / 0.68);
+    --glass-rim: linear-gradient(rgb(22 18 38 / 0.45), rgb(22 18 38 / 0.45));
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --separator: rgb(255 255 255 / 0.4);
-      --separator-strong: rgb(255 255 255 / 0.6);
-      --label-secondary: rgb(255 255 255 / 0.8);
-      --label-tertiary: rgb(255 255 255 / 0.68);
-    }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root {
+    --separator: rgb(255 255 255 / 0.4);
+    --separator-strong: rgb(255 255 255 / 0.6);
+    --label-secondary: rgb(255 255 255 / 0.82);
+    --label-tertiary: rgb(255 255 255 / 0.7);
+    --glass-rim: linear-gradient(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.5));
   }
 }

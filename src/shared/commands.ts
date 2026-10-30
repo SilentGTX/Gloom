@@ -29,6 +29,7 @@ export const COMMANDS = [
   { id: 'view.textBigger', label: 'Bigger Text', group: 'view', accelerator: 'CmdOrCtrl+=', runs: 'renderer' },
   { id: 'view.textSmaller', label: 'Smaller Text', group: 'view', accelerator: 'CmdOrCtrl+-', runs: 'renderer' },
   { id: 'view.textReset', label: 'Default Text Size', group: 'view', accelerator: 'CmdOrCtrl+0', runs: 'renderer' },
+  { id: 'view.toggleGlass', label: 'Always Show Glass', group: 'view', runs: 'renderer' },
   { id: 'view.fullScreen', label: 'Full Screen', group: 'view', accelerator: 'F11', runs: 'main' },
   { id: 'help.smokeTest', label: 'Run Packaging Smoke Test', group: 'help', runs: 'main' },
   { id: 'help.about', label: 'About Gloom', group: 'help', runs: 'main' },

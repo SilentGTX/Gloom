@@ -1,15 +1,17 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
 
 /**
- * A collapsed column brought back over the content. It emerges from the edge
- * of whatever sits to its left and leaves the same way; keyboard toggles skip
- * the motion, and reduced motion swaps the slide for a fade.
+ * A collapsed column brought back as a floating panel over the card. It slides
+ * out from the edge of the area it belongs to and leaves the same way; keyboard
+ * toggles skip the motion, and reduced motion swaps the slide for a fade. Focus
+ * moves into it on open and back where it was on close.
  */
 export function OverlaySheet({
   open,
   instant,
-  left,
+  area,
+  inset,
   width,
   label,
   onClose,
@@ -17,32 +19,41 @@ export function OverlaySheet({
 }: {
   open: boolean
   instant: boolean
-  /** Where the sheet's area starts: 0, or the inline folder column's edge. */
-  left: number
+  /** The region the panel and scrim live in (and are clipped to), in window coordinates. */
+  area: CSSProperties
+  /** The panel's offset within that region. */
+  inset: number
   width: number
   label: string
   onClose(viaKeyboard: boolean): void
   children: ReactNode
 }) {
   const reduce = useReducedMotion()
+  const panel = useRef<HTMLDivElement>(null)
   const transition: Transition = instant
     ? { duration: 0 }
     : reduce
       ? { duration: 0.2, ease: [0.23, 1, 0.32, 1] }
-      : { type: 'spring', bounce: 0, duration: 0.3 }
+      : { type: 'spring', bounce: 0, duration: 0.32 }
   // Past its own width, so the shadow leaves too.
-  const hidden = reduce ? { opacity: 0 } : { x: -width - 32 }
+  const hidden = reduce ? { opacity: 0 } : { x: -width - 40 }
   const shown = reduce ? { opacity: 1 } : { x: 0 }
 
   useEffect(() => {
     if (!open) return
+    const returnTo = document.activeElement as HTMLElement | null
+    const first = panel.current?.querySelector<HTMLElement>('button:not([disabled]), [tabindex="0"], input:not([disabled])')
+    first?.focus({ preventScroll: true })
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose(true)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      if (returnTo?.isConnected) returnTo.focus({ preventScroll: true })
+    }
   }, [open, onClose])
 
   return (
-    <div className="pointer-events-none absolute inset-y-0 right-0 z-30 overflow-hidden" style={{ left }}>
+    <div className="pointer-events-none absolute z-30 overflow-hidden" style={area}>
       <AnimatePresence>
         {open && (
           <motion.div
@@ -57,11 +68,13 @@ export function OverlaySheet({
         )}
         {open && (
           <motion.div
-            key="sheet"
+            key="panel"
+            ref={panel}
             role="dialog"
+            aria-modal="true"
             aria-label={label}
-            className="pointer-events-auto absolute inset-y-0 left-0 overflow-hidden bg-[var(--material-sheet)] shadow-[var(--shadow-sheet)] backdrop-blur-2xl"
-            style={{ width }}
+            className="pointer-events-auto absolute"
+            style={{ top: inset, bottom: inset, left: inset, width }}
             initial={hidden}
             animate={shown}
             exit={hidden}

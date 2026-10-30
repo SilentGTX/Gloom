@@ -7,15 +7,18 @@ the official sidebar allows only one level of session groups and mods cannot cha
 feature is **unlimited nested folders for sessions**, in a window that feels like an Apple product.
 
 It runs the official `claude` CLI underneath through the Claude Agent SDK, so chats, tools, models
-and your login behave exactly as in Claude Code. Its look comes from observing the Claude app
-(screenshots, behaviour), not from its code. Design and motion follow two installed skills:
+and your login behave exactly as in Claude Code. **Its behaviour copies Claude Code; its look does
+not.** Gloom should look like an app Apple released: Liquid Glass, a dusk sky, its own identity
+(direction set by you on 2026-10-30, after Phase 1 came out too close to the Claude app). Where
+behaviour is copied, it comes from observing the Claude app, not from its code. Design and motion follow two installed skills:
 `apple-hig` (Apple's Human Interface Guidelines) and Emil Kowalski's set (`apple-design`,
 `emil-design-eng`, `animate`, `review-animations`, `animation-performance`, `pick-ui-library`,
 `break-ui`, `ask-sonner`).
 
 **Decided with you**
 - Layout: three columns, like Apple Notes/Mail: **folder tree | session list | chat**.
-- Window: Windows 11's real min/max/close buttons and a Mica/Acrylic frosted backdrop (no fake Mac buttons).
+- Window: Windows 11's real min/max/close buttons (no fake Mac buttons) over Gloom's dusk sky, with
+  Liquid Glass on the floating layer (the sky replaced Mica, which it would hide).
 - Version 1 includes: sidebar and chat, **permission prompts**, a **diff pane**, a **terminal pane**,
   **rewind and edit**, **worktrees**, a **context meter** and **usage limits**.
 - **Gloom replaces the Claude app's Code tab.** Sessions made in the Claude app or a terminal must
@@ -77,7 +80,7 @@ D:\JS\Gloom
 │  ├─ commands.ts               every command + shortcut in one registry (menu, accelerators, later the palette)
 │  ├─ notify.ts                 toasts, taskbar flash and badge
 │  ├─ updater.ts                GitHub releases check, download, silent install (Sync's updater)
-│  └─ window.ts                 hidden title bar, titleBarOverlay, Mica, accent colour
+│  └─ window.ts                 hidden title bar, titleBarOverlay, sky base colour, accent colour
 ├─ src/worker/transcripts.ts    utility process: index, read and watch ~/.claude/projects
 ├─ src/preload/index.ts         typed `window.gloom` bridge
 ├─ src/shared/ipc.ts            IPC channel names + payload types
@@ -188,9 +191,9 @@ in the browser only for http(s), and in-app navigation is blocked.
 
 **Window.** `titleBarStyle: 'hidden'` with `titleBarOverlay`, not `frame: false`, which would lose
 the real caption buttons and Snap Layouts. The overlay's colours follow the theme through
-`setTitleBarOverlay()`. Mica comes from `backgroundMaterial` (Acrylic as an option) behind a
-transparent body; Mica only shows while the window is focused, so the inactive look is designed
-too. The app follows the system light/dark setting and Windows' accent colour
+`setTitleBarOverlay()`. The page paints the paper edge to edge; the floating sidebar carries the
+dusk sky; an inactive window mutes the sky.
+The app follows the system light/dark setting and Windows' accent colour
 (`systemPreferences.getAccentColor()`, updated on `accent-color-changed`). A hidden title bar
 doesn't draw the native menu bar, so a menu button at the top left (like the Claude app's) opens
 every command; Phase 1 confirms the accelerators still fire. Splitters between the columns are
@@ -272,7 +275,7 @@ uncommitted changes.
 folder; several tabs allowed; the shell comes from Settings (PowerShell by default; pwsh, cmd, Git Bash).
 
 **Settings.** Claude Code path, version and login status; default model, mode and effort; terminal
-shell; text size; theme (system / light / dark); backdrop (Mica / Acrylic / none); idle timeout for
+shell; text size; theme (system / light / dark); glass (follow Windows / always); idle timeout for
 sessions; notifications on or off; Gloom's version and Check for updates. The updater reads the
 private repo's releases with your `gh` login's token (`gh auth token`), or a token entered here if
 `gh` isn't signed in.
@@ -282,14 +285,27 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 
 ## Design system (from the skills)
 
-- **Colour:** semantic tokens (label, secondary/tertiary label, separator, fill, accent), light and dark,
-  with the accent following Windows'. Gloom's own default is a dusk indigo for when the system
-  accent is off. Contrast checked against `apple-hig` accessibility.md.
-- **Materials:** Mica behind the window, with a designed solid fallback while the window is inactive.
-  The folder column is the heaviest material, the session list lighter, the chat solid. Toolbars and
-  headers are translucent (`backdrop-filter`) with content scrolling under them, and a soft fade at
-  scroll edges instead of 1px dividers. Never stack two light translucent layers.
-  `prefers-reduced-transparency` makes surfaces solid; `prefers-contrast` adds borders.
+- **Two layers, as Apple draws them** (`apple-hig` liquid-glass.md):
+  - **Content:** soft **lavender-gray paper** (#DFDEE3 light, #16151B dark: your pick) edge to
+    edge across the whole window, under the sidebar too (`layout.md`). Content is never glass.
+  - **The sidebar is one floating object** that carries Gloom's **dusk sky** inside its glass,
+    with its shadow falling on the paper. The same panel slides in as the narrow-window sheet.
+    **"Whisper" strength (your pick of four):** near-white frosted glass (80% fill) over the dusk at
+    35% saturation, so only a breath of warmth shows low in the panel; in dark, near-neutral
+    graphite glass (86%) over the night sky at 20%, measured to the same faint tint as light (RGB
+    spread about 6). An unfocused window mutes it further. The saturation switches, never animates (only transform and opacity animate).
+  - **Functional:** **Liquid Glass** only on the floating sidebar, the toolbar capsules, menus,
+    tooltips and sheets: backdrop blur with a saturation boost, a top sheen, a 1px rim that is
+    brightest top left, and a light that follows the pointer across capsules. Each pane's toolbar
+    floats over its own top (title leading, actions trailing), all centred on one 48px title line.
+- **Colour:** semantic tokens in a violet-tinted ink, light and dark, accent following Windows'
+  (Gloom's dusk indigo when it has none). Informative text uses secondary labels (5.5:1 or better);
+  tertiary is for placeholders. Selection lays the accent tint over a neutral base, so a gray accent
+  still reads.
+- **Accessibility states:** `prefers-reduced-transparency` makes the glass opaque (the sky stays: it
+  is content); **View → Always Show Glass** overrides that for people who turned transparency off
+  for other reasons. `prefers-contrast` gives the glass a solid rim and stronger text. Text size
+  goes to 200%; chrome is sized in pixels so it holds its shape.
 - **Type:** the system font (Segoe UI Variable) with size-specific tracking (tight headings, body near 0).
   Hierarchy comes from weight, size and leading together. Tabular numerals for counts and times.
   Sizes in rem with an app text-size setting. Mono: Cascadia Code / `ui-monospace`.
@@ -299,7 +315,8 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
   - **Durations:** press 120 ms, tooltip 150 ms, menu 180 ms, panels 250 ms; everything under 300 ms.
   - **Springs:** `bounce: 0` by default, a little bounce only where a drag released momentum.
 - **Motion rules:**
-  - Buttons scale to 0.97 on press, and feedback starts on pointer-down.
+  - Feedback starts on pointer-down: plain buttons give to 0.97; glass controls swell to 1.08, as
+    Apple's interactive glass does.
   - Popovers grow from their trigger; nothing appears from `scale(0)`.
   - Tooltips skip the delay once one is open.
   - Only `transform` and `opacity` animate.
@@ -337,7 +354,13 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
      is opt-in, since it takes the foreground.
    - The session-list toggle is Ctrl+Shift+B, not Ctrl+Alt+B: Ctrl+Alt is AltGr on many layouts.
    - Your Windows accent is a gray (#4C4A48) and Gloom follows it; Settings can offer Gloom's indigo.
-     Transparency effects are off on this PC, so Mica gives way to the designed solid look.
+   - **Redesigned the same day** after your review: Phase 1 looked too much like Claude Code. A
+     first glass pass boxed everything in a sky frame, which looked odd; an `apple-hig`
+     design-improvement pass recomposed it the way macOS 26 does, and you picked the final look
+     from two screenshots: soft lavender-gray paper edge to edge, the sidebar one floating glass
+     object with the dusk inside, a toolbar floating over each pane (see Design system). An `apple-hig` review fixed contrast (tertiary text was
+     3:1), text size now reaches 200%, toggles say Show/Hide, and sheets manage focus. Transparency
+     effects are off on this PC, so the glass shows opaque unless View → Always Show Glass is on.
    - Installer 110 MB, nearly all Electron (its exe alone is 238 MB). node-pty runs from
      `app.asar.unpacked` on its prebuilt N-API binaries: no compiler needed, no rebuild.
    - Electron 45 no longer downloads itself on install; `postinstall` runs `install-electron`.

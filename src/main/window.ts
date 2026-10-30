@@ -1,13 +1,15 @@
 // The main window: hidden title bar with the real caption buttons drawn over the
-// page (titleBarOverlay), Mica behind a transparent page, and the theme, accent
-// and focus state the renderer styles itself from.
+// page (titleBarOverlay), and the theme, accent and focus state the renderer
+// styles itself from. The page paints everything itself (paper, and the dusk sky
+// in the sidebar's column), which would hide Mica, so the window just starts in
+// the paper's colour.
 import { app, BrowserWindow, nativeTheme, screen, shell, systemPreferences } from 'electron'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { IPC, type WindowState } from '@shared/ipc'
 
-export const TITLE_BAR_HEIGHT = 44
+export const TITLE_BAR_HEIGHT = 48
 const DEFAULT_SIZE = { width: 1280, height: 820 }
 /** Gloom's own accent for when Windows doesn't report one: a dusk indigo. */
 const FALLBACK_ACCENT = '#5b5bd6'
@@ -59,8 +61,13 @@ function accentColor(): string {
   return FALLBACK_ACCENT
 }
 
+/** The paper's colour, shown before the page paints. Matches --surface. */
+function paperColor(): string {
+  return nativeTheme.shouldUseDarkColors ? '#16151b' : '#dfdee3'
+}
+
 function overlayColors() {
-  // Transparent, so Mica and the chat header show under the caption buttons.
+  // Transparent, so the paper shows under the caption buttons.
   return {
     color: '#00000000',
     symbolColor: nativeTheme.shouldUseDarkColors ? '#ffffff' : '#1f1f1f',
@@ -97,8 +104,7 @@ export function createMainWindow(): BrowserWindow {
     title: 'Gloom',
     titleBarStyle: 'hidden',
     titleBarOverlay: overlayColors(),
-    backgroundMaterial: 'mica',
-    backgroundColor: '#00000000',
+    backgroundColor: paperColor(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
@@ -118,6 +124,7 @@ export function createMainWindow(): BrowserWindow {
   const onTheme = () => {
     if (win.isDestroyed()) return
     win.setTitleBarOverlay(overlayColors())
+    win.setBackgroundColor(paperColor())
     send()
   }
   nativeTheme.on('updated', onTheme)

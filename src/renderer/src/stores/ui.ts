@@ -3,13 +3,16 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { computeLayout, FOLDERS, SESSIONS, type ColumnPrefs } from '../features/shell/layout'
 
-export const TEXT_SCALES = [0.875, 0.9375, 1, 1.0625, 1.125, 1.25]
+/** Up to 200%, Apple's floor for "support larger text". */
+export const TEXT_SCALES = [0.875, 0.9375, 1, 1.0625, 1.125, 1.25, 1.5, 1.75, 2]
 
 export type SmartFolder = 'all' | 'recent' | 'pinned' | 'unfiled' | 'archived'
 export type Overlay = 'folders' | 'sessions' | null
 
 interface UiState extends ColumnPrefs {
   textScale: number
+  /** Glass even when Windows asks for reduced transparency. */
+  glassAlways: boolean
   selected: SmartFolder
   overlay: Overlay
   /** The overlay opened or closed from the keyboard, so it shouldn't animate. */
@@ -23,6 +26,7 @@ interface UiState extends ColumnPrefs {
   closeOverlay(viaKeyboard: boolean): void
   stepText(direction: 1 | -1): void
   resetText(): void
+  toggleGlass(): void
 }
 
 export const useUi = create<UiState>()(
@@ -46,6 +50,7 @@ export const useUi = create<UiState>()(
         foldersHidden: false,
         sessionsHidden: false,
         textScale: 1,
+        glassAlways: false,
         selected: 'all',
         overlay: null,
         overlayInstant: false,
@@ -61,7 +66,8 @@ export const useUi = create<UiState>()(
           const next = TEXT_SCALES[Math.min(TEXT_SCALES.length - 1, Math.max(0, (i < 0 ? 2 : i) + direction))]
           set({ textScale: next })
         },
-        resetText: () => set({ textScale: 1 })
+        resetText: () => set({ textScale: 1 }),
+        toggleGlass: () => set({ glassAlways: !get().glassAlways })
       }
     },
     {
@@ -73,6 +79,7 @@ export const useUi = create<UiState>()(
         foldersHidden: s.foldersHidden,
         sessionsHidden: s.sessionsHidden,
         textScale: s.textScale,
+        glassAlways: s.glassAlways,
         selected: s.selected
       })
     }

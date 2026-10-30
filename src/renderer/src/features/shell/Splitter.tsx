@@ -1,4 +1,5 @@
 import { useRef, type KeyboardEvent, type PointerEvent } from 'react'
+import { cn } from '../../lib/cn'
 
 interface SplitterProps {
   label: string
@@ -7,13 +8,15 @@ interface SplitterProps {
   max: number
   initial: number
   onChange(width: number): void
+  /** 'edge': where the paper meets the sky column, no line of its own. 'hairline': between panes. */
+  variant: 'edge' | 'hairline'
 }
 
 /**
- * The boundary between two columns. Drags 1:1 from wherever it was grabbed;
- * arrows nudge it, Home/End jump to the limits, double-click or Enter resets.
+ * A column boundary. Drags 1:1 from wherever it was grabbed; arrows nudge it,
+ * Home/End jump to the limits, double-click or Enter resets.
  */
-export function Splitter({ label, value, min, max, initial, onChange }: SplitterProps) {
+export function Splitter({ label, value, min, max, initial, onChange, variant }: SplitterProps) {
   const drag = useRef<{ startX: number; startWidth: number } | null>(null)
   const clamp = (width: number) => Math.round(Math.min(max, Math.max(min, width)))
 
@@ -54,11 +57,16 @@ export function Splitter({ label, value, min, max, initial, onChange }: Splitter
       onLostPointerCapture={end}
       onDoubleClick={() => onChange(initial)}
       onKeyDown={key}
-      // Net width zero: the 8px grab area overlaps both columns, and the hairline
-      // lands on the next column's first pixel instead of a see-through gap.
+      // Net width zero: the 8px grab area overlaps both sides, and a hairline lands
+      // on the next column's first pixel.
       className="no-drag group relative z-20 -mx-1 w-2 shrink-0 cursor-col-resize outline-none"
     >
-      <div className="pointer-events-none absolute inset-y-0 left-1 w-px bg-separator transition-colors duration-150 group-hover:bg-separator-strong group-focus-visible:w-0.5 group-focus-visible:bg-accent" />
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-y-0 left-1 w-px transition-colors duration-150 group-focus-visible:w-0.5 group-focus-visible:bg-accent',
+          variant === 'hairline' ? 'bg-separator group-hover:bg-separator-strong' : 'bg-transparent group-hover:bg-separator-strong'
+        )}
+      />
     </div>
   )
 }

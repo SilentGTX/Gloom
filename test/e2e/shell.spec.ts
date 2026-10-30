@@ -19,7 +19,7 @@ test('three columns, window chrome state on <html>', async () => {
   await expect(page.locator('main')).toBeVisible()
   await expect(page.locator('html')).toHaveAttribute('data-focused', /true|false/)
   const titleBar = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--titlebar-h'))
-  expect(titleBar.trim()).toBe('44px')
+  expect(titleBar.trim()).toBe('48px')
 })
 
 test('shortcuts run through the application menu', async () => {
@@ -73,10 +73,12 @@ test('the menu button lists every command', async () => {
   await page.getByRole('button', { name: 'Menu' }).first().click()
   const menu = page.getByRole('menu')
   await expect(menu).toBeVisible()
-  await expect(menu.getByRole('menuitem', { name: /Show or Hide Folders/ })).toBeVisible()
   await expect(menu.getByRole('menuitem', { name: /New Session/ })).toHaveAttribute('aria-disabled', 'true')
-  await menu.getByRole('menuitem', { name: /Show or Hide Folders/ }).click()
+  // Toggles say what they will do.
+  await menu.getByRole('menuitem', { name: /Hide Folders/ }).click()
   await expect(folders()).toHaveCount(0)
+  await page.getByRole('button', { name: 'Menu' }).first().click()
+  await expect(page.getByRole('menu').getByRole('menuitem', { name: /Show Folders/ })).toBeVisible()
 })
 
 test('splitters drag 1:1 and answer the keyboard', async () => {

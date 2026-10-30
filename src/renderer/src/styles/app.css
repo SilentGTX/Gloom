@@ -16,8 +16,7 @@
   --color-fill-pressed: var(--fill-pressed);
   --color-separator: var(--separator);
   --color-separator-strong: var(--separator-strong);
-  --color-selection: var(--selection);
-  --color-selection-label: var(--selection-label);
+  --color-surface: var(--surface);
 
   --font-sans: var(--typeface-text);
   --font-display: var(--typeface-display);
@@ -47,7 +46,7 @@
   body {
     margin: 0;
     overflow: hidden;
-    background: transparent;
+    background: var(--surface);
     color: var(--label);
     font-family: var(--typeface-text);
     font-size: var(--size-body);
@@ -76,6 +75,82 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background-color: var(--label-quaternary);
+  }
+}
+
+@layer components {
+  /* Gloom's dusk, inside the floating sidebar under its glass. The saturation
+     switches with focus but never animates: a filter transition repaints the
+     whole layer every frame (only transform and opacity animate). */
+  .sky {
+    position: absolute;
+    inset: 0;
+    background: var(--sky);
+    filter: saturate(var(--sky-saturation));
+  }
+
+  /* Liquid Glass. Regular: the sidebar. Strong: menus, tooltips, sheets
+     (they carry text). Capsule: toolbar controls floating on the sky. */
+  .glass,
+  .glass-strong,
+  .glass-capsule {
+    position: relative;
+    isolation: isolate;
+  }
+  .glass {
+    background: linear-gradient(180deg, var(--glass-sheen), transparent 120px), var(--glass-fill);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-shadow);
+  }
+  .glass-strong {
+    background: linear-gradient(180deg, var(--glass-sheen), transparent 60%), var(--glass-fill-strong);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-shadow);
+  }
+  .glass-capsule {
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--glass-sheen), transparent 70%), var(--capsule-fill);
+    -webkit-backdrop-filter: var(--capsule-blur);
+    backdrop-filter: var(--capsule-blur);
+    box-shadow: var(--capsule-shadow);
+  }
+  /* The rim: a 1px gradient border, light catching the edge. */
+  .glass::before,
+  .glass-strong::before,
+  .glass-capsule::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--glass-rim);
+    pointer-events: none;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+  /* Interactive glass: a soft light follows the pointer across a capsule. */
+  .glass-light {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(60px circle at var(--light-x, 50%) var(--light-y, 50%), var(--glass-light), transparent 70%);
+    transition: opacity var(--duration-tooltip) var(--curve-out);
+  }
+  .glass-capsule:hover > .glass-light {
+    opacity: 1;
+  }
+
+  /* Content: the paper the session list and chat sit on, edge to edge. */
+  .paper {
+    background: var(--surface);
   }
 }
 

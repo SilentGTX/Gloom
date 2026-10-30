@@ -81,4 +81,28 @@ export async function setWindowSize(app: ElectronApplication, width: number, hei
     win.unmaximize()
     win.setSize(size.width, size.height)
   }, { width, height })
+  await keepAwayFromCursor(app)
+}
+
+/**
+ * Puts the window where the real mouse cursor isn't. A cursor resting over the
+ * window sends a real mouse move (no button held) whenever the window activates,
+ * which ends a synthetic drag mid-way. This moves the window, never the cursor.
+ */
+export async function keepAwayFromCursor(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ BrowserWindow, screen }) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    const cursor = screen.getCursorScreenPoint()
+    const area = screen.getDisplayNearestPoint(cursor).workArea
+    const { width, height } = win.getBounds()
+    const contains = (x: number, y: number) => cursor.x >= x && cursor.x < x + width && cursor.y >= y && cursor.y < y + height
+    const spots = [
+      { x: area.x, y: area.y },
+      { x: area.x + area.width - width, y: area.y },
+      { x: area.x, y: area.y + area.height - height },
+      { x: area.x + area.width - width, y: area.y + area.height - height }
+    ]
+    const spot = spots.find((s) => !contains(s.x, s.y))
+    if (spot) win.setPosition(Math.round(spot.x), Math.round(spot.y))
+  })
 }
