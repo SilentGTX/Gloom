@@ -1,0 +1,36 @@
+appId: com.silentgtx.gloom
+productName: Gloom
+copyright: Copyright © 2026 SilentGTX
+directories:
+  output: release/${version}
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  # Gloom uses your own claude.exe, never the SDK's bundled 300 MB copy.
+  - '!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**'
+  - '!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}'
+  - '!**/node_modules/*/{test,__tests__,tests,example,examples}'
+  - '!**/node_modules/**/*.{pdb,map,d.ts}'
+  - '!**/node_modules/node-pty/{deps,src,scripts}/**'
+  - '!**/node_modules/node-pty/**/*arm64*/**'
+  - '!**/node_modules/node-pty/prebuilds/{darwin,linux}-*/**'
+# Chromium's UI strings: English, plus Bulgarian. The other 50 MB of locales go.
+electronLanguages:
+  - en-US
+  - bg
+# node-pty's .node files and its helper exes (OpenConsole, winpty-agent) can't run from inside the asar.
+asarUnpack:
+  - '**/node_modules/node-pty/**'
+# node-pty ships prebuilt N-API binaries; rebuilding would need MSVC and isn't required.
+npmRebuild: false
+win:
+  target: nsis
+  executableName: Gloom
+nsis:
+  oneClick: true
+  perMachine: false
+  artifactName: Gloom-Setup-${version}.${ext}
+  shortcutName: Gloom
+  uninstallDisplayName: Gloom
+  deleteAppDataOnUninstall: false

@@ -1,0 +1,4 @@
+# LF everywhere: transcript fixtures must stay byte-for-byte what Claude Code writes.
+* text=auto eol=lf
+*.png binary
+*.ico binary

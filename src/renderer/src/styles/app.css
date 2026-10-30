@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+/* Semantic tokens as Tailwind utilities: text-label, bg-fill, border-separator… */
+@theme inline {
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-accent-text: var(--accent-text);
+  --color-accent-fill: var(--accent-fill);
+  --color-label: var(--label);
+  --color-label-secondary: var(--label-secondary);
+  --color-label-tertiary: var(--label-tertiary);
+  --color-label-quaternary: var(--label-quaternary);
+  --color-fill: var(--fill);
+  --color-fill-strong: var(--fill-strong);
+  --color-fill-pressed: var(--fill-pressed);
+  --color-separator: var(--separator);
+  --color-separator-strong: var(--separator-strong);
+  --color-selection: var(--selection);
+  --color-selection-label: var(--selection-label);
+
+  --font-sans: var(--typeface-text);
+  --font-display: var(--typeface-display);
+  --font-mono: var(--typeface-mono);
+
+  --text-caption: var(--size-caption);
+  --text-footnote: var(--size-footnote);
+  --text-body: var(--size-body);
+  --text-headline: var(--size-headline);
+  --text-title: var(--size-title);
+
+  --ease-out: var(--curve-out);
+  --ease-in-out: var(--curve-in-out);
+  --ease-drawer: var(--curve-drawer);
+}
+
+@layer base {
+  html {
+    /* The app text-size setting scales every rem. */
+    font-size: calc(100% * var(--text-scale, 1));
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: transparent;
+    color: var(--label);
+    font-family: var(--typeface-text);
+    font-size: var(--size-body);
+    line-height: 1.43;
+    -webkit-font-smoothing: antialiased;
+    /* Chrome is not text; content areas opt back in. */
+    user-select: none;
+    cursor: default;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent-ring);
+    outline-offset: 1px;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--accent) 32%, transparent);
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+    background-color: var(--fill-pressed);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--label-quaternary);
+  }
+}
+
+@utility drag {
+  -webkit-app-region: drag;
+}
+@utility no-drag {
+  -webkit-app-region: no-drag;
+}
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}

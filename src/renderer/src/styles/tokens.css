@@ -1,0 +1,142 @@
+/* Gloom's design tokens: colour, materials, type and motion, in light and dark.
+   The window paints Mica behind a transparent page; columns layer materials on
+   top of it, heaviest on the folder column, solid in the chat. */
+
+:root {
+  color-scheme: light dark;
+
+  /* Accent: Windows' accent, set by the app; a dusk indigo when it has none. */
+  --accent: #5b5bd6;
+  --on-accent: #ffffff;
+  --accent-text: color-mix(in oklab, var(--accent) 82%, black);
+  --accent-fill: color-mix(in oklab, var(--accent) 16%, transparent);
+  --accent-ring: color-mix(in oklab, var(--accent) 70%, transparent);
+
+  /* Labels, from primary down. */
+  --label: rgb(0 0 0 / 0.88);
+  --label-secondary: rgb(0 0 0 / 0.6);
+  --label-tertiary: rgb(0 0 0 / 0.42);
+  --label-quaternary: rgb(0 0 0 / 0.24);
+
+  /* Control fills and separators. */
+  --fill: rgb(0 0 0 / 0.05);
+  --fill-strong: rgb(0 0 0 / 0.08);
+  --fill-pressed: rgb(0 0 0 / 0.11);
+  --separator: rgb(0 0 0 / 0.08);
+  --separator-strong: rgb(0 0 0 / 0.14);
+
+  /* Materials over Mica (window focused). */
+  --material-folders: rgb(243 243 246 / 0.32);
+  --material-sessions: rgb(250 250 252 / 0.74);
+  --surface-chat: #ffffff;
+  --material-bar: rgb(255 255 255 / 0.74);
+  --material-popover: rgb(250 250 251 / 0.9);
+  --material-sheet: rgb(246 246 248 / 0.94);
+  --scrim: rgb(0 0 0 / 0.08);
+
+  /* Mica only shows while the window is focused; these are the designed stand-ins. */
+  --inactive-folders: #efeff1;
+  --inactive-sessions: #f7f7f8;
+
+  --selection: var(--accent-fill);
+  --selection-label: var(--accent-text);
+
+  --shadow-popover: 0 0 0 0.5px rgb(0 0 0 / 0.14), 0 2px 6px rgb(0 0 0 / 0.08), 0 12px 32px -6px rgb(0 0 0 / 0.2);
+  --shadow-sheet: 0 0 0 0.5px rgb(0 0 0 / 0.12), 0 16px 48px -8px rgb(0 0 0 / 0.28);
+
+  /* Type: the system face with size-specific tracking; sizes in rem so the
+     app text-size setting scales everything. */
+  --typeface-text: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --typeface-display: 'Segoe UI Variable Display', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --typeface-mono: 'Cascadia Code', 'Cascadia Mono', ui-monospace, Consolas, monospace;
+  --size-caption: 0.75rem;
+  --size-footnote: 0.8125rem;
+  --size-body: 0.875rem;
+  --size-headline: 0.9375rem;
+  --size-title: 1.25rem;
+  --tracking-caption: 0.01em;
+  --tracking-title: -0.012em;
+
+  /* Motion: never ease-in; everything under 300 ms. */
+  --curve-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --curve-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --curve-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-press: 120ms;
+  --duration-tooltip: 150ms;
+  --duration-menu: 180ms;
+  --duration-panel: 250ms;
+
+  /* Geometry. */
+  --titlebar-h: 44px;
+  --radius-control: 6px;
+  --radius-row: 6px;
+  --radius-popover: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent-text: color-mix(in oklab, var(--accent) 62%, white);
+    --accent-fill: color-mix(in oklab, var(--accent) 26%, transparent);
+
+    --label: rgb(255 255 255 / 0.92);
+    --label-secondary: rgb(255 255 255 / 0.62);
+    --label-tertiary: rgb(255 255 255 / 0.42);
+    --label-quaternary: rgb(255 255 255 / 0.24);
+
+    --fill: rgb(255 255 255 / 0.06);
+    --fill-strong: rgb(255 255 255 / 0.09);
+    --fill-pressed: rgb(255 255 255 / 0.13);
+    --separator: rgb(255 255 255 / 0.07);
+    --separator-strong: rgb(255 255 255 / 0.14);
+
+    --material-folders: rgb(26 26 30 / 0.3);
+    --material-sessions: rgb(30 30 34 / 0.72);
+    --surface-chat: #1c1c1f;
+    --material-bar: rgb(28 28 31 / 0.76);
+    --material-popover: rgb(44 44 48 / 0.9);
+    --material-sheet: rgb(36 36 40 / 0.95);
+    --scrim: rgb(0 0 0 / 0.24);
+
+    --inactive-folders: #202022;
+    --inactive-sessions: #1e1e21;
+
+    --shadow-popover: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 2px 6px rgb(0 0 0 / 0.3), 0 12px 32px -6px rgb(0 0 0 / 0.5);
+    --shadow-sheet: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 16px 48px -8px rgb(0 0 0 / 0.6);
+  }
+}
+
+/* Inactive window: Mica is gone, so swap in the solid stand-ins, and selection
+   turns neutral the way it does in macOS sidebars. */
+:root[data-focused='false'] {
+  --material-folders: var(--inactive-folders);
+  --material-sessions: var(--inactive-sessions);
+  --selection: var(--fill-strong);
+  --selection-label: var(--label);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --material-folders: var(--inactive-folders);
+    --material-sessions: var(--inactive-sessions);
+    --material-bar: var(--surface-chat);
+    --material-popover: var(--surface-chat);
+    --material-sheet: var(--inactive-sessions);
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --separator: rgb(0 0 0 / 0.4);
+    --separator-strong: rgb(0 0 0 / 0.6);
+    --label-secondary: rgb(0 0 0 / 0.78);
+    --label-tertiary: rgb(0 0 0 / 0.66);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --separator: rgb(255 255 255 / 0.4);
+      --separator-strong: rgb(255 255 255 / 0.6);
+      --label-secondary: rgb(255 255 255 / 0.8);
+      --label-tertiary: rgb(255 255 255 / 0.68);
+    }
+  }
+}

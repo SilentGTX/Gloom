@@ -1,0 +1,6 @@
+{"t":0,"dir":"spawn","args":["--output-format","stream-json","--verbose","--input-format","stream-json","--model=haiku","--resume=716eae97-63e3-4ffa-911f-e0640c798651","--setting-sources=user,project,local","--permission-mode=acceptEdits","--allow-dangerously-skip-permissions","--include-partial-messages","--resume-session-at=46a94f90-bc36-445a-b63d-601d27f7b2a8","--resume-drops-turn=92d3af8b-5f1b-42fb-9ce8-d2038b240740"],"cwd":"C:\\Users\\origi\\AppData\\Local\\Temp\\gloom-spike\\rewind"}
+{"t":256,"dir":"in","msg":{"request_id":"8les20wen9e","type":"control_request","request":{"subtype":"initialize"}}}
+{"t":256,"dir":"in","msg":{"type":"user","message":{"role":"user","content":"List every message I have sent you in this conversation so far, quoted, one per line. Nothing else."},"parent_tool_use_id":null,"uuid":"f4bf319a-15ba-4f02-a5e0-a97be1b8ad9e"}}
+{"t":449,"dir":"err","text":"error: unknown option '--resume-drops-turn=92d3af8b-5f1b-42fb-9ce8-d2038b240740'\n"}
+{"t":467,"dir":"exit","code":1,"signal":null}
+{"t":721,"dir":"in-end"}

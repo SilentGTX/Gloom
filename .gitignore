@@ -1,0 +1,9 @@
+node_modules/
+out/
+dist/
+release/
+*.log
+test-results/
+test-screens/
+# Spike results hold machine-specific output; the fixtures are the record.
+tools/sdk-spike/results/
