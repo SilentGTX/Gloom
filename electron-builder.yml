@@ -27,7 +27,7 @@ npmRebuild: false
 win:
   target: nsis
   executableName: Gloom
-  # icon.png, resized by scripts/make-icons.mts; the installer and uninstaller use it too.
+  # The cloud on its violet tile (scripts/make-icons.mts); the installer and uninstaller use it too.
   icon: build/icon.ico
 nsis:
   oneClick: true

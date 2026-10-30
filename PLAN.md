@@ -506,6 +506,11 @@ disclosure pages; `apple-design` for motion).
      sparkle: there it means "new", not "Gloom". Released as Gloom 0.6.1 after a check of the
      packaged build: Gloom.exe carries the icon, and the update screen shows the cloud from inside
      the app archive.
+   - **After 0.6.2, at your request:** on the taskbar the icon looked odd beside Claude's. Its
+     dark tile was 1.13:1 against the dark taskbar (Claude's orange is 5.3:1), and it filled only
+     88% of its image, so Windows drew it at about 21 px against Claude's 24. You picked the
+     cloud on a violet tile from three mock-ups: `scripts/make-icons.mts` draws a rounded square
+     edge to edge (#a78bfa to #6d28d9) and puts `update.png` on it; `icon.png` is gone.
 2. **Library.** Transcript indexer in a utility process (tail reads, cache, subagent files skipped),
    watcher, library store, folder tree (nesting, rename, drag, keyboard, context menu, smart folders,
    search, filing rules, subtree delete with Undo), session list (pin, archive, rename).
