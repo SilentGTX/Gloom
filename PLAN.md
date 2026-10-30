@@ -377,7 +377,9 @@ released. **Small changes before Phase 4, at your request, released as Gloom 0.5
 becomes the update screen instead of opening a second window, and the Update button is just a
 download arrow (Phase 1's notes, "After 0.5.0"). **One sidebar** (below) is out as Gloom 0.6.0,
 and **your new icon**, the gloomy cloud, as Gloom 0.6.1 (Phase 1's notes, "After 0.6.0"). The
-sidebar's click and motion fixes are out as Gloom 0.6.2. **Next: Phase 4**, live chat, on your OK.
+sidebar's click and motion fixes are out as Gloom 0.6.2. **Updates that don't close the window**,
+the cloud on a violet tile and the shimmering title of a running session are out as Gloom 0.6.3
+(Phase 1's notes and the sidebar's, "After 0.6.2"). **Next: Phase 4**, live chat, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -451,7 +453,7 @@ disclosure pages; `apple-design` for motion).
 - **After 0.6.2, at your request:** a running session's title shimmers, as in Claude Code (not on
   the selected row, which the indigo already marks), and the dot in front of it is gone; "Now"
   beside it stays, and a screen reader hears "Running in another app". The info card keeps its
-  small dot beside "Running in the Claude app".
+  small dot beside "Running in the Claude app". Released as Gloom 0.6.3.
 - Built in its own worktree (`D:\JS\Gloom-sidebar`) while 0.5.1 was being made in the main
   checkout, then merged with it. Released as 0.6.0 after a check of the packaged build: it opens
   on the update screen, then the sidebar, a session and its info card, from inside the app archive.
@@ -522,7 +524,8 @@ disclosure pages; `apple-design` for motion).
      dark tile was 1.13:1 against the dark taskbar (Claude's orange is 5.3:1), and it filled only
      88% of its image, so Windows drew it at about 21 px against Claude's 24. You picked the
      cloud on a violet tile from three mock-ups: `scripts/make-icons.mts` draws a rounded square
-     edge to edge (#a78bfa to #6d28d9) and puts `update.png` on it; `icon.png` is gone.
+     edge to edge (#a78bfa to #6d28d9) and puts `update.png` on it; `icon.png` is gone. Released
+     as Gloom 0.6.3.
    - **After 0.6.2, at your request: updates without the window closing**, the way Discord
      installs them. A release also carries the app as a zip, which unpacks beside the running copy
      into `versions\<version>` in the install folder (`src/main/versions.ts`), so nothing has to
@@ -540,7 +543,8 @@ disclosure pages; `apple-design` for motion).
      an update can't unpack beside it (no zip, or a folder it can't write), the installer runs as
      before. `GLOOM_UPDATE_FROM=<folder>` tries an update from a folder. Found on the way:
      Electron's fs keeps any `app.asar` it touches open, which locked the new folder, so this uses
-     `original-fs`.
+     `original-fs`. Released as Gloom 0.6.3, whose packaged build was checked; your copy installs
+     0.6.3 the old way, since 0.6.2 runs that update, and the ones after it in place.
 2. **Library.** Transcript indexer in a utility process (tail reads, cache, subagent files skipped),
    watcher, library store, folder tree (nesting, rename, drag, keyboard, context menu, smart folders,
    search, filing rules, subtree delete with Undo), session list (pin, archive, rename).
