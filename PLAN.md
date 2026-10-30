@@ -241,8 +241,9 @@ Stopped sessions resume on their next send.
 - **Your folders:** nested without limit; an open folder shows its subfolders, then its own
   sessions, with a guide line down the left. A click opens or closes one; Alt-click or numpad `*`
   does everything below. What's open is remembered.
-- **Each session row:** title, time (relative, then a date after a week), the last prompt, and a
-  status dot (running / waiting for you / idle / running elsewhere). The selected one, the session
+- **Each session row:** title, time (relative, then a date after a week) and the last prompt. A
+  running session's title shimmers, light sweeping across it as in Claude Code (in another app
+  now; in Gloom from Phase 4, where waiting for you gets its own mark). The selected one, the session
   the chat shows, is filled with Gloom's dusk indigo. A session shows in every group it belongs to.
 - **Keyboard from the start:** treeview semantics: arrows move and select sessions, Shift extends,
   Ctrl only moves; Left and Right open, close and step in and out; Home/End; type to find; F2
@@ -362,9 +363,12 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
   - Panels enter and leave the same way.
   - Keyboard-triggered actions don't animate.
   - Reduced motion swaps slides and springs for cross-fades.
-- **One signature element** (apple-hig improvement mode): the live status dot, a soft glow on running
-  sessions that settles to still when the turn ends. No endless slow pulsing; the guidelines flag
-  loops around 0.2 Hz.
+- **One signature element** (apple-hig improvement mode): the live title, light sweeping across a
+  running session's title (unless it's the selected one), once every 1.8 s, as in Claude Code, and
+  still once the turn ends. Well
+  clear of the slow loops around 0.2 Hz the guidelines flag; it rests at 4.5:1 or better between
+  sweeps, and holds still under reduced motion. (It replaced a glowing status dot in front of the
+  title, at your request.)
 
 ## Phases
 
@@ -444,6 +448,10 @@ disclosure pages; `apple-design` for motion).
   together counted as a double click and were dropped for about half a second); the opening and
   closing above replaced 0.6.0's wipe. Released as Gloom 0.6.2, after a check of the packaged
   build (fast clicks on a group toggle it every time).
+- **After 0.6.2, at your request:** a running session's title shimmers, as in Claude Code (not on
+  the selected row, which the indigo already marks), and the dot in front of it is gone; "Now"
+  beside it stays, and a screen reader hears "Running in another app". The info card keeps its
+  small dot beside "Running in the Claude app".
 - Built in its own worktree (`D:\JS\Gloom-sidebar`) while 0.5.1 was being made in the main
   checkout, then merged with it. Released as 0.6.0 after a check of the packaged build: it opens
   on the update screen, then the sidebar, a session and its info card, from inside the app archive.

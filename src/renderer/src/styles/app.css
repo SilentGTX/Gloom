@@ -410,15 +410,30 @@
   .session-row.is-selected .row-secondary {
     color: var(--on-row-selected);
   }
-  .session-row.is-selected .status-dot {
-    background: var(--on-row-selected);
-  }
-  .session-row.is-selected .status-dot::after {
-    box-shadow: 0 0 6px 1px color-mix(in oklab, var(--on-row-selected) 45%, transparent);
-  }
   /* A window you've stepped away from mutes it, as macOS does. */
   :root[data-focused='false'] .session-row.is-selected {
     background: var(--row-selected-blur);
+  }
+
+  /* A session at work (running in another app; in Gloom too, from Phase 4):
+     light sweeps across its title, left to right, for as long as it runs, as
+     in Claude Code; not on the selected row, which the indigo already marks.
+     Once every 1.8 s, well clear of the slow ~0.2 Hz loops that unsettle.
+     Between sweeps the title rests at a contrast that still reads (4.5:1 or
+     better); under reduced motion it holds still. */
+  @media (prefers-reduced-motion: no-preference) {
+    .session-row .row-label.live-title {
+      background: linear-gradient(90deg, var(--label-secondary) 42%, var(--label) 50%, var(--label-secondary) 58%) 100% 0 / 300% 100% no-repeat;
+      background-clip: text;
+      color: transparent;
+      animation: live-title 1.8s linear infinite;
+    }
+  }
+  /* The glint starts past the title's leading edge and leaves past its trailing one. */
+  @keyframes live-title {
+    to {
+      background-position: 0 0;
+    }
   }
 
   /* A disclosure turned from the keyboard snaps. */
@@ -468,8 +483,8 @@
     mask-image: linear-gradient(to bottom, transparent, #000 14px);
   }
 
-  /* Gloom's signature: a session's live dot. It lights up once when the
-     session comes alive, then holds a soft, still glow; no endless pulse. */
+  /* "Running in the Claude app", in a session's info card: a small dot with a
+     soft, still glow. (The sidebar shows a running session by its title's shimmer.) */
   .status-dot {
     position: relative;
     display: block;
@@ -486,25 +501,6 @@
     border-radius: inherit;
     box-shadow: 0 0 8px 1px var(--status-elsewhere-glow);
     opacity: 0.7;
-  }
-  .status-dot.is-fresh::after {
-    animation: status-light 1.4s var(--curve-out) both;
-  }
-  @keyframes status-light {
-    0% {
-      opacity: 0;
-    }
-    30% {
-      opacity: 1;
-    }
-    100% {
-      opacity: 0.7;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .status-dot::after {
-      animation: none;
-    }
   }
 
   /* ─── The transcript ──────────────────────────────────────────────────── */
