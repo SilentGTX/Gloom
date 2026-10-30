@@ -2,7 +2,7 @@
 // title bar Windows never shows this menu; it exists so the accelerators fire.
 // The renderer's menu button lists the same commands.
 import { app, BrowserWindow, dialog, Menu, type MenuItemConstructorOptions } from 'electron'
-import { COMMANDS, GROUP_LABELS, type CommandGroup, type CommandId, type CommandSpec } from '@shared/commands'
+import { COMMANDS, GROUP_LABELS, menuEntries, type CommandGroup, type CommandId, type CommandSpec } from '@shared/commands'
 import { IPC, type CommandDispatch } from '@shared/ipc'
 import { runPtySmoke } from './smoke'
 import { checkNow, preview } from './update-window'
@@ -49,17 +49,20 @@ export function runCommand(id: CommandId, win: BrowserWindow | null, viaKeyboard
 }
 
 export function installApplicationMenu(): void {
+  const item = (spec: CommandSpec): MenuItemConstructorOptions => ({
+    label: spec.label,
+    accelerator: spec.accelerator,
+    enabled: !spec.arrivesIn,
+    click: (_item, window, event) =>
+      runCommand(spec.id as CommandId, (window as BrowserWindow | undefined) ?? BrowserWindow.getFocusedWindow(), event.triggeredByAccelerator ?? false)
+  })
   const groups = new Map<CommandGroup, MenuItemConstructorOptions[]>()
-  for (const spec of COMMANDS as readonly CommandSpec[]) {
-    const items = groups.get(spec.group) ?? []
-    items.push({
-      label: spec.label,
-      accelerator: spec.accelerator,
-      enabled: !spec.arrivesIn,
-      click: (_item, window, event) =>
-        runCommand(spec.id as CommandId, (window as BrowserWindow | undefined) ?? BrowserWindow.getFocusedWindow(), event.triggeredByAccelerator ?? false)
-    })
-    groups.set(spec.group, items)
+  for (const group of Object.keys(GROUP_LABELS) as CommandGroup[]) {
+    const entries = menuEntries((COMMANDS as readonly CommandSpec[]).filter((c) => c.group === group))
+    groups.set(
+      group,
+      entries.map((e) => (e.kind === 'command' ? item(e.command) : { label: e.label, submenu: e.commands.map(item) }))
+    )
   }
   // Edit roles keep the standard text shortcuts wired to the focused field; Undo is
   // the registry's own, so it can undo library changes when no field has focus.

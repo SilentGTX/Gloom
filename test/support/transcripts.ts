@@ -16,6 +16,8 @@ export interface FakeSession {
   updated?: string
   /** Kilobytes of tool output between the first prompt and the end. */
   padKb?: number
+  /** What started it: 'cli' (a terminal, the default), 'claude-desktop' (the Claude app)… */
+  entrypoint?: string
 }
 
 /** How Claude Code names a project's folder: every separator and dot becomes a dash. */
@@ -26,7 +28,7 @@ export function projectDirName(cwd: string): string {
 export function transcriptLines(s: FakeSession): string[] {
   const created = s.created ?? '2026-10-01T10:00:00.000Z'
   const updated = s.updated ?? '2026-10-01T10:05:00.000Z'
-  const common = { cwd: s.cwd, sessionId: s.id, version: '2.1.314', gitBranch: 'main', entrypoint: 'cli' }
+  const common = { cwd: s.cwd, sessionId: s.id, version: '2.1.314', gitBranch: 'main', entrypoint: s.entrypoint ?? 'cli' }
   const lines = [
     { type: 'queue-operation', operation: 'enqueue', timestamp: created, sessionId: s.id, content: s.prompt },
     { parentUuid: null, isSidechain: false, type: 'user', message: { role: 'user', content: s.prompt }, uuid: 'u1', timestamp: created, ...common }

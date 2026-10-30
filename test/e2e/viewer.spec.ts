@@ -2,7 +2,7 @@ import { expect, test, type ElectronApplication, type Page } from '@playwright/t
 import { appendFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { demoSession, DEMO_TITLE } from '../support/demo'
-import { fakeClaude, launch, setWindowSize, tempDir, triggerShortcut } from './app'
+import { fakeClaude, launch, openGroup, sessionRow, setWindowSize, tempDir, triggerShortcut } from './app'
 
 let app: ElectronApplication
 let page: Page
@@ -18,8 +18,9 @@ async function openDemo() {
   const file = demo.write(join(claudeDir, 'projects'))
   ;({ app, page } = await launch({ claudeDir }))
   await setWindowSize(app, 1280, 900)
-  await page.getByRole('option', { name: new RegExp(DEMO_TITLE) }).click()
-  return { demo, file, transcript: page.getByLabel('Transcript') }
+  await openGroup(page, 'All Sessions')
+  await sessionRow(page, DEMO_TITLE).click()
+  return { demo, file, cwd, transcript: page.getByLabel('Transcript') }
 }
 
 const toTop = (transcript: ReturnType<Page['getByLabel']>) => transcript.evaluate((el) => (el.scrollTop = 0))
@@ -84,4 +85,24 @@ test('what Claude Code appends shows as it arrives, and Resume in Terminal opens
 
   await page.getByRole('button', { name: 'Resume in Terminal' }).click()
   await expect(page.getByText('Resumed in a terminal window')).toBeVisible()
+})
+
+test('the toolbar names the session and what it’s doing; ⓘ shows its details as a card', async () => {
+  const { cwd } = await openDemo()
+  const toolbar = page.locator('main header')
+  await expect(toolbar.getByRole('heading', { name: DEMO_TITLE })).toBeVisible()
+  await expect(toolbar).toContainText(/Active (now|\d+\w ago|\w+ \d+)/)
+  await page.getByRole('button', { name: 'Session info' }).click()
+  const card = page.getByRole('dialog', { name: 'Session Info' })
+  await expect(card).toBeVisible()
+  await expect(card).toContainText(cwd)
+  await expect(card).toContainText('Unfiled')
+  await card.getByRole('button', { name: 'Copy Session ID' }).click()
+  await expect(page.getByText('Copied the session ID')).toBeVisible()
+  await expect(card).toHaveCount(0)
+  // File › Session Info (Ctrl+I) opens it too.
+  await triggerShortcut(app, 'CmdOrCtrl+I')
+  await expect(card).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(card).toHaveCount(0)
 })

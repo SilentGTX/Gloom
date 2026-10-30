@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MessagesSquare, SquareChevronRight } from 'lucide-react'
+import { MessagesSquare, Terminal } from 'lucide-react'
 import type { ResumeResult } from '@shared/ipc'
 import { displayTitle, ELSEWHERE_MS, type SessionMeta } from '@shared/library'
 import { Button } from '../../components/ui/Button'
@@ -8,20 +8,30 @@ import { GlassCapsule } from '../../components/ui/Glass'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
 import { useNow } from '../../lib/now'
+import { relativeTime } from '../../lib/time'
 import { useLibrary } from '../../stores/library'
 import { useTranscript } from '../../stores/transcript'
 import { useUi } from '../../stores/ui'
 import { resumeSession } from '../sessions/SessionMenu'
+import { BarTitle, PaneToolbar, SidebarButton, SidebarStandIns } from '../shell/Toolbar'
 import { UpdateButton } from '../update/UpdateButton'
-import { BarTitle, ChatControls, LeadingControls, NewSessionButton, PaneToolbar, type LeadingControl } from '../shell/Toolbar'
+import { SessionInfo } from './SessionInfo'
 import { Transcript } from './Transcript'
 
+/** "Active now" while it runs in another app, else when it last did ("Active 33m ago", "Active Oct 21"). */
+function activity(updated: number, now: number): string {
+  if (now - updated < ELSEWHERE_MS) return 'Active now'
+  const when = relativeTime(updated, now)
+  return /^\d/.test(when) ? `Active ${when} ago` : `Active ${when}`
+}
+
 /**
- * Chat: content, so paper, never glass. Its toolbar floats over the top with
- * the session's title, and Resume in Terminal until Gloom can send messages
- * itself; when the session list is folded away it carries the list's controls.
+ * Chat: content, so paper, never glass. Its toolbar floats over the top: the
+ * session's title and what it's doing, then one capsule with the sidebar,
+ * Resume in Terminal and the session's info. With the sidebar away, its menu
+ * comes along to the leading edge.
  */
-export function ChatColumn({ leading, withNewSession }: { leading: LeadingControl[]; withNewSession: boolean }) {
+export function ChatColumn({ sidebarShown }: { sidebarShown: boolean }) {
   const selection = useUi((s) => s.selection)
   const session = useLibrary((s) => (selection.length === 1 ? s.sessions[selection[0]] : undefined))
   const entry = useLibrary((s) => (session ? s.library.sessions[session.id] : undefined))
@@ -38,14 +48,15 @@ export function ChatColumn({ leading, withNewSession }: { leading: LeadingContro
   return (
     <main className="@container relative flex min-w-0 flex-1 flex-col pt-[var(--titlebar-h)]">
       <PaneToolbar clearCaptionButtons>
-        <LeadingControls controls={leading} />
-        {withNewSession && <NewSessionButton />}
-        {title && <BarTitle>{title}</BarTitle>}
-        {live && <span className="status-dot no-drag shrink-0" role="img" aria-label="Running in another app" title="Running in another app" />}
+        {!sidebarShown && <SidebarStandIns />}
+        {session && title && <BarTitle status={activity(session.updated, now)}>{title}</BarTitle>}
         <div className="flex-1" />
-        {session && <ResumeButton session={session} />}
         <UpdateButton />
-        <ChatControls />
+        <GlassCapsule label="Session">
+          <SidebarButton shown={sidebarShown} />
+          <ResumeButton session={session} />
+          <SessionInfo session={session} />
+        </GlassCapsule>
       </PaneToolbar>
       {session ? (
         <Transcript sessionId={session.id} live={live} />
@@ -66,31 +77,32 @@ export function ChatColumn({ leading, withNewSession }: { leading: LeadingContro
  * Opens the session in a terminal window with `claude --resume`. When it can't
  * (its folder is gone, it ran on another machine), it stays visible and says why.
  */
-function ResumeButton({ session }: { session: SessionMeta }) {
+function ResumeButton({ session }: { session: SessionMeta | undefined }) {
   const [check, setCheck] = useState<ResumeResult | null>(null)
+  const id = session?.id
+  const cwd = session?.cwd
   useEffect(() => {
+    setCheck(null)
+    if (!id) return
     let alive = true
-    void window.gloom?.resumeSession(session.id, { check: true }).then((result) => alive && setCheck(result))
+    void window.gloom?.resumeSession(id, { check: true }).then((result) => alive && setCheck(result))
     return () => {
       alive = false
     }
-  }, [session.id, session.cwd])
+  }, [id, cwd])
   const blocked = check?.ok === false ? check.reason : null
   return (
-    <GlassCapsule>
-      <Tooltip label={blocked ?? 'Continue this session in a terminal window'}>
-        <Button
-          size="text"
-          shape="round"
-          aria-label="Resume in Terminal"
-          aria-disabled={!!blocked}
-          className={cn('gap-1.5 text-label', blocked && 'opacity-40')}
-          onClick={() => void resumeSession(session.id)}
-        >
-          <SquareChevronRight size={15} strokeWidth={1.75} aria-hidden />
-          <span className="@max-[620px]:hidden">Resume in Terminal</span>
-        </Button>
-      </Tooltip>
-    </GlassCapsule>
+    <Tooltip label={blocked ?? 'Resume in Terminal'}>
+      <Button
+        shape="round"
+        aria-label="Resume in Terminal"
+        disabled={!id}
+        aria-disabled={!!blocked}
+        className={cn(blocked && 'opacity-40')}
+        onClick={() => id && void resumeSession(id)}
+      >
+        <Terminal size={16} strokeWidth={1.75} aria-hidden />
+      </Button>
+    </Tooltip>
   )
 }

@@ -1,10 +1,9 @@
 import { Archive, ArchiveRestore, Copy, FolderInput, FolderOpen, Pencil, Pin, PinOff, SquareChevronRight } from 'lucide-react'
-import type { Place } from '@shared/library'
 import { ContextMenuPopup, MenuGroup, MenuGroupLabel, MenuItem, MenuSeparator, MenuSubmenu } from '../../components/ui/Menu'
 import { notify } from '../../lib/toast'
 import { applyWithUndo, useLibrary } from '../../stores/library'
 import { useUi } from '../../stores/ui'
-import { MoveTargets } from '../folders/FolderColumn'
+import { MoveTargets } from '../folders/FolderMenu'
 
 const sessionsLabel = (n: number) => (n === 1 ? '1 session' : `${n} sessions`)
 
@@ -35,7 +34,7 @@ export async function resumeSession(id: string): Promise<void> {
  * What you can do to the sessions a right-click picked: one session, or every
  * selected one. Items that don't apply are left out rather than dimmed.
  */
-export function SessionMenu({ ids, place }: { ids: string[]; place: Place }) {
+export function SessionMenu({ ids }: { ids: string[] }) {
   const library = useLibrary((s) => s.library)
   const sessions = useLibrary((s) => s.sessions)
   const apply = useLibrary((s) => s.apply)
@@ -45,7 +44,6 @@ export function SessionMenu({ ids, place }: { ids: string[]; place: Place }) {
   const folderIds = new Set(entries.map((e) => (e?.folderId && library.folders.some((f) => f.id === e.folderId) ? e.folderId : null)))
   const current = folderIds.size === 1 ? [...folderIds][0] : undefined
   const single = ids.length === 1 ? sessions[ids[0]] : undefined
-  const inArchive = 'smart' in place && place.smart === 'archived'
 
   return (
     <ContextMenuPopup label={ids.length === 1 ? 'Session actions' : `${ids.length} sessions actions`}>
@@ -56,7 +54,7 @@ export function SessionMenu({ ids, place }: { ids: string[]; place: Place }) {
         <MenuSubmenu label="Move To" icon={<FolderInput />}>
           <MoveTargets folders={library.folders} current={current} topLevel="Unfiled" onPick={(folderId) => void apply({ type: 'moveSessions', ids, folderId })} />
         </MenuSubmenu>
-        {archived || inArchive ? (
+        {archived ? (
           <MenuItem label="Unarchive" icon={<ArchiveRestore />} onClick={() => void apply({ type: 'setArchived', ids, archived: false })} />
         ) : (
           <MenuItem label="Archive" icon={<Archive />} onClick={() => archiveSessions(ids)} />

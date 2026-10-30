@@ -3,15 +3,15 @@
 import { useEffect } from 'react'
 import { COMMANDS, findCommand, type CommandId, type CommandSpec } from '@shared/commands'
 import { useFind } from '../features/chat/find'
-import { newFolder } from '../features/folders/FolderColumn'
+import { newFolder } from '../features/folders/folders'
 import { resumeSession } from '../features/sessions/SessionMenu'
 import { useLibrary } from '../stores/library'
 import { useTranscript } from '../stores/transcript'
 import { useUi } from '../stores/ui'
 
-/** Runs once the folders have rendered, wherever they were. */
-function afterFolders(viaKeyboard: boolean, then: () => void) {
-  useUi.getState().showFolders(viaKeyboard)
+/** Runs once the sidebar has rendered, wherever it was. */
+function inSidebar(viaKeyboard: boolean, then: () => void) {
+  useUi.getState().showSidebar(viaKeyboard)
   requestAnimationFrame(() => requestAnimationFrame(then))
 }
 
@@ -31,15 +31,21 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
     const id = useTranscript.getState().id
     if (id) void resumeSession(id)
   },
-  'folder.new': (k) => afterFolders(k, () => void newFolder(null)),
+  'session.info': () => {
+    const ui = useUi.getState()
+    if (ui.selection.length === 1) ui.setInfo(!ui.info)
+  },
+  'folder.new': (k) => inSidebar(k, () => void newFolder(null)),
   'view.search': (k) =>
-    afterFolders(k, () => {
+    inSidebar(k, () => {
       const field = document.querySelector<HTMLInputElement>('input[data-search]')
       field?.focus()
       field?.select()
     }),
-  'view.toggleFolders': (k) => useUi.getState().toggleFolders(k),
-  'view.toggleSessions': (k) => useUi.getState().toggleSessions(k),
+  'view.toggleSidebar': (k) => useUi.getState().toggleSidebar(k),
+  'view.sortActivity': () => useUi.getState().setSort('activity'),
+  'view.sortName': () => useUi.getState().setSort('name'),
+  'view.sortCreated': () => useUi.getState().setSort('created'),
   'view.textBigger': () => useUi.getState().stepText(1),
   'view.textSmaller': () => useUi.getState().stepText(-1),
   'view.textReset': () => useUi.getState().resetText(),

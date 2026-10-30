@@ -18,7 +18,9 @@ Kowalski's set supports them: `emil-design-eng`, `animate`, `review-animations`,
 `animation-performance`, `pick-ui-library`, `break-ui`, `ask-sonner`.
 
 **Decided with you**
-- Layout: three columns, like Apple Notes/Mail: **folder tree | session list | chat**.
+- Layout: two columns: **one sidebar | chat**. The sidebar holds your library and your folders,
+  each opening to show its sessions nested inside (your Claude Design mockup, 2026-10-30; until
+  then three columns, folder tree | session list | chat, like Apple Notes).
 - Window: Windows 11's real min/max/close buttons (no fake Mac buttons) over Gloom's dusk sky, with
   Liquid Glass on the floating layer (the sky replaced Mica, which it would hide).
 - Version 1 includes: sidebar and chat, **permission prompts**, a **diff pane**, a **terminal pane**,
@@ -100,8 +102,9 @@ D:\JS\Gloom
 │  ├─ styles/tokens.css         colours, materials, type scale, motion tokens (light + dark)
 │  ├─ stores/                   zustand: library, sessions, ui
 │  ├─ components/ui/            base-ui wrappers styled with cva (Button, Menu, Dialog, Tooltip…)
-│  ├─ features/folders/         folder tree (outline view)
-│  ├─ features/sessions/        session list
+│  ├─ features/sidebar/         the one sidebar: library and folders with their sessions nested
+│  ├─ features/folders/         folder actions, menu, filing rules
+│  ├─ features/sessions/        session actions and menu
 │  ├─ features/chat/            transcript, tool rows, composer, prompt cards
 │  ├─ features/diff/            diff pane
 │  ├─ features/terminal/        terminal pane
@@ -208,38 +211,48 @@ dusk sky; an inactive window mutes the sky.
 The app follows the system light/dark setting and Windows' accent colour
 (`systemPreferences.getAccentColor()`, updated on `accent-color-changed`). A hidden title bar
 doesn't draw the native menu bar, so a menu button at the top left (like the Claude app's) opens
-every command; Phase 1 confirms the accelerators still fire. Splitters between the columns are
-resizable and remembered. Narrow windows collapse the folder column first, then the session list
-(both reachable from a toolbar button), and the diff pane turns into an overlay when the chat would
-drop below 560 px.
+every command; Phase 1 confirms the accelerators still fire. The splitter beside the sidebar is
+resizable and remembered. A narrow window folds the sidebar into a sheet over the chat (the chat
+toolbar's sidebar button brings it back), and the diff pane turns into an overlay when the chat
+would drop below 560 px.
 
 **Updates.** When an update is ready, a download icon appears in the title bar, like Sync's.
 Clicking it waits until no session is mid-turn (the Claude app defers its updates the same way),
 saves the window and the open session, runs the installer silently and relaunches with both
 restored. Stopped sessions resume on their next send.
 
-**1. Folder tree (left).** An outline view, like Notes or Finder:
-- **Smart folders at the top:** All Sessions, Recent (active in the last 7 days), Pinned, Unfiled; Archived at the bottom.
-- **Your folders:** disclosure triangles; Alt-click or numpad `*` expands everything below; expansion state is remembered.
-- **Keyboard from the start:** treeview semantics: arrows move, open and close; Home/End; type to find.
-- **Editing:** F2 or a click on the selected row renames inline; New Folder, plus "New Folder Inside" for nesting.
-- **Moving:** drag folders to reorder or nest them, and drop sessions onto a folder (dnd kit), with spring-animated reorders.
-- **Context menu:** rename, new subfolder, folder defaults and filing rules…, move to…, delete.
-- **Search** field at the top of the column: filters titles and last prompts across all folders as you type.
-- **Counts:** each folder shows its session count in tabular numerals.
+**1. Sidebar (left).** One outline, like Finder's sidebar with its folders opened in place:
+- **Library at the top:** All Sessions, Recent (active in the last 7 days), Pinned, Unfiled, each
+  opening to show its sessions, with counts. **Archived** waits at the foot; it shows the archive in
+  place of the library.
+- **Your folders:** nested without limit; an open folder shows its subfolders, then its own
+  sessions, with a guide line down the left. A click opens or closes one; Alt-click or numpad `*`
+  does everything below. What's open is remembered.
+- **Each session row:** title, time (relative, then a date after a week), the last prompt, and a
+  status dot (running / waiting for you / idle / running elsewhere). The selected one, the session
+  the chat shows, is filled with Gloom's dusk indigo. A session shows in every group it belongs to.
+- **Keyboard from the start:** treeview semantics: arrows move and select sessions, Shift extends,
+  Ctrl only moves; Left and Right open, close and step in and out; Home/End; type to find; F2
+  renames; Delete archives (the next session takes over, as in Mail) or deletes a folder.
+- **Editing:** F2 or the context menu renames; New Folder, plus "New Folder Inside" for nesting.
+- **Moving:** drag folders to reorder or nest them, and drop sessions onto a folder or onto any
+  session inside it (dnd kit); Unfiled, Pinned and Archived take sessions too.
+- **Context menus:** a folder's: rename, new subfolder, folder defaults and filing rules…, move
+  to…, delete. A session's: rename, pin, archive, move to…, resume in terminal, reveal working
+  folder, copy session ID. Archive hides a session everywhere except Archived; its transcript is
+  untouched.
+- **Search** field at the top: results from every folder, archived matches apart.
+- **Sorting** (View › Sort Sessions By): last activity, name or date created; pinned ones lead.
+- **Selection:** multi-select (Ctrl and Shift) and drag to a folder.
+- **New Session (Ctrl+N):** the pencil at the top of the sidebar. Choose the working folder
+  (prefilled from the folder's defaults), model and mode; in a git repo a **worktree** switch, on by
+  default; a folder Gloom hasn't seen asks for trust first; it's placed in the folder you're in.
 
-**2. Session list (middle).** The selected folder's sessions; with "include subfolders" on, nested ones too.
-- **Each row:** title, last-prompt preview, project folder name, time (relative, then a date after a week),
-  and a status dot (running / waiting for you / idle / running elsewhere).
-- **Sorting:** by last activity, name or date created.
-- **Selection:** multi-select (Ctrl and Shift) and drag to a folder; virtualized with Virtuoso.
-- **Context menu:** rename, pin, archive, move to…, reveal working folder, copy session ID. Archive
-  hides a session everywhere except Archived; its transcript is untouched.
-- **New Session (Ctrl+N):** choose the working folder (prefilled from the folder's defaults), model
-  and mode; in a git repo a **worktree** switch, on by default; a folder Gloom hasn't seen asks for
-  trust first; it's placed in the selected folder.
-
-**3. Chat (right).**
+**2. Chat (right).**
+- **Toolbar:** the session's title with what it's doing beside it ("Active now"); trailing, one
+  capsule with the sidebar's show/hide, Resume in Terminal and ⓘ, which opens the session's
+  details as a card (working folder, folder, started, last active, started from, branch, session
+  ID, with Reveal Working Folder and Copy Session ID).
 - **Transcript:** virtualized and opens at the bottom; older pages load on scroll up, stopping at the
   last compaction. User messages, assistant markdown with shiki code blocks, thinking collapsed, and
   tool calls as compact rows (icon + summary such as "Edited `foo.ts` +12 −3", "Ran `npm test`")
@@ -277,13 +290,13 @@ branch and a **Merge** action that lands the work on the branch it came from wit
 Claude resolve them in that session. Archiving removes a clean worktree and asks first when it has
 uncommitted changes.
 
-**4. Diff pane (toggle, right of the chat).** Two tabs, shiki-highlighted and virtualized for big diffs:
+**3. Diff pane (toggle, right of the chat).** Two tabs, shiki-highlighted and virtualized for big diffs:
 - **This session** (default): built from the patches in the session's Edit/Write tool results
   (`structuredPatch`). Works in any folder and shows only Claude's edits from this session.
 - **Working tree:** `git status` plus `git diff`, untracked files included, for changes made by Bash,
   by you or by other sessions in the same repo.
 
-**5. Terminal pane (toggle, below the chat).** An xterm terminal opened in the session's working
+**4. Terminal pane (toggle, below the chat).** An xterm terminal opened in the session's working
 folder; several tabs allowed; the shell comes from Settings (PowerShell by default; pwsh, cmd, Git Bash).
 
 **Settings.** Claude Code path, version and login status; default model, mode and effort; terminal
@@ -343,11 +356,12 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 ## Phases
 
 **Status, 2026-10-30: Phases 0, 1, 2 and 3 are done**, and Gloom 0.5.0 (Phase 3, the viewer) is
-released. **Next, at your request: one sidebar** (below), started fresh, then Phase 4.
+released. **One sidebar** (below) is built on the branch `one-sidebar`, waiting for your OK; then
+Phase 4.
 
-**Planned next: one sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder
-tree and the session list merge into the one floating glass sidebar, so the window has two columns,
-sidebar and chat, instead of three:
+**One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
+session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
+chat, instead of three:
 - **Library:** All Sessions, Recent, Pinned and Unfiled, each with a disclosure that opens to show
   its sessions, with counts.
 - **Folders:** your folders, opening to show their sessions nested inside. A session row keeps its
@@ -357,6 +371,56 @@ sidebar and chat, instead of three:
   capsule holds the sidebar toggle, the terminal (Resume in Terminal) and ⓘ, which opens the
   session's details as a card (working folder, folder, started, last active, started from,
   session ID, with Reveal Working Folder and Copy Session ID).
+
+**Done 2026-10-30, on the branch `one-sidebar`; not released yet.** Built with both Apple skills
+loaded (`apple-hig` with its foundation pages and the sidebar, outline view, toolbar, popover and
+disclosure pages; `apple-design` for motion).
+- **The tree:** `src/renderer/src/features/sidebar/` (`tree.ts` works out the rows, pure and
+  tested; `rows.tsx`, `Sidebar.tsx`). An open folder shows its subfolders, then its own sessions;
+  a folder's count is its own sessions, the ones that show when it opens. A session shows in every
+  group it belongs to; selecting one marks all its rows. Library groups' open state is kept with
+  the window's settings, folders' in the library, as before.
+- **Selection** is the session the chat shows, and it takes **Gloom's dusk indigo** (#5b5bd6, your
+  mockup's colour) whatever Windows' accent is (yours is gray), muted in a window you've stepped
+  away from. Arrows select as in Mail; Ctrl+arrows only move; Delete archives and the next session
+  in the group takes over.
+- **Groups** open and close with a click anywhere on the row; renaming moved to F2 and the context
+  menu (a click on a selected folder used to rename it). **Archived** shows the archive in place
+  of the library (Done or Escape goes back). **Search** shows Results, archived matches apart.
+- **Drag:** a session can drop onto any session inside a folder, for that folder (a tall open
+  folder is one big target; its guide line lights up), and a drop where the sessions already are
+  is refused rather than recorded as a move.
+- **Chat toolbar:** the title at 15 px as in the mockup, "Active now" (else "Active 33m ago"), and
+  one capsule: Show/Hide Sidebar (Ctrl+B), Resume in Terminal, ⓘ Session Info (also File ›
+  Session Info, Ctrl+I, since every toolbar item needs a menu command). With the sidebar away, the
+  menu and New Session ride at the leading edge.
+- **View › Sort Sessions By** replaced the session list's sort button. **Include Subfolders** and
+  **Show or Hide Session List** (Ctrl+Shift+B) are gone: a folder's sessions are inside it now.
+  The window's saved settings move over (version 3): the sidebar keeps the folder column's width,
+  at least the new 288 px default.
+- **Motion:** a row or an open group's contents is wiped open from the top by an edge on the same
+  spring as the rows below, which slide to make room, so nothing ever passes over anything (a
+  first try let the rows below slide across the new ones). A second click mid-way turns it
+  around. The sidebar slides out the way it came; keyboard toggles snap; reduced motion fades.
+- **Toasts** now centre over the chat (Sonner left-aligned our capsule inside its 356 px box, so
+  they sat off-centre; you spotted it).
+- **Review** with both skills; fixes made: no white ring on the selected row (the fill shows where
+  you are, as on the Mac); library and folder rows grow with text size instead of clipping at
+  200%; Archived, when shown, takes the selection's colour; the drag image no longer catches
+  clicks while it flies to its drop.
+- **Departures**, deliberate:
+  - sessions nested in nested folders go past the two levels Apple suggests for a sidebar (Gloom's
+    reason to exist);
+  - the sidebar toggle sits in the trailing capsule, as in your mockup (Apple puts it at the
+    leading edge);
+  - the selection keeps its colour when the keyboard is elsewhere (your mockup); only an inactive
+    window mutes it.
+- **Found on the way:** dnd kit swallows clicks for 50 ms after a drag, and rows read mid-spring
+  are where they were, not where they'll be; the end-to-end tests now wait a beat for both.
+- **Tests:** unit tests for the tree (groups, nesting, sets, guides, search, Archived) and the
+  layout; the end-to-end tests rewritten for the sidebar, plus Archived and the info card. The
+  window captures in `screenshots.spec.ts` are updated but weren't run: they copy the screen
+  where Gloom's window is, so they need it in front, and you were using the PC.
 
 0. **SDK spike.** A node script drives the SDK against your real `claude.exe` and checks: two turns in
    one process, interrupt, resume keeping the session ID, a permission request answered from code,

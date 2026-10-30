@@ -12,7 +12,6 @@ import {
   type LibraryOp,
   type SessionMeta
 } from '../../src/shared/library'
-import { countSessions, listSessions } from '../../src/renderer/src/features/sessions/derive'
 
 let n = 0
 const ctx = (sessions: SessionMeta[] = []) => ({ sessions: new Map(sessions.map((s) => [s.id, s])), newId: () => `f${++n}`, now: Date.parse('2026-10-30T12:00:00Z') })
@@ -219,62 +218,5 @@ describe('the index and the library', () => {
   it('return the same library when nothing changed', () => {
     const lib = noticeSessions(emptyLibrary(), [meta('s1', null)], [], 0)
     expect(noticeSessions(lib, [meta('s1', null)], [], 1)).toBe(lib)
-  })
-})
-
-describe('what the list shows', () => {
-  const now = Date.parse('2026-10-30T12:00:00Z')
-  const sessions = Object.fromEntries(
-    [
-      meta('old', 'C:\\A', { updated: Date.parse('2026-09-01T00:00:00Z'), title: 'Zebra' }),
-      meta('new', 'C:\\A', { updated: Date.parse('2026-10-30T11:00:00Z'), title: 'Apple' }),
-      meta('pin', 'C:\\B', { updated: Date.parse('2026-08-01T00:00:00Z'), title: 'Mango', lastPrompt: 'about the kiwi' }),
-      meta('gone', 'C:\\B', { title: 'Archived one' })
-    ].map((s) => [s.id, s])
-  )
-  const opts = { search: '', sort: 'activity' as const, includeSubfolders: false, now }
-
-  function library() {
-    let lib = noticeSessions(emptyLibrary(), Object.values(sessions), [], 0)
-    lib = run(lib, [{ type: 'createFolder', parentId: null, name: 'Top' }]).library
-    const top = lib.folders[0].id
-    lib = run(lib, [{ type: 'createFolder', parentId: top, name: 'Inner' }]).library
-    const inner = lib.folders[1].id
-    lib = run(lib, [
-      { type: 'moveSessions', ids: ['old'], folderId: top },
-      { type: 'moveSessions', ids: ['new'], folderId: inner },
-      { type: 'setPinned', ids: ['pin'], pinned: true },
-      { type: 'setArchived', ids: ['gone'], archived: true }
-    ]).library
-    return { lib, top, inner }
-  }
-
-  it('puts pinned first, then sorts', () => {
-    const { lib } = library()
-    expect(listSessions(lib, sessions, { smart: 'all' }, opts).map((i) => i.id)).toEqual(['pin', 'new', 'old'])
-    expect(listSessions(lib, sessions, { smart: 'all' }, { ...opts, sort: 'name' }).map((i) => i.id)).toEqual(['pin', 'new', 'old'])
-  })
-
-  it('shows archived sessions only in Archived', () => {
-    const { lib } = library()
-    expect(listSessions(lib, sessions, { smart: 'archived' }, opts).map((i) => i.id)).toEqual(['gone'])
-    expect(listSessions(lib, sessions, { smart: 'unfiled' }, opts).map((i) => i.id)).toEqual(['pin'])
-    expect(listSessions(lib, sessions, { smart: 'recent' }, opts).map((i) => i.id)).toEqual(['new'])
-  })
-
-  it("includes subfolders' sessions when asked, in the list and the counts", () => {
-    const { lib, top } = library()
-    expect(listSessions(lib, sessions, { folder: top }, opts).map((i) => i.id)).toEqual(['old'])
-    expect(listSessions(lib, sessions, { folder: top }, { ...opts, includeSubfolders: true }).map((i) => i.id)).toEqual(['new', 'old'])
-    expect(countSessions(lib, sessions, false, now).folders[top]).toBe(1)
-    expect(countSessions(lib, sessions, true, now).folders[top]).toBe(2)
-    expect(countSessions(lib, sessions, false, now).smart).toEqual({ all: 3, recent: 1, pinned: 1, unfiled: 1, archived: 1 })
-  })
-
-  it('searches every folder, by title, prompt or project', () => {
-    const { lib, top } = library()
-    expect(listSessions(lib, sessions, { folder: top }, { ...opts, search: 'kiwi' }).map((i) => i.id)).toEqual(['pin'])
-    expect(listSessions(lib, sessions, { smart: 'all' }, { ...opts, search: 'apple' }).map((i) => i.id)).toEqual(['new'])
-    expect(listSessions(lib, sessions, { smart: 'all' }, { ...opts, search: 'archived' })).toEqual([])
   })
 })

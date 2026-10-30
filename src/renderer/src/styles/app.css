@@ -200,38 +200,47 @@
     background: var(--surface);
   }
 
-  /* A session row's text, which turns to the accent's contrast colour when selected in a focused list. */
+  /* A session row's text, which turns to the accent's contrast colour when selected. */
   .row-label {
     color: var(--label);
   }
   .row-secondary {
     color: var(--label-secondary);
   }
+  /* The open session takes Gloom's indigo, wherever the keyboard is: it's the
+     sidebar's one selection and says what the chat shows. */
   .session-row.is-selected {
-    background: var(--row-selected-blur);
-  }
-  .group\/list:focus-within .session-row.is-selected {
     background: var(--row-selected);
   }
-  /* Every line in full contrast on the accent: a softened secondary drops below
-     4.5:1 on a saturated accent (Windows' blue). Weight and size keep the hierarchy. */
-  .group\/list:focus-within .session-row.is-selected .row-label,
-  .group\/list:focus-within .session-row.is-selected .row-secondary {
-    color: var(--on-accent);
+  /* Every line in full contrast on it: a softened secondary would drop below
+     4.5:1. Weight and size keep the hierarchy. */
+  .session-row.is-selected .row-label,
+  .session-row.is-selected .row-secondary {
+    color: var(--on-row-selected);
   }
-  :root[data-focused='false'] .group\/list:focus-within .session-row.is-selected {
+  .session-row.is-selected .status-dot {
+    background: var(--on-row-selected);
+  }
+  .session-row.is-selected .status-dot::after {
+    box-shadow: 0 0 6px 1px color-mix(in oklab, var(--on-row-selected) 45%, transparent);
+  }
+  /* A window you've stepped away from mutes it, as macOS does. */
+  :root[data-focused='false'] .session-row.is-selected {
     background: var(--row-selected-blur);
-  }
-  :root[data-focused='false'] .group\/list:focus-within .session-row.is-selected .row-label {
-    color: var(--label);
-  }
-  :root[data-focused='false'] .group\/list:focus-within .session-row.is-selected .row-secondary {
-    color: var(--label-secondary);
   }
 
   /* A disclosure turned from the keyboard snaps. */
   .tree-instant .disclosure {
     transition: none;
+  }
+
+  /* A toast spans Sonner's list, which is centred, and centres its capsule
+     in it; left alone, a capsule would hug the list's left edge. */
+  [data-sonner-toaster] [data-sonner-toast][data-styled='false'] {
+    right: 0;
+    left: 0;
+    display: flex;
+    justify-content: center;
   }
 
   /* Where a dragged item would land. */

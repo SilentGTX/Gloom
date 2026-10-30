@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
 import { useUi } from '../../stores/ui'
 import { ChatColumn } from '../chat/ChatColumn'
-import { FolderPanel } from '../folders/FolderColumn'
 import { LibraryDnd } from '../library/drag'
-import { SessionColumn } from '../sessions/SessionColumn'
-import { CHAT_MIN, computeLayout, FOLDERS, SESSIONS } from './layout'
+import { SidebarPanel } from '../sidebar/Sidebar'
+import { CHAT_MIN, computeLayout, SIDEBAR } from './layout'
 import { OverlaySheet } from './OverlaySheet'
 import { Splitter } from './Splitter'
-import type { LeadingControl } from './Toolbar'
 
 /** The sidebar floats this far inside the window's edges. */
 const FRAME = 8
+/** A show or hide this recent was yours; later layout changes come from resizing the window and don't slide. */
+const TOGGLE_MS = 600
 
 function useWindowWidth(): number {
   const [width, setWidth] = useState(window.innerWidth)
@@ -23,71 +24,69 @@ function useWindowWidth(): number {
 }
 
 /**
- * macOS 26's composition: soft paper edge to edge across the whole window,
- * and the folder tree floating over it as one glass panel that carries Gloom's
- * dusk inside. The session list and chat each have a toolbar floating over
- * their top. Narrow windows fold the folders away first, then the list.
+ * macOS 26's composition: soft paper edge to edge across the whole window, and
+ * one sidebar floating over it as a glass panel that carries Gloom's dusk
+ * inside: your library, your folders and their sessions. The chat has a
+ * toolbar floating over its top. A narrow window folds the sidebar into a sheet.
  */
 export function Shell() {
   const width = useWindowWidth()
   const ui = useUi()
-  const { foldersInline, sessionsInline } = computeLayout(width, ui)
+  const reduce = useReducedMotion()
+  const { sidebarInline } = computeLayout(width, ui)
 
-  // A column that fits inline again doesn't need its sheet.
-  const { overlay, closeOverlay } = ui
+  // A sidebar that fits inline again doesn't need its sheet.
+  const { sheet, closeSheet } = ui
   useEffect(() => {
-    if ((overlay === 'folders' && foldersInline) || (overlay === 'sessions' && sessionsInline)) closeOverlay(true)
-  }, [overlay, foldersInline, sessionsInline, closeOverlay])
+    if (sheet && sidebarInline) closeSheet(true)
+  }, [sheet, sidebarInline, closeSheet])
 
-  const column = ui.folderWidth + FRAME * 2
-  // A splitter may not push the chat under its minimum (which would fold a column away mid-drag).
-  const folderMax = Math.max(FOLDERS.min, Math.min(FOLDERS.max, width - CHAT_MIN - FRAME * 2 - (sessionsInline ? ui.sessionWidth : 0)))
-  const sessionMax = Math.max(SESSIONS.min, Math.min(SESSIONS.max, width - CHAT_MIN - (foldersInline ? column : 0)))
+  const column = ui.sidebarWidth + FRAME * 2
+  // Toasts centre over the chat, beside the sidebar.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--content-shift', `${sidebarInline ? column / 2 : 0}px`)
+  }, [sidebarInline, column])
+  // The splitter may not push the chat under its minimum (which would fold the sidebar away mid-drag).
+  const sidebarMax = Math.max(SIDEBAR.min, Math.min(SIDEBAR.max, width - CHAT_MIN - FRAME * 2))
 
-  // The sidebar holds the menu; without it, the first pane's toolbar does.
-  const listLeading: LeadingControl[] = foldersInline ? [] : ['menu', 'folders']
-  const chatLeading: LeadingControl[] = sessionsInline ? [] : foldersInline ? ['sessions'] : ['menu', 'folders', 'sessions']
+  // Shown or hidden with the pointer, the sidebar slides in and out along the
+  // same path, past its own width so the shadow goes too; from the keyboard it
+  // snaps, and reduced motion fades it.
+  // The transition goes in through `custom`, so a sidebar on its way out leaves the way you sent it.
+  const slides = !ui.instant && Date.now() - ui.toggledAt < TOGGLE_MS
+  const transition: Transition = !slides ? { duration: 0 } : reduce ? { duration: 0.2, ease: [0.23, 1, 0.32, 1] } : { type: 'spring', bounce: 0, duration: 0.32 }
+  const variants = {
+    away: (t: Transition) => ({ ...(reduce ? { opacity: 0 } : { x: -column - 24 }), transition: t }),
+    here: (t: Transition) => ({ ...(reduce ? { opacity: 1 } : { x: 0 }), transition: t })
+  }
 
   return (
     <LibraryDnd>
       <div className="paper relative flex h-full overflow-hidden">
-        {foldersInline && (
-          <>
-            <div className="shrink-0 p-[var(--frame)]" style={{ width: column }}>
-              <FolderPanel width={ui.folderWidth} />
-            </div>
-            <Splitter variant="edge" label="Resize folders" value={ui.folderWidth} min={FOLDERS.min} max={folderMax} initial={FOLDERS.initial} onChange={ui.setFolderWidth} />
-          </>
+        {/* Leaving, it's lifted out of the row at once, so the chat takes the room while it slides away. */}
+        <AnimatePresence initial={false} mode="popLayout" custom={transition}>
+          {sidebarInline && (
+            <motion.div
+              key="sidebar"
+              className="relative z-20 shrink-0 p-[var(--frame)]"
+              style={{ width: column }}
+              custom={transition}
+              variants={variants}
+              initial="away"
+              animate="here"
+              exit="away"
+            >
+              <SidebarPanel width={ui.sidebarWidth} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {sidebarInline && (
+          <Splitter variant="edge" label="Resize sidebar" value={ui.sidebarWidth} min={SIDEBAR.min} max={sidebarMax} initial={SIDEBAR.initial} onChange={ui.setSidebarWidth} />
         )}
-        {sessionsInline && (
-          <>
-            <SessionColumn width={ui.sessionWidth} leading={listLeading} />
-            <Splitter
-              variant="hairline"
-              label="Resize session list"
-              value={ui.sessionWidth}
-              min={SESSIONS.min}
-              max={sessionMax}
-              initial={SESSIONS.initial}
-              onChange={ui.setSessionWidth}
-            />
-          </>
-        )}
-        <ChatColumn leading={chatLeading} withNewSession={!sessionsInline} />
+        <ChatColumn sidebarShown={sidebarInline || sheet} />
 
-        <OverlaySheet open={overlay === 'folders'} instant={ui.overlayInstant} area={{ inset: 0 }} inset={FRAME} width={ui.folderWidth} label="Folders" onClose={closeOverlay}>
-          <FolderPanel width={ui.folderWidth} inSheet />
-        </OverlaySheet>
-        <OverlaySheet
-          open={overlay === 'sessions'}
-          instant={ui.overlayInstant}
-          area={{ top: 0, bottom: 0, left: foldersInline ? column : 0, right: 0 }}
-          inset={0}
-          width={ui.sessionWidth}
-          label="Sessions"
-          onClose={closeOverlay}
-        >
-          <SessionColumn width={ui.sessionWidth} className="paper shadow-[var(--glass-shadow)]" />
+        <OverlaySheet open={sheet} instant={ui.instant} area={{ inset: 0 }} inset={FRAME} width={ui.sidebarWidth} label="Sidebar" onClose={closeSheet}>
+          <SidebarPanel width={ui.sidebarWidth} inSheet />
         </OverlaySheet>
       </div>
     </LibraryDnd>

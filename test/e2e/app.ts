@@ -1,4 +1,4 @@
-import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { _electron as electron, expect, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -45,6 +45,29 @@ export function fakeClaude(sessions: FakeSession[]): string {
 export function minutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString()
 }
+
+/** The sidebar: your library and folders, with their sessions nested inside. */
+export const sidebar = (page: Page): Locator => page.locator('aside[aria-label="Sidebar"]')
+
+/** A library group or folder (or Archived), by the start of its name. */
+export const groupRow = (page: Page, name: string): Locator => sidebar(page).getByRole('treeitem', { name: new RegExp(`^${name}`) })
+
+/** A session's row in one group ('smart:all', 'folder:<id>', 'results'), by its title. A session shows in every group it belongs to. */
+export const sessionRow = (page: Page, title: string, group = 'smart:all'): Locator =>
+  sidebar(page).locator(`[data-nav^="${group}/"][data-label="${title.replace(/"/g, '\\"')}"]`)
+
+/** Opens a library group or folder, if it's closed, once it has something to show. */
+export async function openGroup(page: Page, name: string): Promise<void> {
+  const row = groupRow(page, name)
+  await expect(row).toHaveAttribute('aria-expanded', /true|false/)
+  if ((await row.getAttribute('aria-expanded')) === 'true') return
+  await row.click()
+  await expect(row).toHaveAttribute('aria-expanded', 'true')
+  await settle(page)
+}
+
+/** Waits out the rows springing to their new places (0.25 s), so positions read now are where they stay. */
+export const settle = (page: Page) => page.waitForTimeout(350)
 
 /** Drags with real pointer events, in steps, as dnd kit expects. */
 export async function dragTo(page: Page, from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> {

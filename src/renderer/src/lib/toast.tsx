@@ -1,6 +1,7 @@
 // Gloom's toasts: Sonner for stacking, timing and swipe, drawn headless as a
 // glass capsule so they match the rest of the functional layer. They sit under
-// the title bar, not at the window's bottom edge, which can hang off-screen.
+// the title bar, not at the window's bottom edge, which can hang off-screen,
+// centred over the chat rather than the window when the sidebar is beside it.
 import { toast, Toaster } from 'sonner'
 
 interface NotifyOptions {
@@ -36,5 +37,6 @@ export function notify(message: string, { id, action, duration = action ? 8000 :
 
 /** Mounted once, at the root. */
 export function Toasts() {
-  return <Toaster position="top-center" theme="system" offset={56} gap={8} visibleToasts={3} />
+  // --content-shift: half the sidebar's column, set by the shell while it's inline.
+  return <Toaster position="top-center" theme="system" offset={56} gap={8} visibleToasts={3} style={{ left: 'calc(50% + var(--content-shift, 0px))' }} />
 }

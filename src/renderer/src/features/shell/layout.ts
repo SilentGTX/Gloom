@@ -1,32 +1,22 @@
-// Column sizes and the rule for which columns fit inline at a window width.
+// The sidebar's size, and the rule for whether it fits beside the chat.
 
-export const FOLDERS = { min: 180, max: 360, initial: 232 }
-export const SESSIONS = { min: 240, max: 480, initial: 320 }
-/** Narrower than this, the chat pushes the folders and then the session list out. */
+export const SIDEBAR = { min: 220, max: 420, initial: 288 }
+/** Narrower than this, the chat pushes the sidebar out into a sheet. */
 export const CHAT_MIN = 480
 
 export interface ColumnPrefs {
-  folderWidth: number
-  sessionWidth: number
-  /** Hidden by the user; narrow windows also collapse columns on their own. */
-  foldersHidden: boolean
-  sessionsHidden: boolean
+  sidebarWidth: number
+  /** Hidden by the user; narrow windows also fold it away on their own. */
+  sidebarHidden: boolean
 }
 
 export interface Layout {
-  foldersInline: boolean
-  sessionsInline: boolean
-  foldersFit: boolean
-  sessionsFit: boolean
+  sidebarInline: boolean
+  /** There's room for it beside the chat (hidden or not). */
+  sidebarFits: boolean
 }
 
-/**
- * Which columns sit inline at this window width. Folders fold away first: they
- * only stay beside a session list that is itself inline (or one you hid).
- */
 export function computeLayout(width: number, p: ColumnPrefs): Layout {
-  const sessionsFit = width - CHAT_MIN >= p.sessionWidth
-  const sessionsInline = !p.sessionsHidden && sessionsFit
-  const foldersFit = (sessionsInline || p.sessionsHidden) && width - CHAT_MIN - (sessionsInline ? p.sessionWidth : 0) >= p.folderWidth
-  return { foldersInline: !p.foldersHidden && foldersFit, sessionsInline, foldersFit, sessionsFit }
+  const sidebarFits = width - CHAT_MIN >= p.sidebarWidth
+  return { sidebarInline: !p.sidebarHidden && sidebarFits, sidebarFits }
 }

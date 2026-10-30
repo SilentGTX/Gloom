@@ -1,7 +1,8 @@
-// Drag and drop across the sidebar and the session list: sessions onto a folder
-// (or Unfiled, Pinned, Archived), folders onto each other to reorder or nest.
-// The drag image is a small glass capsule at the pointer. A drop that lands goes
-// into its folder, which acknowledges it; one that can't flies back to its row.
+// Drag and drop in the sidebar: sessions onto a folder (or onto the sessions
+// nested in it, or Unfiled, Pinned, Archived), folders onto each other to
+// reorder or nest. The drag image is a small glass capsule at the pointer. A
+// drop that lands goes into its folder, which acknowledges it; one that can't
+// flies back to its row.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   DndContext,
@@ -26,15 +27,20 @@ import { useUi } from '../../stores/ui'
 
 export type DragData = { kind: 'sessions'; ids: string[]; title: string } | { kind: 'folder'; id: string; name: string }
 
-export type DropData = { kind: 'folder'; id: string } | { kind: 'smart'; smart: 'unfiled' | 'pinned' | 'archived' } | { kind: 'root' }
+/** `nested`: a session row inside the folder, which takes sessions for it. */
+export type DropData = { kind: 'folder'; id: string; nested?: boolean } | { kind: 'smart'; smart: 'unfiled' | 'pinned' | 'archived' } | { kind: 'root' }
 
 /** Where a folder lands relative to the row under the pointer. Sessions only ever go inside. */
 export type Zone = 'before' | 'inside' | 'after'
 
 interface DragState {
   active: DragData | null
-  /** The droppable under the pointer and where the drop would land, when it can. */
-  target: { id: string; zone: Zone } | null
+  /**
+   * The droppable under the pointer and where the drop would land, when it can.
+   * `folderId`: the folder that takes it, which lights up even when the
+   * pointer is over one of its sessions.
+   */
+  target: { id: string; zone: Zone; folderId?: string } | null
   /** The droppable that just took a drop, for a moment, so it can acknowledge it. */
   landed: string | null
 }
@@ -89,19 +95,28 @@ const SPRING_MS = 700
 
 const sessionsLabel = (n: number) => (n === 1 ? '1 session' : `${n} sessions`)
 
-/** Works out where `active` would land on `over`, or null where it can't. */
+/** Where `active` would land on `over`, or null where it can't (or where it already is). */
 function landing(active: DragData, over: DropData, pointerY: number, rect: { top: number; height: number }): Zone | null {
-  if (active.kind === 'sessions') return over.kind === 'root' ? null : 'inside'
+  const { library } = useLibrary.getState()
+  if (active.kind === 'sessions') {
+    const entries = active.ids.map((id) => library.sessions[id])
+    if (over.kind === 'root') return null
+    if (over.kind === 'folder') return entries.every((e) => e?.folderId === over.id) ? null : 'inside'
+    if (over.smart === 'pinned') return entries.every((e) => e?.pinned) ? null : 'inside'
+    if (over.smart === 'archived') return entries.every((e) => e?.archived) ? null : 'inside'
+    return entries.every((e) => !e?.folderId || !library.folders.some((f) => f.id === e.folderId)) ? null : 'inside'
+  }
   if (over.kind === 'smart') return null
   if (over.kind === 'root') return 'inside'
-  if (subtreeIds(useLibrary.getState().library.folders, active.id).has(over.id)) return null
+  if (over.nested || subtreeIds(library.folders, active.id).has(over.id)) return null
   const at = (pointerY - rect.top) / rect.height
   return at < 0.28 ? 'before' : at > 0.72 ? 'after' : 'inside'
 }
 
 /** The operation a drop performs. */
 function dropOp(active: DragData, over: DropData, zone: Zone): LibraryOp | null {
-  const folders = useLibrary.getState().library.folders
+  const { library } = useLibrary.getState()
+  const folders = library.folders
   if (active.kind === 'sessions') {
     if (over.kind === 'folder') return { type: 'moveSessions', ids: active.ids, folderId: over.id }
     if (over.kind === 'smart' && over.smart === 'unfiled') return { type: 'moveSessions', ids: active.ids, folderId: null }
@@ -115,11 +130,18 @@ function dropOp(active: DragData, over: DropData, zone: Zone): LibraryOp | null 
   if (!target) return null
   const kids = childrenOf(folders, target.id).filter((f) => f.id !== active.id)
   if (zone === 'inside') return { type: 'moveFolder', id: active.id, parentId: target.id, index: kids.length }
-  // Just below an open folder is its first child, as in Finder.
-  if (zone === 'after' && target.expanded && kids.length) return { type: 'moveFolder', id: active.id, parentId: target.id, index: 0 }
+  // Just below an open folder is its first child, as in Finder: its subfolders
+  // and then its sessions follow the row, so that's where the line is.
+  const shows = kids.length > 0 || Object.values(library.sessions).some((e) => e.folderId === target.id && !e.archived)
+  if (zone === 'after' && target.expanded && shows) return { type: 'moveFolder', id: active.id, parentId: target.id, index: 0 }
   const siblings = childrenOf(folders, target.parentId).filter((f) => f.id !== active.id)
   const index = siblings.findIndex((f) => f.id === target.id) + (zone === 'after' ? 1 : 0)
   return { type: 'moveFolder', id: active.id, parentId: target.parentId, index }
+}
+
+/** The folder row a drop goes into, for the drop animation to aim at its icon. */
+function folderRowRect(id: string): DOMRect | undefined {
+  return document.querySelector(`[data-folder-id="${CSS.escape(id)}"]`)?.getBoundingClientRect()
 }
 
 /** The drag image sits just below and right of the pointer, not over the row it came from. */
@@ -163,18 +185,22 @@ export function LibraryDnd({ children }: { children: ReactNode }) {
   const track = (e: DragMoveEvent | DragOverEvent) => {
     const data = e.active.data.current as DragData
     const over = e.over
+    const drop = over?.data.current as DropData | undefined
     const pointerY = e.activatorEvent instanceof PointerEvent ? e.activatorEvent.clientY + e.delta.y : 0
-    const zone = over ? landing(data, over.data.current as DropData, pointerY, over.rect) : null
-    const target = over && zone ? { id: String(over.id), zone } : null
+    const zone = over && drop ? landing(data, drop, pointerY, over.rect) : null
+    const folderId = drop?.kind === 'folder' && zone === 'inside' ? drop.id : undefined
+    const target = over && zone ? { id: String(over.id), zone, folderId } : null
     const prev = useDrag.getState().target
     if (prev?.id !== target?.id || prev?.zone !== target?.zone) useDrag.setState({ target })
 
-    // Spring loading: rest inside a closed folder and it opens.
-    const folderId = target?.zone === 'inside' && (over?.data.current as DropData).kind === 'folder' ? (over!.data.current as { id: string }).id : null
-    if (spring.current?.id === folderId) return
+    // Spring loading: rest on a closed folder and it opens.
+    const springId = folderId && !(drop as { nested?: boolean }).nested ? folderId : null
+    if (spring.current?.id === springId) return
     clearSpring()
-    const folder = folderId ? useLibrary.getState().library.folders.find((f) => f.id === folderId) : undefined
-    if (folder && !folder.expanded && childrenOf(useLibrary.getState().library.folders, folder.id).length) {
+    const { library } = useLibrary.getState()
+    const folder = springId ? library.folders.find((f) => f.id === springId) : undefined
+    const shows = folder && (childrenOf(library.folders, folder.id).length > 0 || Object.values(library.sessions).some((s) => s.folderId === folder.id && !s.archived))
+    if (folder && !folder.expanded && shows) {
       spring.current = {
         id: folder.id,
         timer: setTimeout(() => void useLibrary.getState().apply({ type: 'setExpanded', ids: [folder.id], expanded: true }), SPRING_MS)
@@ -187,11 +213,14 @@ export function LibraryDnd({ children }: { children: ReactNode }) {
     const data = e.active.data.current as DragData
     const target = useDrag.getState().target
     const op = e.over && target ? dropOp(data, e.over.data.current as DropData, target.zone) : null
-    // Aim at the folder's icon, or at the line between rows where a folder goes.
-    const r = e.over?.rect
+    // Aim at the folder's icon (its row, even when dropped on one of its
+    // sessions), or at the line between rows where a folder goes.
+    const r = (target?.folderId && folderRowRect(target.folderId)) || e.over?.rect
     landedAt = op && r && target ? { x: r.left + 22, y: target.zone === 'before' ? r.top : target.zone === 'after' ? r.top + r.height : r.top + r.height / 2 } : null
-    useDrag.setState({ active: null, target: null, landed: op && target?.zone === 'inside' ? target.id : null })
-    if (op && target?.zone === 'inside') setTimeout(() => useDrag.getState().landed === target.id && useDrag.setState({ landed: null }), 700)
+    // The folder that took it acknowledges it, wherever over it the drop was.
+    const landed = op && target?.zone === 'inside' ? (target.folderId ? `drop:folder:${target.folderId}` : target.id) : null
+    useDrag.setState({ active: null, target: null, landed })
+    if (landed) setTimeout(() => useDrag.getState().landed === landed && useDrag.setState({ landed: null }), 700)
     if (!op) return
     if (op.type === 'setArchived' && data.kind === 'sessions') void applyWithUndo(op, `Archived ${sessionsLabel(data.ids.length)}`)
     else void useLibrary.getState().apply(op)
@@ -216,7 +245,8 @@ export function LibraryDnd({ children }: { children: ReactNode }) {
       onDragCancel={onCancel}
     >
       {children}
-      <DragOverlay modifiers={[nearPointer]} dropAnimation={animation} zIndex={60}>
+      {/* A ghost: clicks go through it, even while it flies to where it landed. */}
+      <DragOverlay modifiers={[nearPointer]} dropAnimation={animation} zIndex={60} style={{ pointerEvents: 'none' }}>
         {active && <DragImage data={active} />}
       </DragOverlay>
     </DndContext>
@@ -242,4 +272,3 @@ function DragImage({ data }: { data: DragData }) {
     </div>
   )
 }
-

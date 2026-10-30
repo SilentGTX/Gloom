@@ -1,13 +1,11 @@
 import type { ReactNode } from 'react'
-import { FileDiff, List, PanelLeft, SquarePen, SquareTerminal } from 'lucide-react'
+import { PanelLeft, SquarePen } from 'lucide-react'
 import { formatAccelerator } from '@shared/commands'
 import { Button } from '../../components/ui/Button'
 import { GlassCapsule } from '../../components/ui/Glass'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { runCommand } from '../../lib/commands'
 import { AppMenu } from './AppMenu'
-
-export type LeadingControl = 'menu' | 'folders' | 'sessions'
 
 /**
  * A pane's toolbar, floating over the top of its content the way macOS 26
@@ -26,40 +24,21 @@ export function PaneToolbar({ children, clearCaptionButtons }: { children: React
   )
 }
 
-/** The pane's title, large and bold. Pixel-capped: the bar's height is fixed. */
-export function BarTitle({ children }: { children: ReactNode }) {
+/** The pane's title, with what it's doing beside it ("Active now"). Pixel-capped: the bar's height is fixed. */
+export function BarTitle({ children, status }: { children: ReactNode; status?: string }) {
   return (
-    <h1 className="min-w-0 truncate px-1 font-display text-[min(1.25rem,20px)] font-bold tracking-[var(--tracking-title)] text-label">{children}</h1>
+    <div className="flex min-w-0 items-baseline gap-2 px-1">
+      <h1 className="min-w-0 truncate font-display text-[min(0.9375rem,18px)] font-bold tracking-[-0.01em] text-label">{children}</h1>
+      {status && <span className="shrink-0 text-[min(0.75rem,14px)] text-label-secondary tabular">{status}</span>}
+    </div>
   )
 }
 
-/** The menu and the buttons that bring back collapsed columns, when the sidebar isn't there to hold them. */
-export function LeadingControls({ controls }: { controls: LeadingControl[] }) {
-  if (controls.length === 0) return null
+/** With the sidebar away, its menu and New Session ride at the chat toolbar's leading edge. */
+export function SidebarStandIns() {
   return (
     <GlassCapsule label="Navigation">
-      {controls.includes('menu') && <AppMenu shape="round" />}
-      {controls.includes('folders') && (
-        <Tooltip label="Show Folders" shortcut={formatAccelerator('CmdOrCtrl+B')}>
-          <Button aria-label="Show folders" shape="round" onClick={() => runCommand('view.toggleFolders')}>
-            <PanelLeft size={16} strokeWidth={1.75} />
-          </Button>
-        </Tooltip>
-      )}
-      {controls.includes('sessions') && (
-        <Tooltip label="Show Session List" shortcut={formatAccelerator('CmdOrCtrl+Shift+B')}>
-          <Button aria-label="Show session list" shape="round" onClick={() => runCommand('view.toggleSessions')}>
-            <List size={16} strokeWidth={1.75} />
-          </Button>
-        </Tooltip>
-      )}
-    </GlassCapsule>
-  )
-}
-
-export function NewSessionButton() {
-  return (
-    <GlassCapsule>
+      <AppMenu shape="round" />
       <Tooltip label="New Session" shortcut="Ctrl+N">
         <Button aria-label="New session" shape="round" disabled>
           <SquarePen size={16} strokeWidth={1.75} />
@@ -69,19 +48,13 @@ export function NewSessionButton() {
   )
 }
 
-export function ChatControls() {
+/** Shows or hides the sidebar: inline when the window has room, else as a sheet. */
+export function SidebarButton({ shown }: { shown: boolean }) {
   return (
-    <GlassCapsule label="Panes">
-      <Tooltip label="Diff" shortcut="Ctrl+Shift+D">
-        <Button aria-label="Diff pane" shape="round" disabled>
-          <FileDiff size={16} strokeWidth={1.75} />
-        </Button>
-      </Tooltip>
-      <Tooltip label="Terminal" shortcut="Ctrl+`">
-        <Button aria-label="Terminal" shape="round" disabled>
-          <SquareTerminal size={16} strokeWidth={1.75} />
-        </Button>
-      </Tooltip>
-    </GlassCapsule>
+    <Tooltip label={shown ? 'Hide Sidebar' : 'Show Sidebar'} shortcut={formatAccelerator('CmdOrCtrl+B')}>
+      <Button aria-label={shown ? 'Hide sidebar' : 'Show sidebar'} shape="round" onClick={() => runCommand('view.toggleSidebar')}>
+        <PanelLeft size={16} strokeWidth={1.75} />
+      </Button>
+    </Tooltip>
   )
 }
