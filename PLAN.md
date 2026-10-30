@@ -330,6 +330,10 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 
 ## Phases
 
+**Status, 2026-10-30: Phases 0 and 1 are done**, and Gloom 0.3.1 is released. Phase 3's installer,
+release script and update window came early (see Phase 1's notes), so what's left of Phase 3 is the
+viewer itself, which opens sessions from Phase 2's library. Phase 2 hasn't started.
+
 0. **SDK spike.** A node script drives the SDK against your real `claude.exe` and checks: two turns in
    one process, interrupt, resume keeping the session ID, a permission request answered from code,
    plan approval and AskUserQuestion, live mode and model switches, whether effort can change live,
@@ -378,9 +382,9 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
    search, filing rules, subtree delete with Undo), session list (pin, archive, rename).
 3. **Read-only viewer, first release.** Paged transcript renderer (newest chain, compaction cut, lazy
    images, find in chat). Gloom is now a usable organizer next to the Claude app; "Resume in
-   terminal" opens `claude --resume <id>` in a new terminal window. This release ships the
-   installer, the release script (publishes to GitHub releases) and the title-bar update icon, so
-   every later phase reaches you through it.
+   terminal" opens `claude --resume <id>` in a new terminal window. The installer, the release
+   script (publishes to GitHub releases) and the update window that every later phase reaches you
+   through came early, in Phase 1 (see its notes).
 4. **Live chat.** Session runner (streaming, stop, queued messages, resume, idle close, process-tree
    kill), composer with `/` commands, New Session with the trust prompt and folder defaults, model,
    mode and effort pickers, all three prompt cards (a live session can't do much without them),
@@ -394,7 +398,7 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
    `animation-performance`, and `break-ui` with worst-case data (500 sessions, folders 8 levels
    deep, 200-character titles, empty folders, your 496 MB transcript). Then reduced motion,
    transparency and contrast, a full keyboard audit, and a check of the security settings.
-8. **Package.** Final app icon and installer polish.
+8. **Package.** Installer polish (the app icon came in 0.3.0).
 
 ## Verification
 
