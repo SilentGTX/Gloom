@@ -368,8 +368,8 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
 released. **Small changes before Phase 4, at your request, released as Gloom 0.5.1:** the window
 becomes the update screen instead of opening a second window, and the Update button is just a
 download arrow (Phase 1's notes, "After 0.5.0"). **One sidebar** (below) is out as Gloom 0.6.0,
-and **your new icon**, the gloomy cloud, as Gloom 0.6.1 (Phase 1's notes, "After 0.6.0").
-**Next: Phase 4**, live chat, on your OK.
+and **your new icon**, the gloomy cloud, as Gloom 0.6.1 (Phase 1's notes, "After 0.6.0"). The
+sidebar's click and motion fixes are out as Gloom 0.6.2. **Next: Phase 4**, live chat, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -438,7 +438,8 @@ disclosure pages; `apple-design` for motion).
   where Gloom's window is, so they need it in front, and you were using the PC.
 - **After 0.6.0, at your request:** every click opens or closes a group, however fast (clicks close
   together counted as a double click and were dropped for about half a second); the opening and
-  closing above replaced 0.6.0's wipe.
+  closing above replaced 0.6.0's wipe. Released as Gloom 0.6.2, after a check of the packaged
+  build (fast clicks on a group toggle it every time).
 - Built in its own worktree (`D:\JS\Gloom-sidebar`) while 0.5.1 was being made in the main
   checkout, then merged with it. Released as 0.6.0 after a check of the packaged build: it opens
   on the update screen, then the sidebar, a session and its info card, from inside the app archive.
