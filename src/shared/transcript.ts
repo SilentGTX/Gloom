@@ -120,7 +120,23 @@ export interface SummaryEntry extends Base {
   more?: BlobRef
 }
 
-export type TranscriptEntry = PromptEntry | TextEntry | ThinkingEntry | ToolEntry | NoticeEntry | OutputEntry | CompactEntry | SummaryEntry
+/** A file or folder you mentioned with `@`, which Claude Code read into your message. */
+export interface MentionEntry extends Base {
+  kind: 'mention'
+  folder: boolean
+  /** As Claude Code shows it (from the working folder, when it's inside it), with forward slashes. */
+  path: string
+  /** Where it is. */
+  full: string
+  /** A file's lines that went in: how many, from which, out of how many. */
+  lines?: number
+  from?: number
+  total?: number
+  /** What went in: the file's text, or the folder's listing; empty for anything else (an image). */
+  content: TextPart
+}
+
+export type TranscriptEntry = PromptEntry | TextEntry | ThinkingEntry | ToolEntry | NoticeEntry | OutputEntry | CompactEntry | SummaryEntry | MentionEntry
 
 export interface Hunk {
   oldStart: number
@@ -346,6 +362,36 @@ function userEntries(e: Raw, key: string, t: number, at: LineAt, content: unknow
   if (!text && images.length === 0) return []
   const part = text.length > LIMITS.text ? cutText(text, LIMITS.text, at, contentPath) : null
   return [{ kind: 'prompt', key, time: t, text: part ? part.text : text, ...(part?.more ? { more: part.more } : {}), images, ...(queued ? { queued: true } : {}) }]
+}
+
+/**
+ * A file or folder `@` put in your message. Claude Code reads it as the
+ * message arrives and keeps what it read on an attachment line of its own,
+ * just after yours (observed with CLI 2.1.186 and 2.1.314; PLAN.md › 10).
+ */
+function mentionEntry(a: Raw, key: string, t: number, at: LineAt): MentionEntry | null {
+  const folder = a.type === 'directory'
+  const full = str(folder ? a.path : a.filename)
+  if (!full) return null
+  const path = (str(a.displayPath) || full).replace(/\\/g, '/')
+  if (folder) {
+    const listing = str(a.content) ?? ''
+    return { kind: 'mention', key, time: t, folder, path, full, content: cutText(listing, LIMITS.result, at, ['attachment', 'content'], LIMITS.resultLines) }
+  }
+  const file = isObj(a.content) && isObj(a.content.file) ? a.content.file : null
+  const text = str(file?.content) ?? ''
+  return {
+    kind: 'mention',
+    key,
+    time: t,
+    folder,
+    path,
+    full,
+    lines: num(file?.numLines),
+    from: num(file?.startLine),
+    total: num(file?.totalLines),
+    content: cutText(text, LIMITS.result, at, ['attachment', 'content', 'file', 'content'], LIMITS.resultLines)
+  }
 }
 
 // ─── Tool results ────────────────────────────────────────────────────────────
@@ -593,6 +639,11 @@ export function lineEntries(e: Raw, at: LineAt): LineEntries {
   }
 
   if (e.type === 'system') return { entries: systemEntries(e, uuid, t), results: [] }
+
+  if (e.type === 'attachment' && isObj(e.attachment) && (e.attachment.type === 'file' || e.attachment.type === 'directory')) {
+    const mention = mentionEntry(e.attachment, uuid, t, at)
+    return mention ? { entries: [mention], results: [] } : NONE
+  }
 
   if (e.type === 'attachment' && isObj(e.attachment) && e.attachment.type === 'queued_command') {
     // Sent while Claude was working: a prompt you typed, or a background task's notice.

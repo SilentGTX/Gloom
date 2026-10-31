@@ -404,6 +404,19 @@ export interface CommandInfo {
   argumentHint: string
 }
 
+/**
+ * What `@` offers in the composer: a session's files and folders, relative to
+ * its working folder, with forward slashes; a folder's path ends in one.
+ */
+export interface FileListing {
+  /** The folder's own top level, A–Z: what `@` alone offers. */
+  top: string[]
+  /** Everything typing after the `@` searches. */
+  all: string[]
+  /** The folder held more than Gloom lists. */
+  truncated: boolean
+}
+
 export interface LiveSnapshot {
   summary: LiveSummary
   provisional: Provisional

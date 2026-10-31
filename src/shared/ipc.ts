@@ -79,6 +79,8 @@ export const IPC = {
   liveSet: 'live:set',
   /** invoke(sessionId) → CommandInfo[]: its slash commands */
   liveCommands: 'live:commands',
+  /** invoke(sessionId) → FileListing: what `@` offers, from its working folder */
+  liveFiles: 'live:files',
   /** invoke → ModelChoice[] */
   liveModels: 'live:models',
   /** invoke → UsageInfo | null */

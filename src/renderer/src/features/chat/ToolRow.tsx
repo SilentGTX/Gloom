@@ -176,7 +176,7 @@ function TextBlock({ sessionId, part, prefix, tone }: { sessionId: string; part:
   )
 }
 
-function TextCard({ sessionId, part, tone }: { sessionId: string; part: TextPart; tone?: Tone }) {
+export function TextCard({ sessionId, part, tone }: { sessionId: string; part: TextPart; tone?: Tone }) {
   return (
     <div className="code-card">
       <TextBlock sessionId={sessionId} part={part} tone={tone} />

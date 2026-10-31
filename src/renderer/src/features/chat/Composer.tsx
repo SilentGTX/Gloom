@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowUp, CircleAlert, Lock, Paperclip, Square, X } from 'lucide-react'
 import type { SessionMeta } from '@shared/library'
 import type { CanSend, CommandInfo, LiveSummary } from '@shared/live'
@@ -11,9 +10,11 @@ import { useNow } from '../../lib/now'
 import { notify } from '../../lib/toast'
 import { isBusy, useElsewhere, useLive, type Draft, type DraftImage } from '../../stores/live'
 import { ContextMeter } from './ContextMeter'
+import { insertMention, mentionAt, prepareFiles, rankFiles, type PreparedFiles } from './mentions'
 import { EffortPicker, effortsFor, ModelPicker, ModePicker } from './pickers'
 import { PromptCards } from './PromptCards'
 import { EditBanner } from './Rewind'
+import { CommandRow, FileRow, Suggestions } from './Suggestions'
 
 /** Images Claude can read, and how big one may be. */
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
@@ -239,12 +240,38 @@ function useCommands(sessionId: string, query: string | null): CommandInfo[] {
   }, [all, query])
 }
 
+/**
+ * The files and folders `@` offers: asked for when the box gets the keyboard,
+ * so they're there by the time you type an `@`, and again as each `@` starts,
+ * for files made since (main keeps a listing a few seconds). The last ones
+ * show while new ones come.
+ */
+function useFiles(sessionId: string, focused: boolean, mentionStart: number | null): PreparedFiles | null {
+  const [files, setFiles] = useState<{ id: string; prepared: PreparedFiles } | null>(null)
+  const last = useRef<{ id: string; focused: boolean; start: number | null } | null>(null)
+  useEffect(() => {
+    const before = last.current
+    last.current = { id: sessionId, focused, start: mentionStart }
+    const other = before?.id !== sessionId
+    const gained = focused && (other || !before.focused)
+    const started = mentionStart !== null && (other || mentionStart !== before.start)
+    if (!gained && !started) return
+    window.gloom?.live.files(sessionId).then(
+      (listing) => last.current?.id === sessionId && setFiles({ id: sessionId, prepared: prepareFiles(listing) }),
+      (error: unknown) => console.warn('Gloom: listing files:', error)
+    )
+  }, [sessionId, focused, mentionStart])
+  return files?.id === sessionId ? files.prepared : null
+}
+
+/** Where a collapsed selection is; a selection that spans text has no caret. */
+const caretOf = (el: HTMLTextAreaElement) => (el.selectionStart === el.selectionEnd ? el.selectionStart : null)
+
 /** The glass box you write in. */
 function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSummary | undefined; ready: boolean }) {
   const draft = useLive((s) => s.drafts[sessionId]) ?? EMPTY
   const settings = useLive((s) => s.settings)
   const models = useLive((s) => s.models)
-  const reduce = useReducedMotion()
   const area = useRef<HTMLTextAreaElement>(null)
   const files = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -260,12 +287,31 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
   const slash = /^\/(\S*)$/.exec(draft.text)?.[1] ?? null
   const [menuClosed, setMenuClosed] = useState(false)
   const commands = useCommands(sessionId, menuClosed ? null : slash)
-  const [highlight, setHighlight] = useState(0)
   const menuOpen = !menuClosed && slash !== null && commands.length > 0
-  useEffect(() => setHighlight(0), [slash])
   useEffect(() => {
     if (slash === null) setMenuClosed(false)
   }, [slash])
+
+  // "@src/co" where the caret is: the files and folders that match (mentions.ts).
+  const [caret, setCaret] = useState<number | null>(null)
+  const mention = useMemo(() => (caret === null || slash !== null ? null : mentionAt(draft.text, caret)), [draft.text, caret, slash])
+  // The caret is only known while the box has the keyboard.
+  const listing = useFiles(sessionId, caret !== null, mention?.start ?? null)
+  const query = mention?.query ?? null
+  const found = useMemo(() => (query !== null && listing ? rankFiles(listing, query) : []), [listing, query])
+  // Esc puts the list away until what's typed after the `@` changes, as in Claude Code.
+  const mentionKey = mention ? `${mention.start}:${mention.query}` : null
+  const [dismissed, setDismissed] = useState<string | null>(null)
+  const filesOpen = mentionKey !== null && found.length > 0 && dismissed !== mentionKey
+  const pendingCaret = useRef<number | null>(null)
+
+  // The row Tab or Enter takes: the first, each time what's typed changes, until the arrows or the pointer move it.
+  const listKey = slash !== null ? `/${slash}` : (mentionKey ?? '')
+  const [pointed, setPointed] = useState({ key: '', index: 0 })
+  const highlight = pointed.key === listKey ? Math.min(pointed.index, Math.max(0, (menuOpen ? commands.length : found.length) - 1)) : 0
+  const setHighlight = (index: number) => {
+    if (index !== highlight || pointed.key !== listKey) setPointed({ key: listKey, index })
+  }
 
   // The box grows with what you write, up to a share of the window.
   useLayoutEffect(() => {
@@ -273,6 +319,13 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, Math.round(window.innerHeight * MAX_HEIGHT))}px`
+  }, [draft.text])
+  // After a pick, the caret goes after what it put in.
+  useLayoutEffect(() => {
+    const at = pendingCaret.current
+    if (at === null || !area.current) return
+    pendingCaret.current = null
+    area.current.setSelectionRange(at, at)
   }, [draft.text])
 
   const setText = (text: string) => useLive.getState().setDraft(sessionId, { ...useLive.getState().draft(sessionId), text })
@@ -286,23 +339,39 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
     setMenuClosed(true)
     area.current?.focus()
   }
+  const pick = (path: string) => {
+    if (!mention) return
+    const next = insertMention(draft.text, mention, path)
+    pendingCaret.current = next.caret
+    setCaret(next.caret)
+    setText(next.text)
+    area.current?.focus()
+  }
+
+  // The list that's up takes the arrows, Tab, Enter and Esc.
+  const list = menuOpen
+    ? { size: commands.length, take: () => complete(commands[highlight] ?? commands[0]), close: () => setMenuClosed(true) }
+    : filesOpen
+      ? { size: found.length, take: () => pick(found[highlight] ?? found[0]), close: () => setDismissed(mentionKey) }
+      : null
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing) return
-    if (menuOpen) {
+    if (list) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
-        setHighlight((h) => (h + (e.key === 'ArrowDown' ? 1 : -1) + commands.length) % commands.length)
+        setHighlight((highlight + (e.key === 'ArrowDown' ? 1 : -1) + list.size) % list.size)
         return
       }
-      if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+      // Shift+Tab still moves the keyboard back, out of the box.
+      if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
         e.preventDefault()
-        complete(commands[highlight] ?? commands[0])
+        list.take()
         return
       }
       if (e.key === 'Escape') {
         e.preventDefault()
-        setMenuClosed(true)
+        list.close()
         return
       }
     }
@@ -348,21 +417,16 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
       onDragLeave={() => setDragging(false)}
       onDrop={onDrop}
     >
-      <AnimatePresence initial={false}>
-        {menuOpen && (
-          <motion.div
-            key="commands"
-            className="absolute inset-x-0 bottom-[calc(100%+8px)] z-10"
-            style={{ transformOrigin: '24px 100%' }}
-            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.98, transition: { duration: 0.12 } }}
-            transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
-          >
-            <CommandList commands={commands} highlight={highlight} onPick={complete} onHover={setHighlight} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {menuOpen && (
+        <Suggestions id="slash-commands" label="Commands" items={commands} keyOf={(c) => c.name} highlight={highlight} onPick={complete} onHover={setHighlight}>
+          {(c) => <CommandRow command={c} />}
+        </Suggestions>
+      )}
+      {filesOpen && (
+        <Suggestions id="mention-files" label="Files" items={found} keyOf={(path) => path} highlight={highlight} onPick={pick} onHover={setHighlight}>
+          {(path) => <FileRow path={path} />}
+        </Suggestions>
+      )}
 
       <div className="relative z-[2]">
         {summary && summary.queued.length > 0 && <QueuedList sessionId={sessionId} summary={summary} />}
@@ -372,14 +436,20 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
           data-composer
           rows={1}
           value={draft.text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value)
+            setCaret(caretOf(e.target))
+          }}
+          onSelect={(e) => setCaret(caretOf(e.currentTarget))}
+          onFocus={(e) => setCaret(caretOf(e.currentTarget))}
+          onBlur={() => setCaret(null)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
           placeholder={summary?.state === 'new' ? 'What should Claude do?' : 'Message Claude'}
           aria-label="Message"
-          aria-autocomplete={slash !== null ? 'list' : undefined}
-          aria-controls={menuOpen ? 'slash-commands' : undefined}
-          aria-activedescendant={menuOpen ? `slash-${highlight}` : undefined}
+          aria-autocomplete={slash !== null || mention !== null ? 'list' : undefined}
+          aria-controls={menuOpen ? 'slash-commands' : filesOpen ? 'mention-files' : undefined}
+          aria-activedescendant={menuOpen ? `slash-commands-${highlight}` : filesOpen ? `mention-files-${highlight}` : undefined}
           spellCheck
           className="no-drag block max-h-[40vh] w-full resize-none bg-transparent px-4 pt-3 pb-1 text-[0.9375rem] leading-[1.5] text-label outline-none placeholder:text-label-tertiary"
         />
@@ -462,32 +532,3 @@ function Attachments({ sessionId, draft }: { sessionId: string; draft: Draft }) 
   )
 }
 
-/** The slash commands that match, above the box; the keyboard stays in the box. */
-function CommandList({ commands, highlight, onPick, onHover }: { commands: CommandInfo[]; highlight: number; onPick(c: CommandInfo): void; onHover(i: number): void }) {
-  const list = useRef<HTMLUListElement>(null)
-  useEffect(() => {
-    list.current?.querySelector(`#slash-${highlight}`)?.scrollIntoView({ block: 'nearest' })
-  }, [highlight])
-  return (
-    <ul ref={list} id="slash-commands" role="listbox" aria-label="Commands" className="glass-strong max-h-64 overflow-y-auto rounded-[var(--radius-popover)] p-1.5 text-[13px]">
-      {commands.map((c, i) => (
-        <li
-          key={c.name}
-          id={`slash-${i}`}
-          role="option"
-          aria-selected={i === highlight}
-          onPointerDown={(e) => {
-            e.preventDefault()
-            onPick(c)
-          }}
-          onPointerMove={() => onHover(i)}
-          className={cn('relative z-[2] flex cursor-default items-baseline gap-3 rounded-[7px] px-2.5 py-1.5', i === highlight && 'bg-fill-strong')}
-        >
-          <span className="shrink-0 font-mono text-[12.5px] text-label">/{c.name}</span>
-          {c.argumentHint && <span className="shrink-0 font-mono text-[12px] text-label-tertiary">{c.argumentHint}</span>}
-          <span className="min-w-0 flex-1 truncate text-label-secondary">{c.description}</span>
-        </li>
-      ))}
-    </ul>
-  )
-}

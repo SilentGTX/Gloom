@@ -47,9 +47,9 @@ Kowalski's set supports them: `emil-design-eng`, `animate`, `review-animations`,
   of the app showing (no second window).
 
 **Not in v1:** command palette (planned next; out after v1 as Gloom 0.11.0, see "9. Command
-palette"), `@` file mentions, browser pane, artifacts, task lists, side sessions, PRs, cloud
-sessions, multiple accounts, split view, fast mode, full-text search across transcripts, dated
-library backups.
+palette"), `@` file mentions (built after v1, see "10. `@` file mentions"), browser pane,
+artifacts, task lists, side sessions, PRs, cloud sessions, multiple accounts, split view, fast
+mode, full-text search across transcripts, dated library backups.
 
 **Personal use.** If Gloom is ever shared with others, check Anthropic's rules for third-party apps
 that use a Claude.ai login first.
@@ -92,6 +92,7 @@ D:\JS\Gloom
 │  ├─ git/worktrees.ts          create, merge and remove session worktrees
 │  ├─ pty/terminals.ts          node-pty terminals
 │  ├─ commands.ts               every command + shortcut in one registry (menu, accelerators, the palette)
+│  ├─ files.ts                  what `@` lists: a session's files, from git or a walk of its folder
 │  ├─ notify.ts                 toasts, taskbar flash and badge
 │  ├─ updater.ts                GitHub releases check, download, silent install (Sync's updater)
 │  ├─ release-key.ts            the public half of the key every release is signed with
@@ -294,8 +295,10 @@ Stopped sessions resume on their next send.
 - **Composer:** auto-growing box, paste or attach images and files, model picker, mode picker
   (Ask / Accept edits / Plan / Auto / Bypass, switched live), effort, Send, and Stop (Esc). Sending
   while Claude works queues the message, as the CLI does. `/` lists the session's commands and skills
-  (from the SDK's init message). A **context meter** shows how full the session's context is, with
-  a Compact button; **usage limits** show your plan's 5-hour and weekly use, if the CLI reports them.
+  (from the SDK's init message); `@` lists the working folder's files and folders, and Claude Code
+  reads what you mention (see "10. `@` file mentions"). A **context meter** shows how full the
+  session's context is, with a Compact button; **usage limits** show your plan's 5-hour and weekly
+  use, if the CLI reports them.
 - **Prompt cards** appear above the composer, keyboard-driven (Enter, Esc). The session's dot in the
   list turns amber while one waits.
   - **Permission:** the tool and its input (the command, or a diff preview for edits) with
@@ -414,7 +417,9 @@ below). **Phase 8, packaging, is out as Gloom 0.10.0** (2026-10-31; its notes be
 phases are done; next is the week as your daily driver (Decided with you). **The command palette,
 planned next, is out as Gloom 0.11.0** (2026-10-31; its notes below, "9. Command palette").
 **Clear glass**, your ask (View › Always Show Glass is Blissful's Apple glass), is out as Gloom
-0.11.1 (2026-10-31; its notes in "Design system", above).
+0.11.1 (2026-10-31; its notes in "Design system", above). **`@` file mentions**, the next item,
+is built on branch `at-mentions` and waits for your OK to ship (2026-10-31; its notes below,
+"10. `@` file mentions").
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -1136,6 +1141,80 @@ disclosure pages; `apple-design` for motion).
      build (it now opens the palette and runs a command with it), and again on the build that
      went out (`--smoke-pty` too). The published `update.json` checks out against the release
      key, and its hashes match the installer and zip that went out.
+10. **`@` file mentions** (after v1; next in Not in v1 after the palette).
+   **Built 2026-10-31** on branch `at-mentions` in its own worktree; it waits for your OK to ship.
+   You agreed the scope before it was built: the `@` list in the composer, and under your message
+   the files Claude Code read in. Built with both Apple skills loaded (`apple-hig`'s foundation
+   pages plus its token fields, combo boxes, text fields, entering data, menus, lists and tables,
+   focus and selection, searching, keyboards, motion and Liquid Glass pages; `apple-design` for
+   motion).
+   - **What Claude Code does with `@path`**, observed before building (`npm run spike --
+     mentions`: 16 short Haiku turns, on your CLI 2.1.186 and the SDK's 2.1.314, the same on
+     both). The CLI reads what's mentioned itself when the message comes through the SDK, so
+     Gloom only writes the path; it never reads a file for Claude. Claude answered from the file
+     every time without a tool call: a relative path, one beside an image, `@"my docs/c
+     file.txt"`, a folder (its listing), `@e.txt#L3-4` (those lines only), an absolute path,
+     backslashes. A path that isn't there stays text. The stream says nothing of it; the
+     transcript gets an `attachment` line per mention, which the CLI shows under the prompt as
+     `⎿ Read notes\a.txt (2 lines)` and `⎿ Listed directory listing\` (seen by resuming the
+     session in a pseudo-terminal, nothing sent).
+   - **The CLI's own `@` list**, watched the same way: `@` alone (at the start or after a space)
+     lists the folder's top level A–Z, dotfiles, `.git` and ignored ones too. Typing searches the
+     whole project (in git, what git knows and new files it doesn't ignore, with their folders;
+     anywhere else every file), letters in order across the path, up to 15. Tab or Enter puts the
+     highlighted one in with a space after it and closes the list (Enter doesn't send); a path
+     with a space goes in quoted; a folder goes in whole rather than opening. Esc puts the list
+     away and the next key brings it back. It lists MCP resources and agents too, which Gloom
+     leaves out.
+   - **Gloom's `@` list** does all of that, over the box where the `/` list shows: a file or
+     folder symbol, the name, and in secondary ink the folder it's in (its outermost folder and
+     its own when it runs deep, all of it on hover and to a screen reader). The keyboard stays in
+     the box: the arrows (round from either end), Tab or Enter, Esc; the pointer highlights what
+     it moves onto and a click puts that in. A match in the name counts first (all of it, its
+     start, a word in it, inside it), then in the path (a folder's start, inside), then letters in
+     order, a match that starts a word winning; ties go to the shorter path, then A–Z
+     (`features/chat/mentions.ts`, pure and tested). The list goes when the box loses the
+     keyboard.
+   - **Under your message**, as the CLI shows them: "Read notes/a.txt · 2 lines", "Read src/app.ts
+     · lines 2–3", "Listed docs/", on your side, each opening to what Claude Code read in (a long
+     file reads the rest when you ask, as a tool's output does). They come from the transcript,
+     which Gloom follows, so they show during a turn too; the CLI's other attachment lines stay
+     hidden.
+   - **The listing** is made in main (`src/main/files.ts`), only in the session's working folder:
+     the window names a session, never a path, and a session from another machine or whose folder
+     is gone lists nothing. git runs by its full path (`ls-files --cached --others
+     --exclude-standard`); outside git a walk, nearest files first, stops at 50,000 files or 3 s
+     (your D:\JS took 0.65 s and your home folder 1.4 s, both stopping at the cap). The window asks
+     when the box gets the keyboard, so the list is ready by your `@`, and again at each `@`, for
+     files made since; main answers from one listing for 10 s.
+   - **The `/` list is the same list now**, so it changed too: the row Tab or Enter takes is in
+     Gloom's indigo with white text, as in the palette (it was the faint 8% fill the palette's
+     review measured at about 1.2:1); it appears and goes at once (it grew in over 180 ms, against
+     "keyboard actions don't animate"); a click puts a command in on release rather than on press;
+     its text grows with the text size; Shift+Tab moves the keyboard back rather than taking a
+     command.
+   - **Review** with both skills. Fixes made:
+     - the listing is asked for when the box gets the keyboard, not at the first `@`, which outside
+       git showed nothing for up to 1.4 s;
+     - the highlight goes to the first row in the same frame as what you type, not a frame later;
+     - "btn" finds Button.tsx before unbuttoned.ts: letters that start a word win;
+     - folders say "(folder)" to a screen reader; Windows' contrast themes draw the highlight in the
+       theme's own colours.
+   - **Departures**, deliberate:
+     - paths go in with forward slashes: the CLI ends a folder with `\` on Windows
+       (`src/components\`) and uses `\` throughout outside git, and reads either;
+     - the list goes when the box loses the keyboard (a terminal has no such moment);
+     - MCP resources and agents aren't listed, and line ranges are typed by hand (the scope you
+       agreed).
+   - **Not run:** `review-animations` only runs when you start it (`/review-animations`).
+   - **Tests:** unit (`test/unit/mentions.test.ts`: the word at the caret, quoted paths, what a
+     pick puts in, the ranking, 15 at most, 50,000 paths a keystroke, the listing in a git
+     repository, from a folder inside one, and outside git, the attachment lines, the rows);
+     end-to-end (`test/e2e/mentions.spec.ts`): the folder's top level, finding as you type, Tab
+     and Enter, a quoted path, ignored and new files, the arrows, Esc, a folder, an `@` inside a
+     word, the pointer, a deep path, the list going with the keyboard, the `/` list, the rows under
+     a message opening, and captures in light, dark, contrast themes, Increase Contrast and 200%
+     text (`test-screens/mentions/`).
 
 ## Verification
 

@@ -22,7 +22,7 @@ import {
   Wrench,
   type LucideIcon
 } from 'lucide-react'
-import type { ToolEntry, ToolResult } from '@shared/transcript'
+import type { MentionEntry, ToolEntry, ToolResult } from '@shared/transcript'
 
 export type DetailsKind = 'shell' | 'diff' | 'output' | 'markdown' | 'todos' | 'questions' | 'generic'
 
@@ -197,6 +197,17 @@ function describeDone(call: ToolEntry, result: ToolResult | undefined): ToolView
     return view(Plug, humanize(tool), firstArg(input), { note: humanize(server) })
   }
   return view(Wrench, humanize(call.name), firstArg(input))
+}
+
+/**
+ * A file or folder you mentioned, in Claude Code's words under your message:
+ * "Read notes/a.txt · 2 lines" ("lines 3–4" for part of one), "Listed docs/".
+ */
+export function describeMention(mention: MentionEntry): { icon: LucideIcon; verb: string; note?: string } {
+  if (mention.folder) return { icon: FolderSearch, verb: 'Listed' }
+  const { lines, from, total } = mention
+  const part = lines !== undefined && from !== undefined && (from > 1 || (total !== undefined && lines < total))
+  return { icon: FileText, verb: 'Read', note: part ? `lines ${from}–${from + lines - 1}` : count(lines, 'line') }
 }
 
 /** A model ID as people say it: "claude-opus-5-5" → "Opus 5.5", "claude-haiku-4-5-20251001" → "Haiku 4.5". */

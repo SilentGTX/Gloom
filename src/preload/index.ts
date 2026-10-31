@@ -49,6 +49,7 @@ const api: GloomApi = {
     answer: (id, answer) => ipcRenderer.invoke(IPC.liveAnswer, id, answer),
     set: (id, request) => ipcRenderer.invoke(IPC.liveSet, id, request),
     commands: (id) => ipcRenderer.invoke(IPC.liveCommands, id),
+    files: (id) => ipcRenderer.invoke(IPC.liveFiles, id),
     models: () => ipcRenderer.invoke(IPC.liveModels),
     usage: () => ipcRenderer.invoke(IPC.liveUsage),
     rewindPreview: (id, messageId) => ipcRenderer.invoke(IPC.liveRewindPreview, id, messageId),

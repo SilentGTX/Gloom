@@ -7,6 +7,7 @@ import type { TreeDiff } from '@shared/diff'
 import { worktreeOf, type RemoveResult } from '@shared/git'
 import { IPC, type AppInfo, type ResumeResult, type TerminalCreate } from '@shared/ipc'
 import { displayTitle } from '@shared/library'
+import type { FileListing } from '@shared/live'
 import { parseRef, type Cursor } from '@shared/transcript'
 import { attend, setBadge } from './attention'
 import { claudeInfo } from './claude/binary'
@@ -14,6 +15,7 @@ import { parseAnswer, parseNewSession, parseRewind, parseSend, parseSet, session
 import { Sessions } from './claude/sessions'
 import { knownModels, loadSettings, onSettings, settings, updateSettings } from './claude/settings'
 import { installApplicationMenu, runCommand } from './commands'
+import { listFiles } from './files'
 import { parseTakeover, takeOver } from './handover'
 import { LibraryService } from './library/service'
 import { registerAppScheme, serveApp } from './protocol'
@@ -239,6 +241,13 @@ if (smokeArg) {
     handle(IPC.liveAnswer, (_event, id, answer) => sessions.answer(sessionId(id), parseAnswer(answer)))
     handle(IPC.liveSet, (_event, id, request) => sessions.set(sessionId(id), parseSet(request)))
     handle(IPC.liveCommands, (_event, id) => sessions.commands(sessionId(id)))
+    handle(IPC.liveFiles, (_event, id): FileListing | Promise<FileListing> => {
+      const sid = sessionId(id)
+      const cwd = sessions.cwdOf(sid)
+      // A session run on another machine, or whose folder is gone, has nothing here to offer.
+      if (!cwd || library.session(sid)?.remote || !existsSync(cwd)) return { top: [], all: [], truncated: false }
+      return listFiles(cwd)
+    })
     handle(IPC.liveModels, () => knownModels())
     handle(IPC.liveUsage, () => sessions.usage())
     handle(IPC.claudeInfo, (_event, fresh) => claudeInfo({ fresh: fresh === true }))

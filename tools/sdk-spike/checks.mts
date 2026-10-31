@@ -1,8 +1,8 @@
 // Phase 0 checks. Each one drives the real claude.exe through the Agent SDK,
 // records the raw stream as a fixture, and returns what it learned.
 import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import {
   getSessionInfo,
   getSessionMessages,
@@ -827,6 +827,75 @@ const survey: Check = async () => {
   }
 }
 
+/**
+ * What an `@path` in a prompt does when it comes through the SDK (`@` file
+ * mentions, after v1): does the CLI read the file itself, as it does in a
+ * terminal, or does Claude get the text as typed? Each turn mentions another
+ * file holding a word Claude can't guess, and asks for it without tools.
+ */
+const mentions: Check = async () => {
+  const dir = sandbox('mentions', { fresh: true })
+  const put = (rel: string, text: string) => {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true })
+    writeFileSync(join(dir, rel), text)
+  }
+  put('notes/a.txt', 'The code word is MARIGOLD.\n')
+  put('g.txt', 'The code word is SAFFRON.\n')
+  put('my docs/c file.txt', 'The code word is OBSIDIAN.\n')
+  put('listing/PELICAN.md', 'x\n')
+  put('listing/WALRUS.md', 'x\n')
+  put('e.txt', ['one apple', 'two birch', 'three CEDAR', 'four DAHLIA', 'five elm', 'six fig'].join('\n') + '\n')
+  put('f.txt', 'The code word is QUARTZ.\n')
+  put('sub/h.txt', 'The code word is JUNIPER.\n')
+  const noTools = " Answer from what you were given; don't use any tools."
+  const pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+  const turns: { name: string; content: string | any[] }[] = [
+    { name: 'relative', content: `What is the code word in @notes/a.txt?${noTools} Reply with the word only.` },
+    // Gloom sends text and images as content blocks.
+    { name: 'with-image', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: pixel } }, { type: 'text', text: `What is the code word in @g.txt?${noTools} Reply with the word only.` }] },
+    { name: 'quoted-spaces', content: `What is the code word in @"my docs/c file.txt"?${noTools} Reply with the word only.` },
+    { name: 'directory', content: `Which files are in @listing/ ?${noTools} Reply with their names only.` },
+    { name: 'line-range', content: `Quote every line of @e.txt#L3-4 exactly as you were given it.${noTools} Reply with the lines only.` },
+    { name: 'absolute', content: `What is the code word in @${join(dir, 'f.txt')} ?${noTools} Reply with the word only.` },
+    { name: 'backslashes', content: `What is the code word in @sub\\h.txt ?${noTools} Reply with the word only.` },
+    { name: 'missing', content: `What does @nope.txt say?${noTools} If you weren't given it, reply exactly: NOT GIVEN` }
+  ]
+  const asked: any[] = []
+  const canUseTool: Options['canUseTool'] = async (toolName, input) => {
+    asked.push({ toolName, input })
+    return { behavior: 'deny', message: 'No tools in this check.' }
+  }
+  const inbox = new Inbox()
+  const pump = new Pump(query({ prompt: inbox, options: baseOptions('mentions', { cwd: dir, canUseTool }) }), true)
+  const out: Findings[] = []
+  let sid = ''
+  for (const turn of turns) {
+    pump.mark()
+    const from = pump.messages.length
+    if (typeof turn.content === 'string') inbox.send(turn.content)
+    else inbox.send('', { message: { role: 'user', content: turn.content } })
+    const r = await pump.result()
+    sid = r.session_id
+    const seen = pump.messages.slice(from).filter((m) => m.type !== 'stream_event')
+    out.push({
+      name: turn.name,
+      reply: lastAssistantText(seen),
+      toolUses: seen.flatMap((m: any) => (m.type === 'assistant' ? m.message.content.filter((b: any) => b.type === 'tool_use').map((b: any) => ({ name: b.name, input: b.input })) : [])),
+      messages: seen.map((m: any) => ({ type: m.type, subtype: m.subtype, keys: Object.keys(m).join(','), user: m.type === 'user' ? JSON.stringify(m.message?.content).slice(0, 600) : undefined })),
+      result: briefResult(r)
+    })
+  }
+  inbox.close()
+  await pump.done
+  // How the transcript keeps what the CLI added for each mention.
+  const file = join(projectDirFor(dir), `${sid}.jsonl`)
+  const lines = existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []
+  const added = lines
+    .filter((e) => e.type === 'attachment' || e.isMeta || (e.type === 'user' && typeof e.message?.content !== 'string'))
+    .map((e) => ({ type: e.type, isMeta: e.isMeta, uuid: e.uuid, parentUuid: e.parentUuid, keys: Object.keys(e).join(','), attachment: e.attachment ? JSON.stringify(e.attachment).slice(0, 1500) : undefined, content: e.message ? JSON.stringify(e.message.content).slice(0, 1500) : undefined }))
+  return { cwd: dir, turns: out, canUseToolCalls: asked, transcriptAdded: added, transcript: readTranscript(dir, sid) }
+}
+
 function countSpawns(fixture: string): number {
   const file = fixtureFile(fixture)
   if (!existsSync(file)) return -1
@@ -849,5 +918,6 @@ export const checks: Record<string, Check> = {
   'missing-cwd': missingCwd,
   prewarm,
   transcripts,
-  survey
+  survey,
+  mentions
 }

@@ -2,8 +2,8 @@
 // result, the time above a prompt after a pause, and how long each turn took
 // under its reply. Pure, so it's tested without a window.
 import type { Activity, StreamBlock, StreamState } from '@shared/live'
-import type { CompactEntry, NoticeEntry, OutputEntry, PromptEntry, SummaryEntry, TextEntry, ThinkingEntry, ToolEntry, ToolResult, TranscriptEntry } from '@shared/transcript'
-import { describeTool } from './tools'
+import type { CompactEntry, MentionEntry, NoticeEntry, OutputEntry, PromptEntry, SummaryEntry, TextEntry, ThinkingEntry, ToolEntry, ToolResult, TranscriptEntry } from '@shared/transcript'
+import { describeMention, describeTool } from './tools'
 
 /** Space above a row, in pixels: tight inside a run of tool calls, loose before a new turn. */
 export type Space = 2 | 6 | 12 | 20 | 28
@@ -17,6 +17,8 @@ export type Row = RowBase &
   (
     | { kind: 'time'; time: number }
     | { kind: 'prompt'; entry: PromptEntry }
+    /** A file or folder the prompt above mentioned, which Claude Code read in. */
+    | { kind: 'mention'; entry: MentionEntry }
     | { kind: 'text'; entry: TextEntry }
     | { kind: 'thinking'; entry: ThinkingEntry }
     /** `running`: no result yet in a session that's live elsewhere. */
@@ -111,6 +113,12 @@ export function buildRows(entries: readonly TranscriptEntry[], results: Readonly
       case 'output':
         rows.push({ kind: 'output', key: e.key, space: rows.at(-1)?.kind === 'prompt' ? 6 : spaceFor('output'), entry: e })
         break
+      case 'mention': {
+        // Close under the message that mentioned it, as Claude Code shows them.
+        const before = rows.at(-1)?.kind
+        rows.push({ kind: 'mention', key: e.key, space: before === 'mention' ? 2 : before === 'prompt' ? 6 : spaceFor('mention'), entry: e })
+        break
+      }
       case 'compact':
         rows.push({ kind: 'compact', key: e.key, space: spaceFor('compact'), entry: e, summary: null })
         break
@@ -170,6 +178,10 @@ export function rowText(row: Row): { shown: string; hidden: string } {
       return { shown: row.entry.text, hidden: row.entry.detail ?? '' }
     case 'output':
       return { shown: [row.entry.input, row.entry.stdout, row.entry.stderr].filter(Boolean).join('\n'), hidden: '' }
+    case 'mention': {
+      const view = describeMention(row.entry)
+      return { shown: [view.verb, row.entry.path, view.note].filter(Boolean).join(' '), hidden: row.entry.content.text }
+    }
     case 'compact':
       return { shown: 'Conversation compacted', hidden: row.summary?.text ?? '' }
     case 'stream':

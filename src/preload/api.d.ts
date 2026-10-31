@@ -25,6 +25,7 @@ import type {
   ClaudeInfo,
   CodeRewind,
   CommandInfo,
+  FileListing,
   LiveEvent,
   LiveSnapshot,
   LiveSummary,
@@ -58,6 +59,8 @@ export interface LiveApi {
   answer(id: string, answer: CardAnswer): Promise<void>
   set(id: string, request: SetRequest): Promise<void>
   commands(id: string): Promise<CommandInfo[]>
+  /** The files and folders `@` offers, from the session's working folder. */
+  files(id: string): Promise<FileListing>
   models(): Promise<ModelChoice[]>
   usage(): Promise<UsageInfo | null>
   /** What rewinding to before one of your messages can restore. */

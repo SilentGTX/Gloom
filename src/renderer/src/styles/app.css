@@ -447,6 +447,28 @@
     background: var(--row-selected-blur);
   }
 
+  /* The composer's lists, `/` commands and `@` files, draw the row Tab or
+     Enter takes the same way; a folder's symbol takes the accent there too. */
+  .suggestion-row {
+    color: var(--label);
+  }
+  .suggestion-quiet {
+    color: var(--label-secondary);
+  }
+  .suggestion-folder {
+    color: var(--accent-text);
+  }
+  .suggestion-row.is-active,
+  .suggestion-row.is-active :is(.suggestion-quiet, .suggestion-folder) {
+    color: var(--on-row-selected);
+  }
+  .suggestion-row.is-active {
+    background: var(--row-selected);
+  }
+  :root[data-focused='false'] .suggestion-row.is-active {
+    background: var(--row-selected-blur);
+  }
+
   /* A session at work (running in another app; in Gloom too, from Phase 4):
      light sweeps across its title, left to right, for as long as it runs, as
      in Claude Code; not on the selected row, which the indigo already marks.
@@ -857,6 +879,7 @@
     }
     .session-row.is-selected :is(.row-label, .row-secondary, .row-waiting),
     .palette-row.is-active :is(.palette-quiet, .palette-folder),
+    .suggestion-row.is-active :is(.suggestion-quiet, .suggestion-folder),
     [role='tab'][aria-selected='true'] {
       forced-color-adjust: none;
       color: HighlightText;

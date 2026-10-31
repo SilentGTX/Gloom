@@ -1,6 +1,6 @@
-import { memo, useContext, useState, type ReactNode } from 'react'
+import { memo, useContext, useId, useState, type ReactNode } from 'react'
 import { ArrowLeftRight, Bell, ChevronRight, CircleAlert, ClipboardType, Hand, Info, MessageSquareQuote, Webhook } from 'lucide-react'
-import type { CompactEntry, NoticeEntry, NoticeIcon, OutputEntry, PromptEntry, SummaryEntry, TextEntry, ThinkingEntry } from '@shared/transcript'
+import type { CompactEntry, MentionEntry, NoticeEntry, NoticeIcon, OutputEntry, PromptEntry, SummaryEntry, TextEntry, ThinkingEntry } from '@shared/transcript'
 import { cn } from '../../lib/cn'
 import { useTranscript } from '../../stores/transcript'
 import { StreamRow, WorkingRow } from './LiveRows'
@@ -8,8 +8,8 @@ import { Markdown } from './Markdown'
 import { ImageStrip, ShowAll, useFullText } from './media'
 import { PromptActions, RewindAllowed } from './Rewind'
 import type { Row } from './rows'
-import { formatDuration, ToolRow } from './ToolRow'
-import { modelName } from './tools'
+import { formatDuration, TextCard, ToolRow } from './ToolRow'
+import { describeMention, modelName } from './tools'
 
 /** One row of the transcript. Rows only ever fade; Virtuoso measures them, so nothing animates their size. */
 export const RowView = memo(function RowView({ row, sessionId }: { row: Row; sessionId: string }) {
@@ -26,6 +26,8 @@ function RowBody({ row, sessionId }: { row: Row; sessionId: string }) {
       return <TimeRow time={row.time} />
     case 'prompt':
       return <PromptRow sessionId={sessionId} entry={row.entry} />
+    case 'mention':
+      return <MentionRow sessionId={sessionId} rowKey={row.key} entry={row.entry} />
     case 'text':
       return <TextRow sessionId={sessionId} entry={row.entry} />
     case 'thinking':
@@ -102,6 +104,61 @@ function PromptRow({ sessionId, entry }: { sessionId: string; entry: PromptEntry
               </div>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A file or folder your message mentioned, on its side, as Claude Code shows
+ * it under the message: "Read notes/a.txt · 2 lines". It opens to what Claude
+ * Code read in: the file's lines, or the folder's listing.
+ */
+function MentionRow({ sessionId, rowKey, entry }: { sessionId: string; rowKey: string; entry: MentionEntry }) {
+  const open = useTranscript((s) => s.expanded.has(rowKey))
+  const setExpanded = useTranscript((s) => s.setExpanded)
+  const panel = useId()
+  const view = describeMention(entry)
+  const Icon = view.icon
+  const opens = !!entry.content.text
+  const line = (
+    <>
+      <Icon size={14} strokeWidth={1.75} aria-hidden className="shrink-0 text-label-secondary" />
+      <span className="flex min-w-0 items-baseline gap-1.5 text-[0.875rem] leading-[1.5]">
+        <span className="shrink-0 text-label-secondary">{view.verb}</span>
+        <span title={entry.full} className="min-w-0 truncate font-mono text-[0.8125rem] text-label">
+          {entry.path}
+          {entry.folder && !entry.path.endsWith('/') && '/'}
+        </span>
+        {view.note && <span className="shrink-0 text-[0.8125rem] text-label-secondary tabular">{view.note}</span>}
+      </span>
+    </>
+  )
+  return (
+    <div className="flex flex-col items-end pl-[12%]">
+      {opens ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panel}
+          onClick={() => setExpanded(rowKey, !open)}
+          className="no-drag -mr-2 flex max-w-[calc(100%+8px)] min-w-0 items-center gap-1.5 rounded-[8px] px-2 py-[3px] text-left outline-none hover:bg-fill active:bg-fill-strong focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent-ring)]"
+        >
+          <ChevronRight
+            size={12}
+            strokeWidth={2.25}
+            aria-hidden
+            className={cn('shrink-0 text-label-secondary transition-transform duration-[var(--duration-tooltip)] ease-out motion-reduce:transition-none', open && 'rotate-90')}
+          />
+          {line}
+        </button>
+      ) : (
+        <div className="flex max-w-full min-w-0 items-center gap-1.5 py-[3px]">{line}</div>
+      )}
+      {opens && open && (
+        <div id={panel} className="w-full pt-1.5 pb-1">
+          <TextCard sessionId={sessionId} part={entry.content} />
         </div>
       )}
     </div>
