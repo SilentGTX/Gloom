@@ -33,10 +33,22 @@ export async function launch(options: LaunchOptions = {}): Promise<{ app: Electr
   await page.waitForSelector('main')
   const design = options.design ?? 'classic'
   if ((await page.locator('html').getAttribute('data-design')) !== design) {
-    await page.evaluate((d) => window.gloom!.runCommand(d === 'classic' ? 'view.designClassic' : 'view.designConcept'), design)
-    await page.waitForSelector(`html[data-design="${design}"]`)
-    // The switch crossfades (240 ms): tests start once it's over, so nothing they measure is mid-fade.
-    await page.waitForFunction(() => !document.getAnimations().some((a) => (a.effect as KeyframeEffect | null)?.pseudoElement?.startsWith('::view-transition')))
+    // The switch crossfades (240 ms): tests start once it's over, so nothing they measure is mid-fade and
+    // their first click isn't lost (mid-fade, the page's clicks all go to <html>). The fade's animations only
+    // exist a frame after the switch, so wait on the transition itself rather than look for them.
+    await page.evaluate(async (d) => {
+      const start = document.startViewTransition?.bind(document)
+      let transition: ViewTransition | undefined
+      if (start) document.startViewTransition = ((update) => (transition = start(update))) as typeof document.startViewTransition
+      const html = document.documentElement
+      const switched = new Promise<void>((resolve) => new MutationObserver((_, seen) => (seen.disconnect(), resolve())).observe(html, { attributeFilter: ['data-design'] }))
+      await window.gloom!.runCommand(d === 'classic' ? 'view.designClassic' : 'view.designConcept')
+      await switched
+      if (start) document.startViewTransition = start
+      // Under reduced motion it switches at once, with no transition.
+      await transition?.finished
+    }, design)
+    await expect(page.locator('html')).toHaveAttribute('data-design', design)
   }
   return { app, page }
 }
