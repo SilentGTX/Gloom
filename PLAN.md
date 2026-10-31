@@ -1235,8 +1235,8 @@ disclosure pages; `apple-design` for motion).
      against the release key, and its hashes match the installer and zip that went out (GitHub's
      own digests of them as well).
 
-11. **Concept design** (your handoff, `Downloads\Gloom\design_handoff_gloom_concept`; branch
-    `concept-design`, not released). You asked to try it and to be able to go back easily, so
+11. **Concept design** (your handoff, `Downloads\Gloom\design_handoff_gloom_concept`; out as
+    **Gloom 0.13.0**). You asked to try it and to be able to go back easily, so
     it's a switch: **View › Design › Concept / Classic** (also Settings › Window › Design and the
     command palette). Concept is what Gloom opens in; Classic is the window as it was, untouched
     (the end-to-end suite runs in it). Switching crossfades the window (a view transition,
@@ -1288,6 +1288,11 @@ disclosure pages; `apple-design` for motion).
      inspector and its sheet, a narrow window, a permission card answered with Tell Claude What
      to Do; captures in `test-screens/concept/`); the rest of the suite pins Classic
      (`launch({ design })`); the packaged check ends by switching to the concept.
+   - Released as **Gloom 0.13.0** at your "Ship 0.13.0" (built on branch `concept-design`,
+     fast-forwarded into main). The packaged check and `--smoke-pty` passed on the local build
+     and again on the build that went out; the published `update.json` checks out against the
+     release key, and its hashes match the installer and zip that went out (GitHub's own
+     digests of them as well).
 
 ## Verification
 
