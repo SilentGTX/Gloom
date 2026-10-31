@@ -418,7 +418,9 @@ phases are done; next is the week as your daily driver (Decided with you). **The
 planned next, is out as Gloom 0.11.0** (2026-10-31; its notes below, "9. Command palette").
 **Clear glass**, your ask (View › Always Show Glass is Blissful's Apple glass), is out as Gloom
 0.11.1 (2026-10-31; its notes in "Design system", above). **`@` file mentions**, the next item,
-is out as Gloom 0.12.0 (2026-10-31; its notes below, "10. `@` file mentions").
+is out as Gloom 0.12.0 (2026-10-31; its notes below, "10. `@` file mentions"). A fix for
+Update Claude Code…, Log In… and Resume in Terminal, which opened nothing, is out as Gloom 0.12.1
+(Phase 4's notes).
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -788,7 +790,9 @@ disclosure pages; `apple-design` for motion).
      Gloom's child, so it stays open after Gloom quits either way). `test/e2e/terminal.spec.ts`
      presses Update Claude Code… for real, with the window hidden (`GLOOM_TERMINAL_HIDDEN`) and
      Windows' whoami standing in for claude, and finds the terminal it opened; it fails on the old
-     code. The packaged check does the same on the build that goes out.
+     code. The packaged check does the same on the build that goes out. Released as **Gloom
+     0.12.1** at your "Ship 0.12.1", after the packaged check passed on the build and again on the
+     build that went out; a throwaway copy of 0.12.0 took the signed 0.12.1 and handed over.
 5. **Diff and terminal panes.**
    **Done 2026-10-31.** Built with both Apple skills loaded (`apple-hig` with its foundation pages and
    the split view, tab view, segmented control, toolbar, list, scroll view and disclosure pages;
