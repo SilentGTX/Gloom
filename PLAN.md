@@ -396,8 +396,8 @@ live chat, is out as Gloom 0.7.0** (2026-10-31). **Phases 5 and 6**, the diff an
 then rewind, edit and worktrees, were built the same night at your request and are out together
 as **Gloom 0.8.0** (2026-10-31), and a fix for the blank window the Effort menu left as Gloom 0.8.1
 (Phase 4's notes). **Phase 7, the polish pass, is out as Gloom 0.9.0** (2026-10-31; its notes
-below). **Phase 8, packaging, is built** (fuses, Gloom's own protocol, signed updates, installer
-fixes; its notes below) and waits for your OK to ship as Gloom 0.10.0.
+below). **Phase 8, packaging, is out as Gloom 0.10.0** (2026-10-31; its notes below). All eight
+phases are done; next is the week as your daily driver (Decided with you).
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -964,7 +964,7 @@ disclosure pages; `apple-design` for motion).
      the release.
 8. **Package.** Installer polish (the app icon came in 0.3.0), and what Phase 7 left for it:
    Electron's fuses, signing, and the page served from Gloom's own protocol.
-   **Built 2026-10-31** at your "Phase 8"; not released yet.
+   **Done 2026-10-31** at your "Phase 8"; released as Gloom 0.10.0 (the last note).
    - **Fuses** (`electron-builder.yml`, flipped in Gloom.exe as it's packed): it can't be run as
      plain Node (`ELECTRON_RUN_AS_NODE`), ignores `NODE_OPTIONS` and `--inspect`, runs the app only
      from its archive, and checks the archive against a hash built into Gloom.exe: a copy with one
@@ -1037,6 +1037,10 @@ disclosure pages; `apple-design` for motion).
      trusted page), `test/unit/release-key.test.ts` (signatures, and what `manifest.mjs` signs is
      what Gloom accepts), `test/e2e/storage.spec.ts` (settings from `file://`, once, never over
      newer ones), and the packaged check above. 114 unit tests and 60 end-to-end tests pass.
+   - Released as **Gloom 0.10.0** at your "Ship 0.10.0", after the packaged check passed on the
+     build, and again on the build that went out (`--smoke-pty` too). Before it went out, 0.8.1,
+     the version your PC runs, updated a throwaway copy of itself to that build, settings and
+     all. The published `update.json` checks out against the release key.
 
 ## Verification
 
