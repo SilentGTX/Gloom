@@ -359,17 +359,17 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
   for other reasons, and switches to the clear glass below. `prefers-contrast` gives the glass a
   solid rim and stronger text. Text size goes to 200%; chrome is sized in pixels so it holds its
   shape.
-- **Clear glass (View → Always Show Glass; your ask, 2026-10-31):** Blissful's Apple glass, the
-  recipe its tooltips use: a 10% white tint (60% in light), a 12px blur, a short soft shadow
-  (Tailwind's shadow-lg), no rim and no sheen, so the dusk shows through the sidebar on any PC.
-  The search field takes Blissful's search bar tint as a fill (never glass on glass), lifted under
-  the pointer. Two departures, both for legibility: the sidebar's secondary ink is 0.76 in the dark
-  (the ember under clear glass took the usual 0.66 to 4.1:1 at the sidebar's foot; now 4.8:1), and
-  menus, popovers, tooltips and sheets even out the light behind them (`contrast()` and
-  `brightness()` in their backdrop filter): on the paper they match Blissful's panels exactly, and
-  over a white screenshot in the dark, or a black one in the light, secondary text still reads at
-  4.7:1 (Blissful's recipe puts white text on white at 1.9:1). Increase Contrast keeps the frosted
-  glass and its rim. Tokens: `tokens.css` › `:root[data-glass='on']`.
+- **Clear glass (View → Always Show Glass; your ask, out as Gloom 0.11.1):** Blissful's Apple
+  glass, the recipe its tooltips use: a 10% white tint (60% in light), a 12px blur, a short soft
+  shadow (Tailwind's shadow-lg), no rim and no sheen, so the dusk shows through the sidebar on any
+  PC. The search field takes Blissful's search bar tint as a fill (never glass on glass), lifted
+  under the pointer. Two departures, both for legibility: the sidebar's secondary ink is 0.76 in
+  the dark (the ember under clear glass took the usual 0.66 to 4.1:1 at the sidebar's foot; now
+  4.8:1), and menus, popovers, tooltips and sheets even out the light behind them (`contrast()` and
+  `brightness()` in their backdrop filter): on the paper they match Blissful's panels, and over a
+  white screenshot in the dark, or a black one in the light, secondary text still reads at 4.7:1
+  (Blissful's recipe measured 1.6:1 there). Increase Contrast keeps the frosted glass and its rim.
+  Tokens: `tokens.css` › `:root[data-glass='on']`; test: `glass.spec.ts`.
 - **Type:** the system font (Segoe UI Variable) with size-specific tracking (tight headings, body near 0).
   Hierarchy comes from weight, size and leading together. Tabular numerals for counts and times.
   Sizes in rem with an app text-size setting. Mono: Cascadia Code / `ui-monospace`.
@@ -413,6 +413,8 @@ as **Gloom 0.8.0** (2026-10-31), and a fix for the blank window the Effort menu 
 below). **Phase 8, packaging, is out as Gloom 0.10.0** (2026-10-31; its notes below). All eight
 phases are done; next is the week as your daily driver (Decided with you). **The command palette,
 planned next, is out as Gloom 0.11.0** (2026-10-31; its notes below, "9. Command palette").
+**Clear glass**, your ask (View › Always Show Glass is Blissful's Apple glass), is out as Gloom
+0.11.1 (2026-10-31; its notes in "Design system", above).
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
