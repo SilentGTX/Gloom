@@ -66,7 +66,8 @@ npm run e2e        # end-to-end tests against the built app; run `npm run build`
 End-to-end tests launch Gloom with a throwaway profile and a throwaway Claude Code folder
 (`CLAUDE_CONFIG_DIR`) holding made-up transcripts, so they never read or change your sessions.
 The viewer's tests and captures read a made-up session built in `test/support/demo.ts`.
-`GLOOM_RESUME_DRY_RUN=1` makes Resume in Terminal answer without opening a window.
+`GLOOM_RESUME_DRY_RUN=1` makes Resume in Terminal answer without opening a window, and
+`GLOOM_TERMINAL_HIDDEN=1` opens the terminals Gloom starts hidden.
 
 `GLOOM_E2E_REAL_KEYS=1 npm run e2e` also sends real keystrokes through Windows. It takes the
 foreground, and sends nothing unless Gloom is the foreground window.

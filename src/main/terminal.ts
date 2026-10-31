@@ -22,12 +22,16 @@ const POWERSHELL = systemExe('WindowsPowerShell\\v1.0\\powershell.exe')
  * folder named O’Brien would have closed it, and the rest run as a command.
  */
 function openTerminal(cwd: string, args: string): void {
+  // GLOOM_TERMINAL_HIDDEN keeps the window out of sight, for the end-to-end test and the packaged check.
+  const hidden = process.env.GLOOM_TERMINAL_HIDDEN === '1' ? ' -WindowStyle Hidden' : ''
   // A hidden PowerShell asks Windows for a new console window running another one, which inherits these.
-  const launch = `Start-Process -FilePath $env:GLOOM_POWERSHELL -WorkingDirectory $env:GLOOM_CWD -ArgumentList '-NoExit', '-Command', '& $env:GLOOM_CLAUDE ${args}'`
+  const launch = `Start-Process -FilePath $env:GLOOM_POWERSHELL -WorkingDirectory $env:GLOOM_CWD${hidden} -ArgumentList '-NoExit', '-Command', '& $env:GLOOM_CLAUDE ${args}'`
+  // Not detached: on Windows that gives PowerShell no console at all, and then
+  // its Start-Process opens nothing and it still exits 0. The new window doesn't
+  // need it: it isn't Gloom's child and stays open after Gloom quits either way.
   const child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-Command', launch], {
     windowsHide: true,
     stdio: 'ignore',
-    detached: true,
     env: { ...process.env, GLOOM_POWERSHELL: POWERSHELL, GLOOM_CWD: cwd, GLOOM_CLAUDE: findClaude({ forTerminal: true }) ?? '' }
   })
   child.on('error', (error) => console.error('Gloom: opening a terminal:', error))

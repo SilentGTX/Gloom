@@ -15,8 +15,9 @@ import { fakeClaude, openGroup, sessionRow, tempDir } from './app'
 // moving to app://gloom, the transcripts process, git by its full path, node-pty
 // from app.asar.unpacked, the keyboard's rings and F6, `@` listing a session's
 // files, the command palette, the clipboard (the only permission the page has),
-// and Resume in Terminal (a dry run). Then a copy of the build with one byte of
-// its archive changed has to refuse to start.
+// Resume in Terminal (a dry run), and Update Claude Code… opening a real terminal
+// (hidden). Then a copy of the build with one byte of its archive changed has to
+// refuse to start.
 const exe = process.env.GLOOM_PACKAGED_EXE
 test.skip(!exe, 'set GLOOM_PACKAGED_EXE to a packaged Gloom.exe')
 test.setTimeout(120_000)
@@ -178,6 +179,32 @@ test('a packaged build opens a session, its panes and its keyboard', async () =>
     await expect(page.getByText('Resumed in a terminal window')).toBeVisible()
     expect(errors).toEqual([])
   } finally {
+    await quit(gloom)
+  }
+})
+
+/** The process IDs of PowerShell windows running `claude <args>`, as src/main/terminal.ts starts them (not the PowerShell asking). */
+const terminals = (args: string): string[] =>
+  powershell(`Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | ? { $_.CommandLine -like '*-NoExit -Command & $env:GLOOM_CLAUDE ${args}*' -and $_.ProcessId -ne $PID } | % { $_.ProcessId }`)
+    .split(/\s+/)
+    .filter(Boolean)
+
+test('Update Claude Code… opens a terminal', async () => {
+  // Hidden, with Windows' whoami standing in for claude: nothing shows and nothing updates.
+  const env = { ...process.env, CLAUDE_CONFIG_DIR: fakeClaude([]), GLOOM_CLAUDE_EXE: join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'whoami.exe'), GLOOM_TERMINAL_HIDDEN: '1' }
+  const before = new Set(terminals('update'))
+  const gloom = await launchPackaged(tempDir('gloom-packaged-profile-'), env)
+  const { page } = gloom
+  try {
+    await page.waitForSelector('main')
+    await expect(page.locator('[inert]')).toHaveCount(0)
+    await command(page, 'app.settings')
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('radio', { name: 'Claude Code' }).click()
+    await settings.getByRole('button', { name: 'Update Claude Code…' }).click()
+    await expect.poll(() => terminals('update').filter((pid) => !before.has(pid)).length, { timeout: 15_000 }).toBe(1)
+  } finally {
+    for (const pid of terminals('update')) if (!before.has(pid)) spawnSync('taskkill', ['/pid', pid, '/T', '/F'], { windowsHide: true })
     await quit(gloom)
   }
 })

@@ -779,6 +779,16 @@ disclosure pages; `apple-design` for motion).
      diff and the terminal: a part that fails to draw says so with Try Again and Copy Details
      (Reload Window for the whole window), and the rest keeps working. Released as **Gloom 0.8.1**
      after a check of the packaged build.
+   - **Found after 0.12.0 (you):** Update Claude Code… did nothing, and nor did Log In… or Resume
+     in Terminal, which open their terminal the same way (`src/main/terminal.ts`). Gloom starts a
+     hidden PowerShell that opens the visible one, and started it detached: on Windows that leaves
+     PowerShell with no console at all, so its Start-Process opened nothing and it still exited
+     as if all was well. Likely broken since Resume in Terminal arrived in Phase 3; every test ran
+     Resume as a dry run, so none saw it. It isn't detached now (the window it opens never was
+     Gloom's child, so it stays open after Gloom quits either way). `test/e2e/terminal.spec.ts`
+     presses Update Claude Code… for real, with the window hidden (`GLOOM_TERMINAL_HIDDEN`) and
+     Windows' whoami standing in for claude, and finds the terminal it opened; it fails on the old
+     code. The packaged check does the same on the build that goes out.
 5. **Diff and terminal panes.**
    **Done 2026-10-31.** Built with both Apple skills loaded (`apple-hig` with its foundation pages and
    the split view, tab view, segmented control, toolbar, list, scroll view and disclosure pages;
