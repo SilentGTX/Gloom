@@ -386,8 +386,8 @@ sidebar's click and motion fixes are out as Gloom 0.6.2. **Updates that don't cl
 the cloud on a violet tile and the shimmering title of a running session are out as Gloom 0.6.3
 (Phase 1's notes and the sidebar's, "After 0.6.2"). Show More and a sidebar that keeps its order
 are out as Gloom 0.6.5, and a fix for clicks lost while a group opens as Gloom 0.6.6. **Phase 4,
-live chat, is built** (2026-10-31, branch `phase-4-live-chat`) and goes out as Gloom 0.7.0 at your
-OK; then Phase 5.
+live chat, is out as Gloom 0.7.0** (2026-10-31). **Next: Phase 5**, the diff and terminal panes,
+on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -678,7 +678,7 @@ disclosure pages; `apple-design` for motion).
    mode and effort pickers, all three prompt cards (a live session can't do much without them),
    context meter and usage limits, attention (toasts, flash, badge), the running-elsewhere lock with
    Take over, Settings and first run.
-   **Built 2026-10-31 on `phase-4-live-chat`, not released yet.** Built with both Apple skills loaded
+   **Done 2026-10-31, released as Gloom 0.7.0.** Built with both Apple skills loaded
    (`apple-hig` with its foundation pages and the text field, pop-up button, sheet, modality, alert,
    settings, progress, gauge, notification, onboarding, launching, feedback and loading pages;
    `apple-design` for motion).
@@ -737,6 +737,8 @@ disclosure pages; `apple-design` for motion).
      the stream and the merge with the file; end-to-end, the three cards, Stop with a queue, New
      Session with trust, a notification in the background, the running-elsewhere lock and a missing
      folder; and one opt-in turn on your real claude.exe (`GLOOM_REAL_CLI=1`, a few cents of Haiku).
+   - Released as 0.7.0 after a check of the packaged build: a session runs two turns in one process
+     from inside the app archive (on the fake claude).
 5. **Diff and terminal panes.**
 6. **Rewind, edit and worktrees.** Edit and rewind with the conversation / code / both choice;
    worktree sessions in git repos, Merge, cleanup on archive, and the missing-folder behaviour
