@@ -390,8 +390,8 @@ are out as Gloom 0.6.5, and a fix for clicks lost while a group opens as Gloom 0
 live chat, is out as Gloom 0.7.0** (2026-10-31). **Phases 5 and 6**, the diff and terminal panes,
 then rewind, edit and worktrees, were built the same night at your request and are out together
 as **Gloom 0.8.0** (2026-10-31), and a fix for the blank window the Effort menu left as Gloom 0.8.1
-(Phase 4's notes). **Phase 7, the polish pass, is done** (2026-10-31; its notes below), not yet
-released. **Next: Phase 8**, packaging, on your OK.
+(Phase 4's notes). **Phase 7, the polish pass, is out as Gloom 0.9.0** (2026-10-31; its notes
+below). **Next: Phase 8**, packaging, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -952,6 +952,10 @@ disclosure pages; `apple-design` for motion).
      folder and prints times, nothing of it is captured); and `test/e2e/packaged.spec.ts`, the
      check every release now gets before it goes out (`GLOOM_PACKAGED_EXE=<its Gloom.exe>`: the
      transcripts process, git, node-pty, the rings and F6, the clipboard, Resume in Terminal).
+   - Released as **Gloom 0.9.0** at your "Ship 0.9.0", after that check passed on the packaged
+     build, and again on the build that went out (`--smoke-pty` too). Its first run found one more
+     thing: F6 from a toolbar's button went to the first pane rather than the next; fixed before
+     the release.
 8. **Package.** Installer polish (the app icon came in 0.3.0).
 
 ## Verification
