@@ -1315,6 +1315,10 @@ disclosure pages; `apple-design` for motion).
        models on the first session of a launch and keeps the answer; yours was kept from the CLI
        you had before updating to 2.1.316, which lists the 5.5 models. It asks again now whenever
        a session's process is another CLI version.
+     - Released as **Gloom 0.13.1** at your "Ship 0.13.1". The packaged check and `--smoke-pty`
+       passed on the local build and again on the build that went out; the published
+       `update.json` checks out against the release key, and its hashes match the installer and
+       zip that went out (GitHub's own digests of them as well).
 
 ## Verification
 
