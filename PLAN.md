@@ -389,7 +389,8 @@ the cloud on a violet tile and the shimmering title of a running session are out
 are out as Gloom 0.6.5, and a fix for clicks lost while a group opens as Gloom 0.6.6. **Phase 4,
 live chat, is out as Gloom 0.7.0** (2026-10-31). **Phases 5 and 6**, the diff and terminal panes,
 then rewind, edit and worktrees, were built the same night at your request and are out together
-as **Gloom 0.8.0** (2026-10-31). **Next: Phase 7**, the polish pass, on your OK.
+as **Gloom 0.8.0** (2026-10-31), and a fix for the blank window the Effort menu left as Gloom 0.8.1
+(Phase 4's notes). **Next: Phase 7**, the polish pass, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -741,6 +742,15 @@ disclosure pages; `apple-design` for motion).
      folder; and one opt-in turn on your real claude.exe (`GLOOM_REAL_CLI=1`, a few cents of Haiku).
    - Released as 0.7.0 after a check of the packaged build: a session runs two turns in one process
      from inside the app archive (on the fake claude).
+   - **Found after 0.8.0 (you):** opening the Effort menu left a blank window. Its "Effort" label
+     sat outside any group, which Base UI answers by throwing as the menu opens, and with nothing
+     to catch it React unmounted the whole window. It broke every time, in the composer, New
+     Session and Settings; no test had opened that menu. The label is inside its radio group now,
+     and a test opens the menu in all three places (a one-off sweep opened every other pop-up too:
+     all fine). Error boundaries guard the window, the chat under its toolbar, the sidebar, the
+     diff and the terminal: a part that fails to draw says so with Try Again and Copy Details
+     (Reload Window for the whole window), and the rest keeps working. Released as **Gloom 0.8.1**
+     after a check of the packaged build.
 5. **Diff and terminal panes.**
    **Done 2026-10-31.** Built with both Apple skills loaded (`apple-hig` with its foundation pages and
    the split view, tab view, segmented control, toolbar, list, scroll view and disclosure pages;
