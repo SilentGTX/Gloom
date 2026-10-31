@@ -46,9 +46,9 @@ Kowalski's set supports them: `emil-design-eng`, `animate`, `review-animations`,
   title bar installs it. Gloom's own window becomes the update window while it does, with nothing
   of the app showing (no second window).
 
-**Not in v1:** command palette (planned next), `@` file mentions, browser pane, artifacts, task
-lists, side sessions, PRs, cloud sessions, multiple accounts, split view, fast mode, full-text
-search across transcripts, dated library backups.
+**Not in v1:** command palette (planned next; built after v1, see "9. Command palette"), `@` file
+mentions, browser pane, artifacts, task lists, side sessions, PRs, cloud sessions, multiple
+accounts, split view, fast mode, full-text search across transcripts, dated library backups.
 
 **Personal use.** If Gloom is ever shared with others, check Anthropic's rules for third-party apps
 that use a Claude.ai login first.
@@ -90,7 +90,7 @@ D:\JS\Gloom
 │  ├─ git/diff.ts               working-tree changes for a session's folder
 │  ├─ git/worktrees.ts          create, merge and remove session worktrees
 │  ├─ pty/terminals.ts          node-pty terminals
-│  ├─ commands.ts               every command + shortcut in one registry (menu, accelerators, later the palette)
+│  ├─ commands.ts               every command + shortcut in one registry (menu, accelerators, the palette)
 │  ├─ notify.ts                 toasts, taskbar flash and badge
 │  ├─ updater.ts                GitHub releases check, download, silent install (Sync's updater)
 │  ├─ release-key.ts            the public half of the key every release is signed with
@@ -113,6 +113,7 @@ D:\JS\Gloom
 │  ├─ features/folders/         folder actions, menu, filing rules
 │  ├─ features/sessions/        session actions and menu
 │  ├─ features/chat/            transcript, tool rows, composer, prompt cards
+│  ├─ features/palette/         the command palette (Ctrl+K): commands, sessions and folders
 │  ├─ features/update/          the Update button and the update screen
 │  ├─ features/diff/            diff pane
 │  ├─ features/terminal/        terminal pane
@@ -397,7 +398,9 @@ then rewind, edit and worktrees, were built the same night at your request and a
 as **Gloom 0.8.0** (2026-10-31), and a fix for the blank window the Effort menu left as Gloom 0.8.1
 (Phase 4's notes). **Phase 7, the polish pass, is out as Gloom 0.9.0** (2026-10-31; its notes
 below). **Phase 8, packaging, is out as Gloom 0.10.0** (2026-10-31; its notes below). All eight
-phases are done; next is the week as your daily driver (Decided with you).
+phases are done; next is the week as your daily driver (Decided with you). **The command palette**,
+planned next, is built on its own branch and waits for your OK (its notes below, "9. Command
+palette").
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -1041,6 +1044,80 @@ disclosure pages; `apple-design` for motion).
      build, and again on the build that went out (`--smoke-pty` too). Before it went out, 0.8.1,
      the version your PC runs, updated a throwaway copy of itself to that build, settings and
      all. The published `update.json` checks out against the release key.
+9. **Command palette** (after v1; "planned next" in Not in v1).
+   **Built 2026-10-31** on branch `command-palette` (worktree `D:\JS\Gloom-palette`); not released
+   yet, waiting for your OK. You chose the shortcut, what it finds and the order before it was
+   built (Ctrl+K; commands, sessions and folders; best match first, in groups). Built with both
+   Apple skills loaded (`apple-hig`'s foundation pages plus its searching, search field, menus,
+   panels, keyboards, focus and selection, Liquid Glass and modality pages; `apple-design` for
+   motion).
+   - **Ctrl+K** (View › Command Palette…) opens it from anywhere, the terminal pane included (Git
+     Bash's own Ctrl+K gives way there), and puts it away again. A glass panel near the top of the
+     window: the field, then the results. The window under it can't be reached while it's up; a
+     click outside puts it away and goes no further.
+   - **What it finds:** every command in the menu, as the menu shows it now ("Hide Sidebar" or
+     "Show Sidebar", "Undo Archive"), with its shortcut and a checkmark on what's on; every
+     session, by its title, its prompts or its project, as the sidebar's search does; every folder,
+     however deep, with where it is ("in Clients › … › EU (Frankfurt)", whole on hover). A few
+     commands answer to other words too (Settings to "preferences", Quit to "exit": `keywords` in
+     the registry).
+   - **The order:** before you type, Recent (the five sessions you were in last, newest first,
+     leaving out the open one, so Ctrl+K then Enter takes you back to the one before; then the
+     most recently active) and every command in menu order. As you type, Commands, Sessions and
+     Folders each in their own group, the group holding the best match on top and the best first
+     in each; what you picked lately wins ties. A session counts as visited once it has stayed open
+     a second, so arrowing past sidebar rows doesn't. Every word you type must match: the start of
+     a name ranks first, then the start of a later word, initials ("ns" finds New Session…), inside
+     a word, then letters in order ("trml" finds Terminal). Case and accents don't matter; prompts,
+     projects and paths count for half. At most 30 sessions and 20 folders show; typing more
+     narrows them (`features/palette/rank.ts`, pure and tested).
+   - **Keys:** arrows and Page Up/Down move, Enter runs, Esc clears what you typed and then
+     closes, as a search field does. Commands that can't run now are dimmed, listed after the
+     rest and skipped. The pointer picks what it moves onto.
+   - **What a pick does:** a command runs as from the menu and takes the keyboard where it goes
+     (Search Sessions to the sidebar's field); a session opens with the keyboard in its composer
+     (an archived one in Archived, where the sidebar can show it); a folder opens with every
+     folder above it, the sidebar comes into view, and its row takes the keyboard and lights up the
+     way a drop does. Put away, the palette gives the keyboard back where it was (to the Menu
+     button when it came from the menu).
+   - **One source for the menu and the palette** of what each command says and whether it can
+     run (`lib/command-state.ts`). Stop is now dimmed in both unless the open session is mid-turn.
+     The palette waits while a sheet is up (New Session, Settings…): one modal view at a time.
+   - **Motion:** from the keyboard it comes and goes at once (keyboard actions don't animate);
+     from the menu it grows in from just below full size (180 ms) and a click outside fades it
+     (120 ms); reduced motion only fades. The highlight follows the keys without animating.
+   - **Review** with both skills. Fixes made:
+     - the result Enter uses is drawn in Gloom's indigo with every line white, as the sidebar's
+       open session is and as macOS draws a focused list row in the accent; it was the menus'
+       faint 8% fill, about 1.2:1 against the panel;
+     - names line up with what you type, symbols with the field's magnifier;
+     - a deep folder's path shows its outermost folder and the one it's in (its end used to be
+       cut off), whole on hover and to a screen reader;
+     - in Windows' contrast themes the active result takes the theme's highlight and dimmed
+       commands its gray;
+     - Stop is dimmed when nothing runs.
+   - **Departures**, deliberate:
+     - no dimmed window behind it, as Spotlight and Xcode's Open Quickly have none (a palette you
+       open many times a day shouldn't flash the window darker); a click outside still only closes
+       it;
+     - the field draws no focus ring: it's the palette's one stop, and its caret shows where the
+       keyboard is, as in Spotlight;
+     - it's centred on the window rather than grown out of the menu button (from the keyboard
+       there's nothing to grow out of);
+     - only transform and opacity animate (no blur materialising in), Gloom's rule since Phase 1.
+   - **Found on the way:** Tailwind's colour utilities outrank component styles, so a row's
+     secondary text stayed dark on the indigo; the palette's colours are component classes now.
+     And a screen-reader-only span after cut-off text widened the list at 200% text until its
+     line became its containing block; the worst-case test caught it.
+   - **Not run:** `review-animations` only runs when you start it (`/review-animations`).
+   - **Tests:** unit tests for the ranking (`test/unit/palette.test.ts`: Recent, word starts,
+     initials, letters in order, every word, accents, keywords, ties, dimmed commands, groups
+     ordered by their best match, folders by their path, the limits); end-to-end
+     (`test/e2e/palette.spec.ts`): Ctrl+K, a command run with Enter, Esc, the arrows skipping what
+     can't run, the pointer, a session opening with Recent going back, a folder three deep
+     revealed, the menu item, a click outside, waiting for a sheet, and captures in light, dark,
+     contrast themes and Increase Contrast (`test-screens/palette/`); the worst-case library
+     (500 sessions, folders eight deep, 200% text) in `worst-case.spec.ts`.
 
 ## Verification
 

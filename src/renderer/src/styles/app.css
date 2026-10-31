@@ -422,6 +422,31 @@
     background: var(--row-selected-blur);
   }
 
+  /* The command palette's rows: a name, and beside it in secondary ink a
+     shortcut, a session's project and time, or where a folder is. */
+  .palette-quiet {
+    color: var(--label-secondary);
+  }
+  .palette-folder {
+    color: var(--accent-text);
+  }
+  .palette-row.is-disabled,
+  .palette-row.is-disabled .palette-quiet {
+    color: var(--label-tertiary);
+  }
+  /* The result Enter uses: the same indigo, as macOS draws a focused list row
+     in the accent, every line in full contrast on it. */
+  .palette-row.is-active,
+  .palette-row.is-active :is(.palette-quiet, .palette-folder) {
+    color: var(--on-row-selected);
+  }
+  .palette-row.is-active {
+    background: var(--row-selected);
+  }
+  :root[data-focused='false'] .palette-row.is-active {
+    background: var(--row-selected-blur);
+  }
+
   /* A session at work (running in another app; in Gloom too, from Phase 4):
      light sweeps across its title, left to right, for as long as it runs, as
      in Claude Code; not on the selected row, which the indigo already marks.
@@ -831,9 +856,16 @@
       color: HighlightText;
     }
     .session-row.is-selected :is(.row-label, .row-secondary, .row-waiting),
+    .palette-row.is-active :is(.palette-quiet, .palette-folder),
     [role='tab'][aria-selected='true'] {
       forced-color-adjust: none;
       color: HighlightText;
+    }
+    /* A command that can't run now is dimmed in the theme's own way. */
+    .palette-row.is-disabled,
+    .palette-row.is-disabled .palette-quiet {
+      forced-color-adjust: none;
+      color: GrayText;
     }
     .drop-inside,
     .drop-landed::after {

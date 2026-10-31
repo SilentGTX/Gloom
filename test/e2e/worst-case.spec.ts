@@ -124,6 +124,39 @@ for (const theme of ['light', 'dark'] as const) {
   })
 }
 
+test('the command palette over the worst-case library, light', async () => {
+  mkdirSync(dir, { recursive: true })
+  const { app, page } = await open('light')
+  const palette = page.getByRole('dialog', { name: 'Command Palette' })
+  const field = palette.getByRole('combobox')
+  const list = '[aria-label="Command Palette"] [role="listbox"]'
+  await triggerShortcut(app, 'CmdOrCtrl+K')
+  await expect(field).toBeFocused()
+  await shot(page, 'palette-recent')
+
+  // Hundreds of matches (every prompt says "pick up where we left off"): the best thirty sessions.
+  await field.fill('pick')
+  await expect(palette.getByRole('group', { name: 'Sessions' }).getByRole('option')).toHaveCount(30)
+  await shot(page, 'palette-many')
+  expect(await overflow(page, list)).toBeLessThanOrEqual(0)
+
+  // The folder at the bottom of the chain, eight deep, with where it is.
+  await field.fill('week 42')
+  await expect(palette.getByRole('option', { name: /^Week 42 hotfixes/ })).toBeVisible()
+  await shot(page, 'palette-deep-folder')
+
+  // Text at 200%: the palette stays up, and grows with it.
+  await field.fill('t')
+  for (let i = 0; i < 6; i++) await triggerShortcut(app, 'CmdOrCtrl+=')
+  await expect(field).toBeFocused()
+  await page.waitForTimeout(300)
+  await shot(page, 'palette-text-200')
+  expect(await overflow(page, list)).toBeLessThanOrEqual(0)
+  const box = (await palette.boundingBox())!
+  expect(box.y + box.height).toBeLessThanOrEqual(800)
+  await app.close()
+})
+
 test('the worst-case chat, light', async () => {
   mkdirSync(dir, { recursive: true })
   const { app, page, seeded } = await open('light')

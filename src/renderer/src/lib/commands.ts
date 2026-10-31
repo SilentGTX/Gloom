@@ -10,6 +10,7 @@ import { screenHasFocus } from '../features/terminal/registry'
 import { useDiff } from '../stores/diff'
 import { useLibrary } from '../stores/library'
 import { isBusy, useLive } from '../stores/live'
+import { closePalette, togglePalette } from '../stores/palette'
 import { newTerminal, wantFocus } from '../stores/terminals'
 import { useTranscript } from '../stores/transcript'
 import { useUi } from '../stores/ui'
@@ -49,6 +50,7 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
   },
   'app.settings': () => useLive.getState().setSettingsOpen(true),
   'folder.new': (k) => inSidebar(k, () => void newFolder(null)),
+  'view.palette': (k) => togglePalette(k),
   'view.search': (k) =>
     inSidebar(k, () => {
       const field = document.querySelector<HTMLInputElement>('input[data-search]')
@@ -98,9 +100,14 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
   'view.toggleGlass': () => useUi.getState().toggleGlass()
 }
 
+/** Commands that leave the command palette up: they work on its field, or only change the text size. */
+const KEEPS_PALETTE = new Set<CommandId>(['view.palette', 'edit.undo', 'view.textBigger', 'view.textSmaller', 'view.textReset'])
+
 export function runCommand(id: CommandId, viaKeyboard = false): void {
   const spec = findCommand(id)
   if (!spec || spec.arrivesIn) return
+  // The palette makes way for any other command (its shortcut, say), so that command can take the keyboard.
+  if (!KEEPS_PALETTE.has(id)) closePalette(viaKeyboard)
   if (spec.runs === 'renderer') handlers[id]?.(viaKeyboard)
   else void window.gloom?.runCommand(id)
 }

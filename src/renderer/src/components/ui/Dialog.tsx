@@ -36,6 +36,7 @@ export function Dialog({
           ].join(' ')}
           style={{ width }}
           finalFocus={finalFocus}
+          data-sheet
         >
           <div className="relative z-[2]">
             <Base.Title className="font-display text-headline font-semibold tracking-[var(--tracking-title)]">{title}</Base.Title>

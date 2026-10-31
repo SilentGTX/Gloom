@@ -41,6 +41,8 @@ interface UiState extends ColumnPrefs {
   renaming: Renaming
   /** The open session's info card (the chat toolbar's ⓘ, or Ctrl+I). */
   info: boolean
+  /** A sidebar row to take the keyboard once it shows ('folder:<id>'): a folder the command palette found. Not kept. */
+  reveal: string | null
   /** The diff pane, beside the chat (over it, in a narrow window). */
   diffOpen: boolean
   diffWidth: number
@@ -78,6 +80,7 @@ interface UiState extends ColumnPrefs {
   select(ids: string[]): void
   rename(renaming: Renaming): void
   setInfo(open: boolean): void
+  revealRow(key: string | null): void
 }
 
 export const useUi = create<UiState>()(
@@ -101,6 +104,7 @@ export const useUi = create<UiState>()(
         selection: [],
         renaming: null,
         info: false,
+        reveal: null,
         diffOpen: false,
         diffWidth: DIFF.initial,
         diffTab: 'session',
@@ -161,7 +165,8 @@ export const useUi = create<UiState>()(
         setSort: (sort) => set({ sort }),
         select: (ids) => set({ selection: ids }),
         rename: (renaming) => set({ renaming }),
-        setInfo: (open) => set({ info: open })
+        setInfo: (open) => set({ info: open }),
+        revealRow: (key) => set({ reveal: key })
       }
     },
     {

@@ -20,6 +20,7 @@ const APP_KEYS = new Set<CommandId>([
   'view.refreshDiff',
   'view.toggleSidebar',
   'view.search',
+  'view.palette',
   'view.nextPane',
   'view.previousPane',
   'view.textBigger',

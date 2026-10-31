@@ -133,6 +133,30 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
 
   const focusRow = (key: string) => root.current?.querySelector<HTMLElement>(`[data-nav="${CSS.escape(key)}"]`)?.focus()
 
+  // A folder the command palette found takes the keyboard once its row shows
+  // (the folders above it open first), and lights up the way a drop does.
+  const reveal = useUi((s) => s.reveal)
+  useEffect(() => {
+    if (!reveal) return
+    // What it opens snaps open, as after a key, so the row is where it'll stay.
+    setViaKeyboard(true)
+    // Gone meanwhile (deleted, say): it's let go rather than taking the keyboard later.
+    if (!byKey.has(reveal)) {
+      const timer = setTimeout(() => useUi.getState().revealRow(null), 2000)
+      return () => clearTimeout(timer)
+    }
+    setCursor(reveal)
+    // After the sheet the sidebar may have slid in as has put the keyboard on its first button.
+    const frame = requestAnimationFrame(() => {
+      focusRow(reveal)
+      useUi.getState().revealRow(null)
+      const landed = `drop:${reveal}`
+      useDrag.setState({ landed })
+      setTimeout(() => useDrag.getState().landed === landed && useDrag.setState({ landed: null }), 700)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [reveal, byKey])
+
   const selectRange = (from: string, to: string) => {
     const a = order.indexOf(from)
     const b = order.indexOf(to)
