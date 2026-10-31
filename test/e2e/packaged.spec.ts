@@ -13,10 +13,10 @@ import { fakeClaude, openGroup, sessionRow, tempDir } from './app'
 // It runs from inside the app archive with no update check (--no-update) and a
 // throwaway profile and Claude folder: the settings Gloom kept under file://
 // moving to app://gloom, the transcripts process, git by its full path, node-pty
-// from app.asar.unpacked, the keyboard's rings and F6, the command palette, the
-// clipboard (the only permission the page has), and Resume in Terminal (a dry
-// run). Then a copy of the build with one byte of its archive changed has to
-// refuse to start.
+// from app.asar.unpacked, the keyboard's rings and F6, `@` listing a session's
+// files, the command palette, the clipboard (the only permission the page has),
+// and Resume in Terminal (a dry run). Then a copy of the build with one byte of
+// its archive changed has to refuse to start.
 const exe = process.env.GLOOM_PACKAGED_EXE
 test.skip(!exe, 'set GLOOM_PACKAGED_EXE to a packaged Gloom.exe')
 test.setTimeout(120_000)
@@ -138,6 +138,15 @@ test('a packaged build opens a session, its panes and its keyboard', async () =>
     } finally {
       writeClipboard(before)
     }
+
+    // `@` lists the session's files (git, by its full path, from main), and Tab puts one in.
+    const composer = page.getByRole('textbox', { name: 'Message' })
+    await composer.click()
+    await page.keyboard.type('@ser')
+    await expect(page.getByRole('listbox', { name: 'Files' }).locator('[role="option"][aria-selected="true"]')).toHaveAccessibleName(/^server\.ts/)
+    await page.keyboard.press('Tab')
+    await expect(composer).toHaveValue('@server.ts ')
+    await composer.fill('')
 
     // The command palette finds a command as you type, and Enter runs it: the diff pane.
     await command(page, 'view.palette')
