@@ -296,7 +296,7 @@ function FastToggle({ sessionId, summary }: { sessionId: string; summary: LiveSu
         )}
       >
         <Zap size={13} strokeWidth={1.75} aria-hidden fill={on ? 'currentColor' : 'none'} />
-        Fast
+        <span className="@max-[520px]:hidden">Fast</span>
       </button>
     </Tooltip>
   )

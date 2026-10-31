@@ -1409,3 +1409,54 @@ disclosure pages; `apple-design` for motion).
      session on failed checks, conflicts and new comments) and archiving when it closes;
      Routines (prompts that run on a schedule while Gloom is open); SSH sessions (`claude` runs
      on another machine over `ssh`); cloud sessions (`claude --cloud`).
+   **Built 2026-10-31, not released yet** (branch `parity`: c2adc5e part A, 7e3d557 part B,
+   f36ddcb parts C and D, then the review's fixes). Built with both Apple skills (`apple-hig`'s
+   foundation pages plus settings, toggles, text fields, managing notifications, searching,
+   web views, split views and windows; `apple-design` for motion).
+   - **A:** Settings has five panes (General, Sessions, Notifications, Claude Code, About).
+     Keep awake is `src/main/power.ts` (powerSaveBlocker, let go 30 s after the work ends,
+     battery from powerMonitor); notification levels per kind with sound and the taskbar flash
+     (`attention.ts`, `noticeLevel`; the old single switch migrates to Off for every kind);
+     archiving inactive sessions (`inactiveSessions` in shared/library.ts, hourly in main;
+     never running, pinned or unread ones; a clean worktree goes too); branch prefix and a
+     worktree folder of your own (`<folder>/<repository>/<name>`, `worktreeOf(cwd, folder)`);
+     output style, fast mode, prompt suggestions and Remote Control go to the CLI as flag
+     settings and SDK options (`runner.ts` › `options`); Transcript View (Normal leaves
+     thinking out, Thinking shows it, Verbose opens every tool call and event: `OpenByDefault`
+     and `useOpen` in ToolRow.tsx); unread marks (Mail's dot, `setUnread`); Export (a zip
+     through Windows' tar.exe, `src/main/export.ts`); a session's extra folders (`setFolders`,
+     `additionalDirectories`); MCP switches and Reconnect in the inspector; search inside
+     conversations (`src/worker/search.ts`: a byte scan for the words as JSON writes them, then
+     only matching lines parsed; "In Conversations" under the sidebar's results).
+   - **B:** `src/main/claude/gloom-tools.ts`: an in-process MCP server, `gloom`, for every
+     process (checked on your CLI 2.1.316: it connects and lists its tools, no message sent),
+     with a short system prompt appended to Claude Code's. The task list, next-step box,
+     chapters and widgets are read back from the transcript's tool calls (`src/shared/plan.ts`,
+     `features/chat/Furniture.tsx`), so the Claude app's own calls (`mcp__ccd_*`) show the same
+     way. Widgets run in a sandboxed frame of their own scheme, `gloom-widget://` (CSP: the three
+     CDNs only, no network). Side sessions: `src/main/claude/side-sessions.ts` (start, offer card,
+     proposal card, hand-off, `<side-sessions-event>` reports to the session that started one).
+   - **C:** `features/side/SidePane.tsx` on the trailing side (File, Plan, Tasks, Browser,
+     Artifacts, PR); the diff pane and inspector step aside for it. The Browser is a
+     WebContentsView per session in its own profile (`src/main/browser.ts`), dev servers from
+     `.claude/launch.json` (`src/main/preview.ts`), and browser tools for Claude. Split view keeps
+     a second transcript store (`useSplitTranscript`, `TranscriptStore` context) and the worker
+     follows two transcripts. Panes open in windows of their own (`createPopOutWindow`,
+     `?popout=`); main sends live events to every Gloom window.
+   - **D:** pull requests through gh (`src/main/git/pr.ts`, `pr-service.ts`): checks, reviews,
+     merge, auto-merge, Auto-fix (`<ci-monitor-event>` on failed checks, conflicts, new comments)
+     and archiving on close. Routines (`src/main/routines.ts`, `src/shared/routines.ts`: 5-field
+     cron in local time, a missed run once at launch; Routines in the sidebar once one has run).
+     SSH sessions (`src/shared/ssh.ts`; the runner spawns ssh with the CLI's arguments; the
+     transcript comes back after each turn into `~/.claude/projects/ssh-<connection>/`, as the
+     Claude app keeps its copies). Cloud sessions start through `claude --cloud` and open on
+     claude.ai (`src/main/cloud.ts`).
+   - **Departures**, deliberate: a widget's `sendPrompt()` puts its words in the composer for you
+     to send (a page Claude drew can't send messages on its own); the browser is a native view, so
+     it steps out of sight while a menu, dialog or popover is open over it; notifications keep
+     flashing the taskbar by default, as Gloom always has (the Claude app's default is off).
+   - **Not verified:** SSH against a real machine (none here), cloud sessions (starting one runs
+     in the cloud and spends usage), Remote Control, prompt suggestions and fast mode against the
+     service (each needs a real turn), and the PR monitor on a real pull request with CI.
+   - **Tests:** `test/unit/parity.test.ts`; end-to-end `parity.spec.ts`, `furniture.spec.ts`,
+     `side.spec.ts`, `remote.spec.ts`.

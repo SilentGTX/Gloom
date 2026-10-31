@@ -39,7 +39,8 @@ function PopUp({ look, label, value, spoken = value, icon, tooltip, tone, disabl
       <span className="flex shrink-0 [&>svg]:size-[14px]" aria-hidden>
         {icon}
       </span>
-      <span className={cn('truncate', look === 'field' && 'flex-1 text-left')}>{value}</span>
+      {/* In a narrow column (split view) the chips keep their symbols; the label is still read out. */}
+      <span className={cn('truncate', look === 'field' ? 'flex-1 text-left' : '@max-[520px]:sr-only')}>{value}</span>
       <ChevronDown size={12} strokeWidth={2.25} aria-hidden className="shrink-0 opacity-60" />
     </MenuTrigger>
   )
