@@ -28,6 +28,8 @@ export const COMMANDS = [
   { id: 'session.info', label: 'Session Info', group: 'file', accelerator: 'CmdOrCtrl+I', runs: 'renderer' },
   // Stops the turn under way in the open session (Esc in the composer does the same).
   { id: 'session.stop', label: 'Stop', group: 'file', accelerator: 'CmdOrCtrl+.', runs: 'renderer' },
+  // Another shell in the terminal pane, in the open session's working folder.
+  { id: 'terminal.new', label: 'New Terminal', group: 'file', accelerator: 'CmdOrCtrl+Shift+`', runs: 'renderer' },
   { id: 'app.settings', label: 'Settings…', group: 'file', accelerator: 'CmdOrCtrl+,', runs: 'renderer' },
   { id: 'app.quit', label: 'Quit Gloom', group: 'file', accelerator: 'CmdOrCtrl+Q', runs: 'main' },
   // Undoes typing in a field, otherwise the last change to your folders and sessions.
@@ -43,8 +45,15 @@ export const COMMANDS = [
   { id: 'view.sortCreated', label: 'Date Created', group: 'view', submenu: 'Sort Sessions By', runs: 'renderer' },
   { id: 'view.sortActivity', label: 'Last Activity', group: 'view', submenu: 'Sort Sessions By', runs: 'renderer' },
   { id: 'view.sortName', label: 'Name', group: 'view', submenu: 'Sort Sessions By', runs: 'renderer' },
-  { id: 'view.toggleDiff', label: 'Diff Pane', group: 'view', accelerator: 'CmdOrCtrl+Shift+D', runs: 'renderer', arrivesIn: 'Phase 5' },
-  { id: 'view.toggleTerminal', label: 'Terminal', group: 'view', accelerator: 'CmdOrCtrl+`', runs: 'renderer', arrivesIn: 'Phase 5' },
+  // The diff pane, beside the chat: Claude's edits in this session, or what git sees.
+  { id: 'view.toggleDiff', label: 'Show or Hide Diff', group: 'view', accelerator: 'CmdOrCtrl+Shift+D', runs: 'renderer' },
+  // The terminal pane, under the chat, in the session's working folder.
+  { id: 'view.toggleTerminal', label: 'Show or Hide Terminal', group: 'view', accelerator: 'CmdOrCtrl+`', runs: 'renderer' },
+  // What the diff pane shows, as its toolbar's segments do.
+  { id: 'view.diffSession', label: 'This Session', group: 'view', submenu: 'Show in Diff', runs: 'renderer' },
+  { id: 'view.diffTree', label: 'Working Tree', group: 'view', submenu: 'Show in Diff', runs: 'renderer' },
+  // Reads the diff pane's changes again (they also refresh as the session works).
+  { id: 'view.refreshDiff', label: 'Refresh Diff', group: 'view', accelerator: 'F5', runs: 'renderer' },
   { id: 'view.textBigger', label: 'Bigger Text', group: 'view', accelerator: 'CmdOrCtrl+=', runs: 'renderer' },
   { id: 'view.textSmaller', label: 'Smaller Text', group: 'view', accelerator: 'CmdOrCtrl+-', runs: 'renderer' },
   { id: 'view.textReset', label: 'Default Text Size', group: 'view', accelerator: 'CmdOrCtrl+0', runs: 'renderer' },
@@ -70,6 +79,19 @@ export const GROUP_LABELS: Record<CommandGroup, string> = {
 
 export function findCommand(id: string): CommandSpec | undefined {
   return (COMMANDS as readonly CommandSpec[]).find((c) => c.id === id)
+}
+
+/** Punctuation keys by their place on the keyboard, so Shift (` becomes ~) doesn't hide them. */
+const CODES: Record<string, string> = { '`': 'Backquote', '=': 'Equal', '-': 'Minus', ',': 'Comma', '.': 'Period' }
+
+/** Whether a key press is the accelerator ("CmdOrCtrl+Shift+`"). */
+export function matchesAccelerator(accelerator: string, event: { key: string; code?: string; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }): boolean {
+  const parts = accelerator.split('+')
+  const key = parts.pop()!
+  const want = new Set(parts.map((p) => (p === 'CmdOrCtrl' || p === 'CommandOrControl' ? 'ctrl' : p.toLowerCase())))
+  const code = CODES[key]
+  const sameKey = code && event.code ? event.code === code : event.key.toLowerCase() === key.toLowerCase()
+  return sameKey && event.ctrlKey === want.has('ctrl') && event.altKey === want.has('alt') && event.shiftKey === want.has('shift')
 }
 
 /** "CmdOrCtrl+Shift+N" → "Ctrl+Shift+N", as Windows shows shortcuts. */

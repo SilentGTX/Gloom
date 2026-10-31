@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import { IPC, type CommandDispatch, type LibraryChange, type SessionsChange, type TranscriptChange, type UpdateScreen, type UpdateState, type WindowState } from '@shared/ipc'
 import type { LiveEvent, Settings } from '@shared/live'
+import type { TerminalData, TerminalExit } from '@shared/terminal'
 import type { GloomApi } from './api'
 
 function subscribe<T>(channel: string, listener: (payload: T) => void): () => void {
@@ -59,7 +60,24 @@ const api: GloomApi = {
   setSettings: (patch) => ipcRenderer.invoke(IPC.settingsSet, patch),
   onSettings: (listener) => subscribe<Settings>(IPC.settingsChanged, listener),
   setBadge: (count, png) => ipcRenderer.invoke(IPC.setBadge, count, png),
-  pathForFile: (file) => webUtils.getPathForFile(file)
+  pathForFile: (file) => webUtils.getPathForFile(file),
+  diff: {
+    session: (id) => ipcRenderer.invoke(IPC.diffSession, id),
+    tree: (id) => ipcRenderer.invoke(IPC.diffTree, id),
+    reveal: (path) => ipcRenderer.invoke(IPC.revealFile, path)
+  },
+  terminal: {
+    shells: () => ipcRenderer.invoke(IPC.terminalShells),
+    list: () => ipcRenderer.invoke(IPC.terminalList),
+    create: (request) => ipcRenderer.invoke(IPC.terminalCreate, request),
+    attach: (id) => ipcRenderer.invoke(IPC.terminalAttach, id),
+    close: (id) => ipcRenderer.invoke(IPC.terminalClose, id),
+    input: (id, data) => ipcRenderer.send(IPC.terminalInput, id, data),
+    resize: (id, cols, rows) => ipcRenderer.send(IPC.terminalResize, id, cols, rows),
+    ack: (id, chars) => ipcRenderer.send(IPC.terminalAck, id, chars),
+    onData: (listener) => subscribe<TerminalData>(IPC.terminalData, listener),
+    onExit: (listener) => subscribe<TerminalExit>(IPC.terminalExit, listener)
+  }
 }
 
 contextBridge.exposeInMainWorld('gloom', api)

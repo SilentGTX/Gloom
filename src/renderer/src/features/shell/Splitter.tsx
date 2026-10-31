@@ -7,35 +7,43 @@ interface SplitterProps {
   min: number
   max: number
   initial: number
-  onChange(width: number): void
+  onChange(size: number): void
   /** 'edge': where the paper meets the sky column, no line of its own. 'hairline': between panes. */
   variant: 'edge' | 'hairline'
+  /** Between columns (the default), or between a pane and the one under it. */
+  orientation?: 'vertical' | 'horizontal'
+  /** The pane it sizes sits after it (the diff pane, the terminal), so dragging toward it shrinks it. */
+  sizes?: 'before' | 'after'
 }
 
 /**
- * A column boundary. Drags 1:1 from wherever it was grabbed; arrows nudge it,
- * Home/End jump to the limits, double-click or Enter resets.
+ * A boundary between panes. Drags 1:1 from wherever it was grabbed; arrows
+ * nudge it, Home/End jump to the limits, double-click or Enter resets.
  */
-export function Splitter({ label, value, min, max, initial, onChange, variant }: SplitterProps) {
-  const drag = useRef<{ startX: number; startWidth: number } | null>(null)
-  const clamp = (width: number) => Math.round(Math.min(max, Math.max(min, width)))
+export function Splitter({ label, value, min, max, initial, onChange, variant, orientation = 'vertical', sizes = 'before' }: SplitterProps) {
+  const drag = useRef<{ start: number; startSize: number } | null>(null)
+  const clamp = (size: number) => Math.round(Math.min(max, Math.max(min, size)))
+  const vertical = orientation === 'vertical'
+  const sign = sizes === 'before' ? 1 : -1
+  const cursor = vertical ? 'col-resize' : 'row-resize'
 
   const start = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
     e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { startX: e.clientX, startWidth: value }
-    document.documentElement.style.cursor = 'col-resize'
+    drag.current = { start: vertical ? e.clientX : e.clientY, startSize: value }
+    document.documentElement.style.cursor = cursor
   }
   const move = (e: PointerEvent<HTMLDivElement>) => {
-    if (drag.current) onChange(clamp(drag.current.startWidth + e.clientX - drag.current.startX))
+    if (drag.current) onChange(clamp(drag.current.startSize + sign * ((vertical ? e.clientX : e.clientY) - drag.current.start)))
   }
   const end = () => {
     drag.current = null
     document.documentElement.style.cursor = ''
   }
   const key = (e: KeyboardEvent<HTMLDivElement>) => {
-    const step = e.shiftKey ? 32 : 8
-    const next = { ArrowLeft: value - step, ArrowRight: value + step, Home: min, End: max, Enter: initial }[e.key]
+    const step = (e.shiftKey ? 32 : 8) * sign
+    const [less, more] = vertical ? ['ArrowLeft', 'ArrowRight'] : ['ArrowUp', 'ArrowDown']
+    const next = { [less]: value - step, [more]: value + step, Home: min, End: max, Enter: initial }[e.key]
     if (next === undefined) return
     e.preventDefault()
     onChange(clamp(next))
@@ -44,11 +52,11 @@ export function Splitter({ label, value, min, max, initial, onChange, variant }:
   return (
     <div
       role="separator"
-      aria-orientation="vertical"
+      aria-orientation={vertical ? 'vertical' : 'horizontal'}
       aria-label={label}
       aria-valuemin={min}
       aria-valuemax={max}
-      aria-valuenow={value}
+      aria-valuenow={Math.min(max, value)}
       tabIndex={0}
       onPointerDown={start}
       onPointerMove={move}
@@ -57,13 +65,14 @@ export function Splitter({ label, value, min, max, initial, onChange, variant }:
       onLostPointerCapture={end}
       onDoubleClick={() => onChange(initial)}
       onKeyDown={key}
-      // Net width zero: the 8px grab area overlaps both sides, and a hairline lands
-      // on the next column's first pixel.
-      className="no-drag group relative z-20 -mx-1 w-2 shrink-0 cursor-col-resize outline-none"
+      // Net size zero: the 8px grab area overlaps both sides, and a hairline lands
+      // on the next pane's first pixel.
+      className={cn('no-drag group relative z-20 shrink-0 outline-none', vertical ? '-mx-1 w-2 cursor-col-resize' : '-my-1 h-2 cursor-row-resize')}
     >
       <div
         className={cn(
-          'pointer-events-none absolute inset-y-0 left-1 w-px transition-colors duration-150 group-focus-visible:w-0.5 group-focus-visible:bg-accent',
+          'pointer-events-none absolute transition-colors duration-150 group-focus-visible:bg-accent',
+          vertical ? 'inset-y-0 left-1 w-px group-focus-visible:w-0.5' : 'inset-x-0 top-1 h-px group-focus-visible:h-0.5',
           variant === 'hairline' ? 'bg-separator group-hover:bg-separator-strong' : 'bg-transparent group-hover:bg-separator-strong'
         )}
       />

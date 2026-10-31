@@ -1,5 +1,5 @@
 import { Popover } from '@base-ui/react/popover'
-import { Copy, FolderCode, FolderOpen, Info } from 'lucide-react'
+import { Copy, FolderCode, FolderOpen, Info, SquareChevronRight } from 'lucide-react'
 import { projectName, type SessionMeta } from '@shared/library'
 import { Button } from '../../components/ui/Button'
 import { Tooltip } from '../../components/ui/Tooltip'
@@ -9,7 +9,7 @@ import { useLibrary } from '../../stores/library'
 import { useElsewhere } from '../../stores/live'
 import { useUi } from '../../stores/ui'
 import { folderLabel } from '../folders/folders'
-import { copySessionId, revealSession } from '../sessions/SessionMenu'
+import { copySessionId, resumeSession, revealSession } from '../sessions/SessionMenu'
 
 const ENTRYPOINTS: Record<string, string> = {
   'claude-desktop': 'the Claude app',
@@ -61,7 +61,7 @@ export function SessionInfo({ session }: { session: SessionMeta | undefined }) {
   )
 }
 
-/** Where a session ran, when, from what, and its ID, with the two things you'd do with them. */
+/** Where a session ran, when, from what, and its ID, with what you'd do with them (Resume in Terminal moved here from the toolbar, whose terminal button is the pane's now). */
 function InfoCard({ session, onDone }: { session: SessionMeta; onDone(): void }) {
   const folders = useLibrary((s) => s.library.folders)
   const folderId = useLibrary((s) => s.library.sessions[session.id]?.folderId)
@@ -103,6 +103,19 @@ function InfoCard({ session, onDone }: { session: SessionMeta; onDone(): void })
         ))}
       </dl>
       <div className="mt-3 flex flex-wrap gap-2">
+        {!session.remote && session.file && (
+          <Button
+            size="text"
+            tone="secondary"
+            onClick={() => {
+              void resumeSession(session.id)
+              onDone()
+            }}
+          >
+            <SquareChevronRight size={14} strokeWidth={1.75} aria-hidden />
+            Resume in Terminal
+          </Button>
+        )}
         {!session.remote && (
           <Button
             size="text"

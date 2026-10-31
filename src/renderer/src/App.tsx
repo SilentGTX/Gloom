@@ -10,7 +10,9 @@ import { Toasts } from './lib/toast'
 import { useUpdateScreen } from './lib/update'
 import { useApplyWindowState, useWindowState } from './lib/window-state'
 import { useLibraryBridge } from './stores/library'
+import { startScreens } from './features/terminal/registry'
 import { useLiveBridge } from './stores/live'
+import { useTerminalsBridge } from './stores/terminals'
 import { useTranscriptBridge } from './stores/transcript'
 import { useUi } from './stores/ui'
 
@@ -20,6 +22,8 @@ export function App() {
   useLibraryBridge()
   useTranscriptBridge()
   useLiveBridge()
+  useTerminalsBridge()
+  useEffect(() => startScreens(), [])
   useWaitingBadge()
   const textScale = useUi((s) => s.textScale)
   const glassAlways = useUi((s) => s.glassAlways)

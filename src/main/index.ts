@@ -1,8 +1,10 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { existsSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { homedir, release } from 'node:os'
+import { isAbsolute, join } from 'node:path'
 import { findCommand, type CommandId } from '@shared/commands'
-import { IPC, type AppInfo, type ResumeResult } from '@shared/ipc'
+import type { TreeDiff } from '@shared/diff'
+import { IPC, type AppInfo, type ResumeResult, type TerminalCreate } from '@shared/ipc'
 import { displayTitle } from '@shared/library'
 import { parseRef, type Cursor } from '@shared/transcript'
 import { attend, setBadge } from './attention'
@@ -14,6 +16,8 @@ import { installApplicationMenu, runCommand } from './commands'
 import { parseTakeover, takeOver } from './handover'
 import { LibraryService } from './library/service'
 import { runPtySmoke } from './smoke'
+import { workingTreeDiff } from './git/diff'
+import { Terminals } from './pty/terminals'
 import { claudeInTerminal, resumeInTerminal } from './terminal'
 import { deferUpdatesWhile, finishStarting, installPending, launchCheck, onUpdateScreen, sessionsQuiet, showStarting, updateScreen } from './update-screen'
 import { checkOnFocus, onUpdateState, startBackgroundChecks, updateState } from './updater'
@@ -49,7 +53,7 @@ if (smokeArg) {
   })
 
   /** IPC from anything but our own page's main frame is ignored. */
-  const trusted = (event: IpcMainInvokeEvent) =>
+  const trusted = (event: IpcMainInvokeEvent | IpcMainEvent) =>
     event.senderFrame !== null && event.senderFrame === event.sender.mainFrame && event.senderFrame.url.startsWith(rendererUrl())
 
   void app.whenReady().then(() => {
@@ -64,7 +68,8 @@ if (smokeArg) {
     })
     ipcMain.handle(IPC.appInfo, (event): AppInfo => {
       if (!trusted(event)) throw new Error('untrusted sender')
-      return { version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node }
+      const windowsBuild = process.platform === 'win32' ? Number(release().split('.')[2]) || 0 : 0
+      return { version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node, windowsBuild }
     })
     ipcMain.handle(IPC.runCommand, (event, id: unknown) => {
       if (!trusted(event)) throw new Error('untrusted sender')
@@ -200,6 +205,49 @@ if (smokeArg) {
     handle(IPC.setBadge, (_event, count, png) =>
       setBadge(mainWindow, typeof count === 'number' ? count : 0, typeof png === 'string' && png.startsWith('data:image/png;base64,') ? png : null)
     )
+
+    // ─── The diff pane ─────────────────────────────────────────────────────
+    handle(IPC.diffSession, (_event, id) => {
+      const sid = sessionId(id)
+      return library.sessionEdits(sid, sessions.cwdOf(sid))
+    })
+    handle(IPC.diffTree, (_event, id): TreeDiff | Promise<TreeDiff> => {
+      const sid = sessionId(id)
+      if (library.session(sid)?.remote) return { kind: 'remote' }
+      const cwd = sessions.cwdOf(sid)
+      return cwd ? workingTreeDiff(cwd) : { kind: 'missing-folder' }
+    })
+    handle(IPC.revealFile, (_event, path) => {
+      // Shown in its folder, never opened: the path came from the model.
+      if (typeof path !== 'string' || !isAbsolute(path) || !existsSync(path)) return false
+      shell.showItemInFolder(path)
+      return true
+    })
+
+    // ─── The terminal pane ─────────────────────────────────────────────────
+    const terminals = new Terminals({
+      data: (data) => mainWindow?.webContents.send(IPC.terminalData, data),
+      exit: (exit) => mainWindow?.webContents.send(IPC.terminalExit, exit)
+    })
+    app.on('before-quit', () => terminals.closeAll())
+    const size = (v: unknown, max: number) => (typeof v === 'number' && Number.isInteger(v) && v > 0 ? Math.min(v, max) : 80)
+    handle(IPC.terminalShells, () => terminals.shells())
+    handle(IPC.terminalList, () => terminals.list())
+    handle(IPC.terminalCreate, (_event, raw) => {
+      const request = (raw ?? {}) as Partial<TerminalCreate>
+      const sid = request.sessionId == null ? null : sessionId(request.sessionId)
+      const cwd = (sid && sessions.cwdOf(sid)) || homedir()
+      return terminals.create(cwd, settings().shell, size(request.cols, 1000), size(request.rows, 500))
+    })
+    handle(IPC.terminalAttach, (_event, id) => terminals.attach(String(id)))
+    handle(IPC.terminalClose, (_event, id) => terminals.close(String(id)))
+    const on = (channel: string, run: (...args: unknown[]) => void) =>
+      ipcMain.on(channel, (event, ...args) => {
+        if (trusted(event)) run(...args)
+      })
+    on(IPC.terminalInput, (id, data) => typeof data === 'string' && data.length < 1_000_000 && terminals.input(String(id), data))
+    on(IPC.terminalResize, (id, cols, rows) => terminals.resize(String(id), size(cols, 1000), size(rows, 500)))
+    on(IPC.terminalAck, (id, chars) => typeof chars === 'number' && terminals.ack(String(id), chars))
 
     // Taking over from the previous version: this window opens on top of its
     // window, on the update screen, and the app loads once that one has quit.

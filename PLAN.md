@@ -740,6 +740,54 @@ disclosure pages; `apple-design` for motion).
    - Released as 0.7.0 after a check of the packaged build: a session runs two turns in one process
      from inside the app archive (on the fake claude).
 5. **Diff and terminal panes.**
+   **Done 2026-10-31.** Built with both Apple skills loaded (`apple-hig` with its foundation pages and
+   the split view, tab view, segmented control, toolbar, list, scroll view and disclosure pages;
+   `apple-design` for motion).
+   - **Diff pane** (View › Show Diff, Ctrl+Shift+D, or the toolbar's diff button): beside the chat on
+     the trailing side, resizable and remembered; when the chat would drop below 560 px it floats
+     over the chat as a sheet instead. A segmented control in its toolbar switches between:
+     - **This Session:** Claude's edits, from the transcript. Claude Code no longer records a file as
+       it was before an edit (`originalFile` is null in your transcripts), so Gloom composes each
+       file's patches into one diff, from before the session's first edit to after its last, with
+       what the patches have shown as context (`src/shared/diff.ts`). An edit put back shows as
+       nothing. The transcripts process reads it (`src/worker/edits.ts`): a big transcript once,
+       decoding only the lines that carry a patch, then only what's appended.
+     - **Working Tree:** what git sees, `git diff HEAD` plus untracked files, with the branch
+       (`src/main/git/diff.ts`); git runs without taking its index lock. A folder that isn't a
+       repository, no git, or a folder that's gone each say so.
+     - Files in path order, so they hold still while Claude works, each under a header that stays at
+       the top while its lines scroll by: a click folds it (Alt-click folds all), right-click for
+       Reveal in File Explorer and Copy Path. Lines are highlighted by shiki, wrap, and are drawn in
+       chunks as they scroll into view; the unchanged lines between hunks are counted. A new file
+       reads as plain code (its header says Added) rather than a screen of green. It refreshes as
+       the session works and when you come back to Gloom, and with F5 (View › Refresh Diff).
+   - **Terminal pane** (View › Show Terminal, Ctrl+\`, or the toolbar's terminal button; File › New
+     Terminal, Ctrl+Shift+\`): under the chat, resizable. xterm over node-pty (Windows' ConPTY), in
+     the session's working folder; sessions in the same folder share their terminals. Tabs (arrows
+     move between them), + for another; `exit` closes a tab whose shell ended cleanly, as Terminal
+     does, and the last tab closing puts the pane away. Hiding the pane keeps the shells and their
+     screens. The shell is in Settings › Terminal: Windows PowerShell (the default), PowerShell 7,
+     Command Prompt or Git Bash, whichever are installed. Copy and paste as Windows terminals do
+     (Ctrl+C with a selection, Ctrl+V, a right-click). Every other key goes to the shell (Ctrl+R is
+     its history search, not Reload); Gloom keeps only its pane, sidebar, search, text size,
+     settings and quit shortcuts. A flood of output is paced: the shell pauses while the screen is
+     more than 2 MB behind. Its own light and dark palettes, every colour 4.5:1 or better.
+   - **Toolbar:** the capsule is now Sidebar · Terminal · Diff · ⓘ, the pane buttons held in while
+     their pane shows. Resume in Terminal moved into the ⓘ card (it's still in the File and session
+     menus): the toolbar's terminal button is the pane's now.
+   - **Review** with both skills. Fixes made: each segment has a tooltip, and View › Show in Diff
+     switches them too (every toolbar item in a menu); the list of changes takes the keyboard
+     (arrows, Page Up/Down) with a focus ring; the bright terminal colours were raised to 4.5:1 on
+     the light sheet; a new file lost its green.
+   - **Departures**, deliberate: the terminal sits at the window's foot, where Apple advises against
+     controls (it's content you open, like Xcode's debug area); terminals belong to a folder rather
+     than a session.
+   - **Found on the way:** a transcript is blank for a few frames as it opens (Virtuoso hides its list
+     until it has reached the bottom); opening the diff pane doesn't cause it.
+   - **Tests:** the composer against a direct diff on 500 random edit sequences (unique and repeated
+     lines, edits put back) and the git parser; end-to-end, the session diff, Working Tree on a real
+     repository, the narrow sheet, a shell typing and closing, a hidden pane keeping its screen; and
+     opt-in real keystrokes (Ctrl+R to the shell, Ctrl+\` and Ctrl+Shift+D to Gloom from inside it).
 6. **Rewind, edit and worktrees.** Edit and rewind with the conversation / code / both choice;
    worktree sessions in git repos, Merge, cleanup on archive, and the missing-folder behaviour
    recorded in Phase 0.

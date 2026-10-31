@@ -149,6 +149,11 @@ export class Sessions {
     return runner.blob(at.offset, at.path)
   }
 
+  /** Where a session works: its running process's folder, else the transcript's. */
+  cwdOf(id: string): string | null {
+    return this.runners.get(id)?.cwd ?? this.lookup(id)?.cwd ?? null
+  }
+
   busy(): boolean {
     return [...this.runners.values()].some((r) => r.busy)
   }

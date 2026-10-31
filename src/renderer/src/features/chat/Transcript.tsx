@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { GlassCapsule } from '../../components/ui/Glass'
 import { cn } from '../../lib/cn'
+import { useDelayed } from '../../lib/delayed'
 import { isBusy, useLive } from '../../stores/live'
 import { useTranscript } from '../../stores/transcript'
 import { clearMatches, findMatches, paintMatches, popMatch, useFind } from './find'
@@ -19,20 +20,6 @@ const BASE_INDEX = 1_000_000
 /** Space under the last row, past the composer floating over the transcript's foot. */
 const BOTTOM_SPACE = 32
 const bottomSpace = () => BOTTOM_SPACE + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--composer-space')) || 0)
-
-/** Shows `value` only once it has held for `ms`, so quick loads never flash a spinner. */
-function useDelayed(value: boolean, ms: number): boolean {
-  const [shown, setShown] = useState(false)
-  useEffect(() => {
-    if (!value) {
-      setShown(false)
-      return
-    }
-    const timer = setTimeout(() => setShown(true), ms)
-    return () => clearTimeout(timer)
-  }, [value, ms])
-  return shown
-}
 
 /**
  * A session's transcript, newest at the bottom, where it opens. Scrolling up

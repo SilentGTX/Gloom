@@ -6,6 +6,8 @@ import { watch, type FSWatcher } from 'chokidar'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import type { WorkerReply, WorkerRequest } from '@shared/ipc'
+import { composeEdits } from '@shared/diff'
+import { readEdits } from './edits'
 import { collectSessions, INDEX_VERSION, indexAll, indexAppended, indexFile, isTranscript, samePath, type FileIndex, type IndexCache } from './indexer'
 import { Follower, readBlob, readPage } from './reader'
 
@@ -105,10 +107,15 @@ function flush(): void {
 
 // ─── Reading for the chat ────────────────────────────────────────────────────
 
-function answer(request: Extract<WorkerRequest, { type: 'page' | 'blob' }>): void {
+function answer(request: Extract<WorkerRequest, { type: 'page' | 'blob' | 'edits' }>): void {
   try {
     if (request.type === 'blob') {
       post({ type: 'answer', reqId: request.reqId, value: readBlob(request.file, request.ref) })
+      return
+    }
+    if (request.type === 'edits') {
+      const files = existsSync(request.file) ? composeEdits(readEdits(request.file), request.cwd) : []
+      post({ type: 'answer', reqId: request.reqId, value: { files } })
       return
     }
     const read = readPage(request.file, request.cursor)
@@ -164,6 +171,7 @@ port.on('message', ({ data }: { data: WorkerRequest }) => {
       return start(data)
     case 'page':
     case 'blob':
+    case 'edits':
       return answer(data)
     case 'unfollow':
       follower = null

@@ -83,6 +83,8 @@ test('what Claude Code appends shows as it arrives, and Resume in Terminal opens
   // Still at the bottom, so the view follows.
   await expect(transcript.getByText('Logging every 429 now.')).toBeInViewport()
 
+  // Resume in Terminal lives in the session's info card (the toolbar's terminal button is the pane's).
+  await page.getByRole('button', { name: 'Session info' }).click()
   await page.getByRole('button', { name: 'Resume in Terminal' }).click()
   await expect(page.getByText('Resumed in a terminal window')).toBeVisible()
 })

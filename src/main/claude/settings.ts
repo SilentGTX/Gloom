@@ -1,5 +1,6 @@
 // Gloom's settings: new sessions' model, mode and effort, how long an idle
-// session's process lives, notifications, appearance, and where claude.exe is.
+// session's process lives, notifications, appearance, the terminal's shell, and
+// where claude.exe is.
 // One JSON file in userData, written whole through a temporary file. The model
 // list a session last reported is kept beside them, so New Session can offer
 // it before any process has started.
@@ -7,6 +8,7 @@ import { app, nativeTheme } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { DEFAULT_MODELS, DEFAULT_SETTINGS, EFFORTS, isEffort, isMode, type ModelChoice, type Settings } from '@shared/live'
+import { isShell } from '@shared/terminal'
 
 interface SettingsFile {
   settings: Settings
@@ -30,7 +32,8 @@ export function cleanSettings(raw: unknown, base: Settings = DEFAULT_SETTINGS): 
     effort: s.effort === null || isEffort(s.effort) ? (s.effort as Settings['effort']) : base.effort,
     idleMinutes: Math.max(0, Math.min(24 * 60, minutes)),
     notifications: typeof s.notifications === 'boolean' ? s.notifications : base.notifications,
-    theme: s.theme === 'light' || s.theme === 'dark' || s.theme === 'system' ? s.theme : base.theme
+    theme: s.theme === 'light' || s.theme === 'dark' || s.theme === 'system' ? s.theme : base.theme,
+    shell: isShell(s.shell) ? s.shell : base.shell
   }
 }
 

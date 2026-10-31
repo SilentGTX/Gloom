@@ -14,6 +14,7 @@ export function OverlaySheet({
   inset,
   width,
   label,
+  side = 'left',
   onClose,
   children
 }: {
@@ -25,6 +26,8 @@ export function OverlaySheet({
   inset: number
   width: number
   label: string
+  /** The edge it slides out from: the sidebar's, or the diff pane's. */
+  side?: 'left' | 'right'
   onClose(viaKeyboard: boolean): void
   children: ReactNode
 }) {
@@ -36,7 +39,7 @@ export function OverlaySheet({
       ? { duration: 0.2, ease: [0.23, 1, 0.32, 1] }
       : { type: 'spring', bounce: 0, duration: 0.32 }
   // Past its own width, so the shadow leaves too.
-  const hidden = reduce ? { opacity: 0 } : { x: -width - 40 }
+  const hidden = reduce ? { opacity: 0 } : { x: side === 'left' ? -width - 40 : width + 40 }
   const shown = reduce ? { opacity: 1 } : { x: 0 }
 
   useEffect(() => {
@@ -74,7 +77,7 @@ export function OverlaySheet({
             aria-modal="true"
             aria-label={label}
             className="pointer-events-auto absolute"
-            style={{ top: inset, bottom: inset, left: inset, width }}
+            style={{ top: inset, bottom: inset, [side]: inset, width }}
             initial={hidden}
             animate={shown}
             exit={hidden}

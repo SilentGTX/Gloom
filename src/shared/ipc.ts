@@ -94,8 +94,43 @@ export const IPC = {
   /** main → renderer: Settings */
   settingsChanged: 'settings:changed',
   /** invoke(count, png data URL | null): the taskbar badge */
-  setBadge: 'attention:badge'
+  setBadge: 'attention:badge',
+
+  /** invoke(sessionId) → SessionDiff: Claude's edits in the session */
+  diffSession: 'diff:session',
+  /** invoke(sessionId) → TreeDiff: what git sees in its working folder */
+  diffTree: 'diff:tree',
+  /** invoke(path) → boolean: shows a file in File Explorer; false if it's gone */
+  revealFile: 'diff:reveal',
+
+  /** invoke → ShellInfo[]: the shells installed */
+  terminalShells: 'terminal:shells',
+  /** invoke(TerminalCreate) → TerminalInfo */
+  terminalCreate: 'terminal:create',
+  /** invoke → TerminalInfo[]: every terminal open */
+  terminalList: 'terminal:list',
+  /** invoke(id) → TerminalAttach: its recent output, to catch up */
+  terminalAttach: 'terminal:attach',
+  /** send(id, data): typed into it */
+  terminalInput: 'terminal:input',
+  /** send(id, cols, rows) */
+  terminalResize: 'terminal:resize',
+  /** send(id, chars): drawn this much of what it was sent */
+  terminalAck: 'terminal:ack',
+  /** invoke(id): ends its shell */
+  terminalClose: 'terminal:close',
+  /** main → renderer: TerminalData */
+  terminalData: 'terminal:data',
+  /** main → renderer: TerminalExit */
+  terminalExit: 'terminal:exit'
 } as const
+
+/** A new terminal: in the session's working folder (your home folder without one), sized to the pane. */
+export interface TerminalCreate {
+  sessionId: string | null
+  cols: number
+  rows: number
+}
 
 export interface UpdateState {
   /** 'available' lights up the Update button; 'disabled' in development builds. */
@@ -134,6 +169,8 @@ export interface AppInfo {
   electron: string
   chrome: string
   node: string
+  /** Windows' build number (26100), which xterm wants for ConPTY; 0 elsewhere. */
+  windowsBuild: number
 }
 
 export interface CommandDispatch {
@@ -196,6 +233,8 @@ export type WorkerRequest =
   | { type: 'page'; reqId: number; file: string; cursor: Cursor | null; follow: boolean }
   /** An image or a long text left out of a page. */
   | { type: 'blob'; reqId: number; file: string; ref: string }
+  /** Claude's edits in a transcript, composed per file; paths shown relative to `cwd`. */
+  | { type: 'edits'; reqId: number; file: string; cwd: string | null }
   | { type: 'unfollow' }
 
 /** transcripts worker → main */

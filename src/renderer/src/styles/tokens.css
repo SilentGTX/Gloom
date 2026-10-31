@@ -104,6 +104,34 @@
   --find-current: #ffd60a;
   --find-current-text: #1d1d1f;
 
+  /* A segmented control's selection: a raised pill in the glass. */
+  --segment-thumb: rgb(255 255 255 / 0.95);
+
+  /* The terminal: a lighter sheet under the chat, Gloom's indigo for the
+     cursor. ANSI colours keep 4.5:1 or better on it, "white" included (a mid
+     gray here, since shells print it on what they assume is black). Plain hex:
+     xterm reads its theme as colour strings. */
+  --terminal-bg: #f6f5f9;
+  --terminal-fg: #1f1d2b;
+  --terminal-cursor: #5b5bd6;
+  --terminal-selection: #5b5bd63d;
+  --terminal-black: #1f1d2b;
+  --terminal-red: #c4271c;
+  --terminal-green: #1e7a34;
+  --terminal-yellow: #8a6100;
+  --terminal-blue: #2945c9;
+  --terminal-magenta: #9b2393;
+  --terminal-cyan: #0d7487;
+  --terminal-white: #6f6b7d;
+  --terminal-bright-black: #5d5a6b;
+  --terminal-bright-red: #c62f22;
+  --terminal-bright-green: #22803a;
+  --terminal-bright-yellow: #916600;
+  --terminal-bright-blue: #4561e0;
+  --terminal-bright-magenta: #b13aa8;
+  --terminal-bright-cyan: #0d7a8c;
+  --terminal-bright-white: #726e82;
+
   /* Code, after Xcode's default theme; every colour is 4.8:1 or better on the card. */
   --code-foreground: var(--label);
   --code-token-keyword: #9b2393;
@@ -205,6 +233,29 @@
     --added-fill: rgb(48 209 88 / 0.16);
     --removed-fill: rgb(255 69 58 / 0.16);
     --find-match: rgb(255 214 10 / 0.3);
+
+    --segment-thumb: rgb(255 255 255 / 0.16);
+
+    --terminal-bg: #1b1a21;
+    --terminal-fg: #e9e6f2;
+    --terminal-cursor: #8e90f8;
+    --terminal-selection: #8e90f84d;
+    --terminal-black: #3d3b4a;
+    --terminal-red: #ff6b61;
+    --terminal-green: #6bd68a;
+    --terminal-yellow: #e7c06d;
+    --terminal-blue: #7ea4ff;
+    --terminal-magenta: #fc5fa3;
+    --terminal-cyan: #6fd3df;
+    --terminal-white: #d9d6e4;
+    --terminal-bright-black: #8a869e;
+    --terminal-bright-red: #ff8c84;
+    --terminal-bright-green: #8fe5a7;
+    --terminal-bright-yellow: #f3d68f;
+    --terminal-bright-blue: #a2bdff;
+    --terminal-bright-magenta: #ff86bd;
+    --terminal-bright-cyan: #9be6ee;
+    --terminal-bright-white: #ffffff;
 
     --code-token-keyword: #fc5fa3;
     --code-token-string: #fc6a5d;

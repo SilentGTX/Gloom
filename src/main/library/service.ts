@@ -6,6 +6,7 @@ import { app, utilityProcess, type UtilityProcess } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
+import type { SessionDiff } from '@shared/diff'
 import type { ApplyResult, LibrarySnapshot, SessionsChange, TranscriptChange, WorkerReply, WorkerRequest } from '@shared/ipc'
 import { applyOp, LibraryError, noticeSessions, type LibraryData, type LibraryOp, type SessionEntry, type SessionMeta } from '@shared/library'
 import type { Cursor, TranscriptPage } from '@shared/transcript'
@@ -102,6 +103,13 @@ export class LibraryService {
     const meta = this.index.get(id)
     if (!meta) return Promise.reject(new LibraryError('That session’s transcript is gone.'))
     return this.ask({ type: 'blob', file: meta.file, ref })
+  }
+
+  /** Claude's edits in a session, composed per file, paths relative to `cwd`. */
+  sessionEdits(id: string, cwd: string | null): Promise<SessionDiff> {
+    const meta = this.index.get(id)
+    if (!meta?.file) return Promise.resolve({ files: [] })
+    return this.ask({ type: 'edits', file: meta.file, cwd }) as Promise<SessionDiff>
   }
 
   unfollow(): void {

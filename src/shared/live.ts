@@ -3,6 +3,7 @@
 // cards waiting for you, what's queued. The transcript file stays the record:
 // what the stream says is shown at once, and gives way to the file's own lines
 // as Claude Code writes them (same UUIDs). Pure, shared by main and the window.
+import type { ShellId } from './terminal'
 import type { ToolResult, TranscriptEntry } from './transcript'
 
 // ─── Modes, models, effort ───────────────────────────────────────────────────
@@ -303,6 +304,8 @@ export interface Settings {
   /** A Windows notification when a session needs you or finishes while Gloom is in the background. */
   notifications: boolean
   theme: 'system' | 'light' | 'dark'
+  /** The terminal pane's shell. */
+  shell: ShellId
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -312,7 +315,8 @@ export const DEFAULT_SETTINGS: Settings = {
   effort: null,
   idleMinutes: 10,
   notifications: true,
-  theme: 'system'
+  theme: 'system',
+  shell: 'powershell'
 }
 
 export interface ClaudeInfo {

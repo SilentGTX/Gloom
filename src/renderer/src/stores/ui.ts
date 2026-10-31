@@ -1,9 +1,10 @@
 // Layout and view state: the sidebar's width, whether it's hidden or slid in as a
-// sheet, text size, which library groups are open, search, and what's selected.
+// sheet, the diff and terminal panes, text size, which library groups are open,
+// search, and what's selected.
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { SmartFolder } from '@shared/library'
-import { computeLayout, SIDEBAR, type ColumnPrefs } from '../features/shell/layout'
+import { computeLayout, DIFF, SIDEBAR, TERMINAL, type ColumnPrefs } from '../features/shell/layout'
 import { SHOWN_STEP } from '../features/sidebar/tree'
 
 /** Up to 200%, Apple's floor for "support larger text". */
@@ -11,6 +12,8 @@ export const TEXT_SCALES = [0.875, 0.9375, 1, 1.0625, 1.125, 1.25, 1.5, 1.75, 2]
 
 export type { SmartFolder }
 export type SortOrder = 'activity' | 'name' | 'created'
+/** The diff pane's two tabs: Claude's edits in this session, or what git sees. */
+export type DiffTab = 'session' | 'tree'
 
 /** What's being renamed in place. */
 export type Renaming = { kind: 'folder' | 'session'; id: string } | null
@@ -38,8 +41,23 @@ interface UiState extends ColumnPrefs {
   renaming: Renaming
   /** The open session's info card (the chat toolbar's ⓘ, or Ctrl+I). */
   info: boolean
+  /** The diff pane, beside the chat (over it, in a narrow window). */
+  diffOpen: boolean
+  diffWidth: number
+  diffTab: DiffTab
+  /** The terminal pane, under the chat. */
+  terminalOpen: boolean
+  terminalHeight: number
+  /** The diff or terminal pane was last shown or hidden from the keyboard, and when: like the sidebar's. */
+  paneInstant: boolean
+  paneToggledAt: number
 
   setSidebarWidth(width: number): void
+  toggleDiff(viaKeyboard: boolean, open?: boolean): void
+  setDiffWidth(width: number): void
+  setDiffTab(tab: DiffTab): void
+  toggleTerminal(viaKeyboard: boolean, open?: boolean): void
+  setTerminalHeight(height: number): void
   /** Inline → hide it; folded away → open or close its sheet; hidden with room → show it. */
   toggleSidebar(viaKeyboard: boolean): void
   /** Brings the sidebar into view (inline if it fits, else as a sheet), for commands that work in it. */
@@ -83,8 +101,26 @@ export const useUi = create<UiState>()(
         selection: [],
         renaming: null,
         info: false,
+        diffOpen: false,
+        diffWidth: DIFF.initial,
+        diffTab: 'session',
+        terminalOpen: false,
+        terminalHeight: TERMINAL.initial,
+        paneInstant: false,
+        paneToggledAt: 0,
 
         setSidebarWidth: (width) => set({ sidebarWidth: width }),
+        toggleDiff: (viaKeyboard, open) => {
+          const next = open ?? !get().diffOpen
+          if (next !== get().diffOpen) set({ diffOpen: next, paneInstant: viaKeyboard, paneToggledAt: Date.now() })
+        },
+        setDiffWidth: (width) => set({ diffWidth: width }),
+        setDiffTab: (tab) => set({ diffTab: tab }),
+        toggleTerminal: (viaKeyboard, open) => {
+          const next = open ?? !get().terminalOpen
+          if (next !== get().terminalOpen) set({ terminalOpen: next, paneInstant: viaKeyboard, paneToggledAt: Date.now() })
+        },
+        setTerminalHeight: (height) => set({ terminalHeight: height }),
         toggleSidebar: (viaKeyboard) => {
           const s = get()
           const { sidebarInline, sidebarFits } = computeLayout(window.innerWidth, s)
@@ -134,6 +170,11 @@ export const useUi = create<UiState>()(
       partialize: (s) => ({
         sidebarWidth: s.sidebarWidth,
         sidebarHidden: s.sidebarHidden,
+        diffOpen: s.diffOpen,
+        diffWidth: s.diffWidth,
+        diffTab: s.diffTab,
+        terminalOpen: s.terminalOpen,
+        terminalHeight: s.terminalHeight,
         textScale: s.textScale,
         glassAlways: s.glassAlways,
         sort: s.sort,

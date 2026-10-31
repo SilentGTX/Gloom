@@ -1,12 +1,15 @@
 // The renderer's half of the command registry: handlers for the commands it
 // owns, and the bridge that receives accelerators from the main process.
 import { useEffect } from 'react'
-import { COMMANDS, findCommand, type CommandId, type CommandSpec } from '@shared/commands'
+import { COMMANDS, findCommand, matchesAccelerator, type CommandId, type CommandSpec } from '@shared/commands'
 import { useFind } from '../features/chat/find'
 import { newFolder } from '../features/folders/folders'
 import { resumeSession } from '../features/sessions/SessionMenu'
+import { screenHasFocus } from '../features/terminal/registry'
+import { useDiff } from '../stores/diff'
 import { useLibrary } from '../stores/library'
 import { isBusy, useLive } from '../stores/live'
+import { newTerminal, wantFocus } from '../stores/terminals'
 import { useTranscript } from '../stores/transcript'
 import { useUi } from '../stores/ui'
 
@@ -50,6 +53,31 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
       field?.select()
     }),
   'view.toggleSidebar': (k) => useUi.getState().toggleSidebar(k),
+  'view.toggleDiff': (k) => useUi.getState().toggleDiff(k),
+  'view.diffSession': (k) => {
+    useUi.getState().setDiffTab('session')
+    useUi.getState().toggleDiff(k, true)
+  },
+  'view.diffTree': (k) => {
+    useUi.getState().setDiffTab('tree')
+    useUi.getState().toggleDiff(k, true)
+  },
+  'view.refreshDiff': () => {
+    const { diffOpen, diffTab, selection } = useUi.getState()
+    if (diffOpen && selection.length === 1) useDiff.getState().load(diffTab, selection[0], true)
+  },
+  'view.toggleTerminal': (k) => {
+    const ui = useUi.getState()
+    // Hidden while you were typing in it, the composer has you back; shown, the shell takes the keyboard.
+    if (!ui.terminalOpen) wantFocus()
+    else if (screenHasFocus()) document.querySelector<HTMLTextAreaElement>('textarea[data-composer]')?.focus()
+    ui.toggleTerminal(k)
+  },
+  'terminal.new': (k) => {
+    const { selection } = useUi.getState()
+    const session = selection.length === 1 ? useLibrary.getState().sessions[selection[0]] : undefined
+    void newTerminal(session?.id ?? null, session?.cwd ?? null, k)
+  },
   'view.sortActivity': () => useUi.getState().setSort('activity'),
   'view.sortName': () => useUi.getState().setSort('name'),
   'view.sortCreated': () => useUi.getState().setSort('created'),
@@ -73,7 +101,7 @@ export function useCommandBridge(): void {
     if (api) return api.onCommand(({ id, viaKeyboard }) => runCommand(id, viaKeyboard))
     // A plain browser has no menu, so match the accelerators here instead.
     const onKey = (event: KeyboardEvent) => {
-      const spec = (COMMANDS as readonly CommandSpec[]).find((c) => c.accelerator && matches(c.accelerator, event))
+      const spec = (COMMANDS as readonly CommandSpec[]).find((c) => c.accelerator && matchesAccelerator(c.accelerator, event))
       if (!spec) return
       event.preventDefault()
       runCommand(spec.id as CommandId, true)
@@ -81,16 +109,4 @@ export function useCommandBridge(): void {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-}
-
-function matches(accelerator: string, event: KeyboardEvent): boolean {
-  const parts = accelerator.split('+')
-  const key = parts.pop()!.toLowerCase()
-  const want = new Set(parts.map((p) => (p === 'CmdOrCtrl' ? 'ctrl' : p.toLowerCase())))
-  return (
-    event.key.toLowerCase() === key &&
-    event.ctrlKey === want.has('ctrl') &&
-    event.altKey === want.has('alt') &&
-    event.shiftKey === want.has('shift')
-  )
 }

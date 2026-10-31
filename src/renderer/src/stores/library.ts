@@ -7,6 +7,7 @@ import { create } from 'zustand'
 import type { ApplyResult } from '@shared/ipc'
 import { emptyLibrary, type LibraryData, type LibraryOp, type SessionMeta } from '@shared/library'
 import { notify } from '../lib/toast'
+import { useUi } from './ui'
 
 /** A change you can take back, named for the Edit menu ("Undo Archive"). */
 export interface UndoEntry {
@@ -123,4 +124,10 @@ export function useLibraryBridge(): void {
       offSessions()
     }
   }, [])
+}
+
+/** The session the chat shows: the one selected, when only one is. */
+export function useOpenSession(): SessionMeta | undefined {
+  const selection = useUi((s) => s.selection)
+  return useLibrary((s) => (selection.length === 1 ? s.sessions[selection[0]] : undefined))
 }

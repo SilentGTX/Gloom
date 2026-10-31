@@ -629,6 +629,61 @@
     background: var(--removed-fill);
   }
 
+  /* ─── The diff pane ───────────────────────────────────────────────────── */
+
+  /* A file's header: on the paper, held at the top while its lines pass under it. */
+  .diff-file-header {
+    background: var(--surface);
+    box-shadow:
+      inset 0 0.5px 0 var(--separator),
+      inset 0 -0.5px 0 var(--separator-strong);
+  }
+  /* The unchanged lines between two hunks, lined up with the code. */
+  .diff-gap {
+    padding: 3px 12px 3px 3.75rem;
+    background: var(--fill);
+    color: var(--label-secondary);
+  }
+  /* In a narrow window the pane floats over the chat: the same paper, lifted. */
+  .diff-sheet {
+    background: var(--surface);
+    box-shadow:
+      0 0 0 0.5px var(--separator-strong),
+      var(--glass-shadow);
+  }
+  /* A segmented control's selection, raised in its capsule. */
+  .segment-thumb {
+    background: var(--segment-thumb);
+    box-shadow: 0 0.5px 2px rgb(0 0 0 / 0.14);
+  }
+
+  /* ─── The terminal pane ───────────────────────────────────────────────── */
+
+  .terminal-pane {
+    background: var(--terminal-bg);
+  }
+  .terminal-tab {
+    color: var(--label-secondary);
+  }
+  .terminal-tab:hover {
+    background: var(--fill);
+    color: var(--label);
+  }
+  .terminal-tab.is-selected {
+    background: var(--fill-strong);
+    color: var(--label);
+  }
+  .terminal-host {
+    width: 100%;
+    height: 100%;
+  }
+  .terminal-host .xterm {
+    height: 100%;
+  }
+  .terminal-host .xterm-viewport {
+    background-color: transparent !important;
+  }
+
   /* An image arriving from the file fades in where its frame already stands. */
   .image-in {
     animation: image-in 200ms var(--curve-out) both;

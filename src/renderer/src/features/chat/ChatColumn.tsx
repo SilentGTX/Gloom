@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react'
-import { MessagesSquare, SquarePen, Terminal, TriangleAlert } from 'lucide-react'
-import type { ResumeResult } from '@shared/ipc'
+import { useEffect } from 'react'
+import { FileDiff, MessagesSquare, SquarePen, SquareTerminal, TriangleAlert } from 'lucide-react'
+import { formatAccelerator } from '@shared/commands'
 import { displayTitle, type SessionMeta } from '@shared/library'
 import type { LiveSummary } from '@shared/live'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { GlassCapsule } from '../../components/ui/Glass'
 import { Tooltip } from '../../components/ui/Tooltip'
-import { cn } from '../../lib/cn'
 import { runCommand } from '../../lib/commands'
 import { useNow } from '../../lib/now'
 import { relativeTime } from '../../lib/time'
@@ -15,7 +14,6 @@ import { useLibrary } from '../../stores/library'
 import { loadSnapshot, useElsewhere, useLive } from '../../stores/live'
 import { useTranscript } from '../../stores/transcript'
 import { useUi } from '../../stores/ui'
-import { resumeSession } from '../sessions/SessionMenu'
 import { BarTitle, PaneToolbar, SidebarButton, SidebarStandIns } from '../shell/Toolbar'
 import { UpdateButton } from '../update/UpdateButton'
 import { Composer } from './Composer'
@@ -42,13 +40,12 @@ function status(summary: LiveSummary | undefined, updated: number, elsewhere: bo
 
 /**
  * Chat: content, so paper, never glass. Its toolbar floats over the top: the
- * session's title and what it's doing, then one capsule with the sidebar,
- * Resume in Terminal and the session's info. The composer floats over the
- * foot. With the sidebar away, its menu comes along to the leading edge.
+ * session's title and what it's doing, then one capsule with the sidebar, the
+ * terminal and diff panes, and the session's info. The composer floats over
+ * the foot. With the sidebar away, its menu comes along to the leading edge.
  */
-export function ChatColumn({ sidebarShown }: { sidebarShown: boolean }) {
+export function ChatColumn({ session, sidebarShown, clearCaptionButtons }: { session: SessionMeta | undefined; sidebarShown: boolean; clearCaptionButtons: boolean }) {
   const selection = useUi((s) => s.selection)
-  const session = useLibrary((s) => (selection.length === 1 ? s.sessions[selection[0]] : undefined))
   const entry = useLibrary((s) => (session ? s.library.sessions[session.id] : undefined))
   const summary = useLive((s) => (session ? s.sessions[session.id] : undefined))
   const now = useNow(15_000)
@@ -74,8 +71,8 @@ export function ChatColumn({ sidebarShown }: { sidebarShown: boolean }) {
   }, [id])
 
   return (
-    <main className="@container relative flex min-w-0 flex-1 flex-col pt-[var(--titlebar-h)]">
-      <PaneToolbar clearCaptionButtons>
+    <main className="@container relative flex min-h-0 min-w-0 flex-1 flex-col pt-[var(--titlebar-h)]">
+      <PaneToolbar clearCaptionButtons={clearCaptionButtons}>
         {!sidebarShown && <SidebarStandIns />}
         {session && title && (
           <BarTitle status={status(summary, session.updated, elsewhere, now)} live={summary?.state === 'working' || summary?.state === 'starting'}>
@@ -86,7 +83,8 @@ export function ChatColumn({ sidebarShown }: { sidebarShown: boolean }) {
         <UpdateButton />
         <GlassCapsule label="Session">
           <SidebarButton shown={sidebarShown} />
-          <ResumeButton session={session} />
+          <PaneButton pane="terminal" />
+          <PaneButton pane="diff" />
           <SessionInfo session={session} />
         </GlassCapsule>
       </PaneToolbar>
@@ -141,36 +139,19 @@ function Welcome() {
   )
 }
 
-/**
- * Opens the session in a terminal window with `claude --resume`. When it can't
- * (its folder is gone, it ran on another machine), it stays visible and says why.
- */
-function ResumeButton({ session }: { session: SessionMeta | undefined }) {
-  const [check, setCheck] = useState<ResumeResult | null>(null)
-  const id = session?.id
-  const cwd = session?.cwd
-  const file = session?.file
-  useEffect(() => {
-    setCheck(null)
-    if (!id) return
-    let alive = true
-    void window.gloom?.resumeSession(id, { check: true }).then((result) => alive && setCheck(result))
-    return () => {
-      alive = false
-    }
-  }, [id, cwd, file])
-  const blocked = !file && id ? 'It has no messages yet.' : check?.ok === false ? check.reason : null
+const PANES = {
+  terminal: { name: 'Terminal', command: 'view.toggleTerminal', accelerator: 'CmdOrCtrl+`', icon: SquareTerminal },
+  diff: { name: 'Diff', command: 'view.toggleDiff', accelerator: 'CmdOrCtrl+Shift+D', icon: FileDiff }
+} as const
+
+/** Shows or hides the terminal or diff pane; held in while the pane shows, as a toggle. */
+function PaneButton({ pane }: { pane: keyof typeof PANES }) {
+  const shown = useUi((s) => (pane === 'terminal' ? s.terminalOpen : s.diffOpen))
+  const { name, command, accelerator, icon: Icon } = PANES[pane]
   return (
-    <Tooltip label={blocked ?? 'Resume in Terminal'}>
-      <Button
-        shape="round"
-        aria-label="Resume in Terminal"
-        disabled={!id}
-        aria-disabled={!!blocked}
-        className={cn(blocked && 'opacity-40')}
-        onClick={() => id && !blocked && void resumeSession(id)}
-      >
-        <Terminal size={16} strokeWidth={1.75} aria-hidden />
+    <Tooltip label={`${shown ? 'Hide' : 'Show'} ${name}`} shortcut={formatAccelerator(accelerator)}>
+      <Button aria-label={name} aria-pressed={shown} pressed={shown} shape="round" onClick={() => runCommand(command)}>
+        <Icon size={16} strokeWidth={1.75} aria-hidden />
       </Button>
     </Tooltip>
   )

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ChevronDown, CircleAlert, CircleCheck } from 'lucide-react'
 import type { AppInfo } from '@shared/ipc'
 import { isMode, type Settings as SettingsData } from '@shared/live'
+import type { ShellId, ShellInfo } from '@shared/terminal'
 import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
 import { MenuPopup, MenuRadioGroup, MenuRadioItem, MenuRoot, MenuTrigger } from '../../components/ui/Menu'
@@ -70,8 +71,9 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange(v: bo
 
 /**
  * Settings (Ctrl+,): what new sessions start with, how long an idle session's
- * process lives, notifications and appearance; then Claude Code itself, and
- * Gloom's version. Changes apply as you make them; there's nothing to save.
+ * process lives, notifications, the terminal's shell and appearance; then
+ * Claude Code itself, and Gloom's version. Changes apply as you make them;
+ * there's nothing to save.
  */
 export function SettingsSheet() {
   const open = useLive((s) => s.settingsOpen)
@@ -144,6 +146,10 @@ function General() {
       <Row label="Notifications">
         <Toggle checked={settings.notifications} onChange={(notifications) => update({ notifications })} label="When a session needs you or finishes in the background" />
       </Row>
+      <h3 className="mt-4 mb-1 text-[11px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">Terminal</h3>
+      <Row label="Shell" hint="New terminals open with it; ones already open keep theirs.">
+        <ShellPicker value={settings.shell} onChange={(shell) => update({ shell })} />
+      </Row>
       <h3 className="mt-4 mb-1 text-[11px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">Window</h3>
       <Row label="Appearance">
         <Segmented
@@ -161,6 +167,30 @@ function General() {
         <Toggle checked={glass} onChange={() => runCommand('view.toggleGlass')} label="Always show glass" />
       </Row>
     </div>
+  )
+}
+
+/** The shells installed here; one that isn't (PowerShell 7, Git Bash) isn't offered. */
+function ShellPicker({ value, onChange }: { value: ShellId; onChange(shell: ShellId): void }) {
+  const [shells, setShells] = useState<ShellInfo[]>([])
+  useEffect(() => {
+    void window.gloom?.terminal.shells().then(setShells)
+  }, [])
+  const current = shells.find((s) => s.id === value) ?? shells[0]
+  return (
+    <MenuRoot>
+      <MenuTrigger className="no-drag flex h-8 w-full items-center gap-2 rounded-[var(--radius-control)] bg-[var(--field)] px-2.5 text-left text-[13px] text-label shadow-[inset_0_0_0_0.5px_var(--separator-strong)] outline-none hover:bg-fill-strong focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)] data-[popup-open]:bg-fill-strong">
+        <span className="flex-1 truncate">{current?.label ?? 'Windows PowerShell'}</span>
+        <ChevronDown size={12} strokeWidth={2.25} aria-hidden className="shrink-0 opacity-60" />
+      </MenuTrigger>
+      <MenuPopup align="start">
+        <MenuRadioGroup value={current?.id ?? value} onChange={(v) => onChange(v as ShellId)}>
+          {shells.map((s) => (
+            <MenuRadioItem key={s.id} value={s.id} label={s.label} detail={s.path} />
+          ))}
+        </MenuRadioGroup>
+      </MenuPopup>
+    </MenuRoot>
   )
 }
 
