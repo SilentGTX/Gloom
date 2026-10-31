@@ -2,6 +2,7 @@ import './styles/app.css'
 import { StrictMode } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
+import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { UpdateScreenAlone } from './features/update/UpdateScreen'
 import { loadUpdateScreen } from './lib/update'
 
@@ -26,7 +27,9 @@ const { App } = await import('./App')
 flushSync(() =>
   root.render(
     <StrictMode>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </StrictMode>
   )
 )

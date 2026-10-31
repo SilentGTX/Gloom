@@ -150,6 +150,35 @@ test('a session whose working folder is gone says so in place of the composer', 
   await expect(page.getByRole('textbox', { name: 'Message' })).toHaveCount(0)
 })
 
+test('the Effort menus open where they appear, and what you pick shows on the button', async () => {
+  await start('two-turns')
+  await openSession()
+  // Opening one once took the whole window with it: Base UI throws for a group label outside its group.
+  const pick = async (button: string, effort: string) => {
+    await page.getByRole('button', { name: button }).click()
+    const group = page.getByRole('menu').getByRole('group', { name: 'Effort' })
+    await expect(group).toBeVisible()
+    await group.getByRole('menuitemradio', { name: effort, exact: true }).click()
+    await expect(page.getByRole('menu')).toHaveCount(0)
+  }
+  await pick('Effort: Default', 'High')
+  await expect(page.getByRole('button', { name: 'Effort: High' })).toBeVisible()
+
+  await triggerShortcut(app, 'CmdOrCtrl+N')
+  const sheet = page.getByRole('dialog', { name: 'New Session' })
+  await expect(sheet).toBeVisible()
+  await pick('Effort: Default', 'Max')
+  await expect(sheet.getByRole('button', { name: 'Effort: Max' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(sheet).toHaveCount(0)
+
+  await triggerShortcut(app, 'CmdOrCtrl+,')
+  const settings = page.getByRole('dialog', { name: 'Settings' })
+  await expect(settings).toBeVisible()
+  await pick('Effort: Default', 'Low')
+  await expect(settings.getByRole('button', { name: 'Effort: Low' })).toBeVisible()
+})
+
 test('New Session starts in a folder you trust, and runs from its first message', async () => {
   const { cwd } = await start('two-turns')
   // The system's folder picker answers with a folder Claude hasn't worked in.

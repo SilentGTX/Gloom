@@ -22,11 +22,11 @@ type Look = 'chip' | 'field'
  * A pop-up button. `chip`: small and quiet, in the composer's bar; `field`:
  * full width with its label beside it, in a form.
  */
-function PopUp({ look, label, value, icon, tooltip, tone, disabled, children }: { look: Look; label: string; value: string; icon: ReactNode; tooltip?: string; tone?: 'warning'; disabled?: boolean; children: ReactNode }) {
+function PopUp({ look, label, value, spoken = value, icon, tooltip, tone, disabled, children }: { look: Look; label: string; value: string; spoken?: string; icon: ReactNode; tooltip?: string; tone?: 'warning'; disabled?: boolean; children: ReactNode }) {
   const trigger = (
     <MenuTrigger
       disabled={disabled}
-      aria-label={`${label}: ${value}`}
+      aria-label={`${label}: ${spoken}`}
       className={cn(
         'no-drag flex min-w-0 items-center gap-1.5 outline-none select-none',
         'transition-[transform,background-color,color] duration-[var(--duration-press)] ease-out focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)] disabled:opacity-35',
@@ -89,10 +89,13 @@ export function effortsFor(model: string | null, models: ModelChoice[]): readonl
 }
 
 export function EffortPicker({ value, efforts, onChange, look = 'chip', disabled }: { value: Effort | null; efforts: readonly Effort[]; onChange(effort: Effort | null): void; look?: Look; disabled?: boolean }) {
+  const name = value ? EFFORT_LABELS[value] : 'Default'
+  // The chip says just "Effort" until you pick one; it's still read out as Default.
   return (
-    <PopUp look={look} label="Effort" value={value ? EFFORT_LABELS[value] : look === 'chip' ? 'Effort' : 'Default'} icon={<Gauge strokeWidth={1.75} />} tooltip={look === 'chip' ? 'How hard Claude thinks' : undefined} disabled={disabled}>
-      <MenuGroupLabel>Effort</MenuGroupLabel>
+    <PopUp look={look} label="Effort" value={look === 'chip' && !value ? 'Effort' : name} spoken={name} icon={<Gauge strokeWidth={1.75} />} tooltip={look === 'chip' ? 'How hard Claude thinks' : undefined} disabled={disabled}>
       <MenuRadioGroup value={value ?? ''} onChange={(v) => onChange(v ? (v as Effort) : null)}>
+        {/* Inside the group it names: Base UI throws for a group label outside a group, which blanked the window. */}
+        <MenuGroupLabel>Effort</MenuGroupLabel>
         <MenuRadioItem value="" label="Default" detail="What the model uses unless told" />
         {efforts.map((e) => (
           <MenuRadioItem key={e} value={e} label={EFFORT_LABELS[e]} />

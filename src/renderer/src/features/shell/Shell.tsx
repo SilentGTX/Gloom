@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
+import { ErrorBoundary } from '../../components/ui/ErrorBoundary'
 import { useOpenSession } from '../../stores/library'
 import { useUi } from '../../stores/ui'
 import { ChatColumn } from '../chat/ChatColumn'
@@ -105,7 +106,9 @@ export function Shell() {
               animate="here"
               exit="away"
             >
-              <SidebarPanel width={ui.sidebarWidth} />
+              <ErrorBoundary part="Sidebar">
+                <SidebarPanel width={ui.sidebarWidth} />
+              </ErrorBoundary>
             </motion.div>
           )}
         </AnimatePresence>
@@ -138,7 +141,9 @@ export function Shell() {
                   initial={TERMINAL.initial}
                   onChange={ui.setTerminalHeight}
                 />
-                <TerminalPane session={session} />
+                <ErrorBoundary part="Terminal" resetKey={session?.id}>
+                  <TerminalPane session={session} />
+                </ErrorBoundary>
               </motion.div>
             )}
           </AnimatePresence>
@@ -150,7 +155,9 @@ export function Shell() {
         <AnimatePresence initial={false} mode="popLayout" custom={paneMotion}>
           {diffInline && (
             <motion.div key="diff" className="relative z-10 shrink-0" style={{ width: diffWidth }} custom={paneMotion} variants={diffVariants} initial="away" animate="here" exit="away">
-              <DiffPane sessionId={session?.id ?? null} clearCaptionButtons />
+              <ErrorBoundary part="Diff" resetKey={session?.id}>
+                <DiffPane sessionId={session?.id ?? null} clearCaptionButtons />
+              </ErrorBoundary>
             </motion.div>
           )}
         </AnimatePresence>
@@ -166,12 +173,16 @@ export function Shell() {
           onClose={(viaKeyboard) => ui.toggleDiff(viaKeyboard, false)}
         >
           <div className="diff-sheet h-full overflow-hidden rounded-[var(--radius-panel)]">
-            <DiffPane sessionId={session?.id ?? null} clearCaptionButtons />
+            <ErrorBoundary part="Diff" resetKey={session?.id}>
+              <DiffPane sessionId={session?.id ?? null} clearCaptionButtons />
+            </ErrorBoundary>
           </div>
         </OverlaySheet>
 
         <OverlaySheet open={sheet} instant={ui.instant} area={{ inset: 0 }} inset={FRAME} width={ui.sidebarWidth} label="Sidebar" onClose={closeSheet}>
-          <SidebarPanel width={ui.sidebarWidth} inSheet />
+          <ErrorBoundary part="Sidebar">
+            <SidebarPanel width={ui.sidebarWidth} inSheet />
+          </ErrorBoundary>
         </OverlaySheet>
       </div>
     </LibraryDnd>

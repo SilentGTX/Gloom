@@ -5,6 +5,7 @@ import { displayTitle, type SessionMeta } from '@shared/library'
 import type { LiveSummary } from '@shared/live'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { ErrorBoundary } from '../../components/ui/ErrorBoundary'
 import { GlassCapsule } from '../../components/ui/Glass'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { runCommand } from '../../lib/commands'
@@ -91,10 +92,11 @@ export function ChatColumn({ session, sidebarShown, clearCaptionButtons }: { ses
         </GlassCapsule>
       </PaneToolbar>
       {session ? (
-        <>
+        // Under the toolbar, which stays usable when a session won't draw.
+        <ErrorBoundary part="Chat" resetKey={session.id}>
           <Transcript sessionId={session.id} live={elsewhere} />
           <Composer key={session.id} sessionId={session.id} meta={session} />
-        </>
+        </ErrorBoundary>
       ) : selection.length > 1 ? (
         <EmptyState icon={<MessagesSquare size={40} strokeWidth={1.25} />} title={`${selection.length} Sessions Selected`}>
           Drag them to a folder, or right-click for more.
