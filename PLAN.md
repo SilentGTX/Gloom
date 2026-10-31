@@ -388,8 +388,8 @@ the cloud on a violet tile and the shimmering title of a running session are out
 (Phase 1's notes and the sidebar's, "After 0.6.2"). Show More and a sidebar that keeps its order
 are out as Gloom 0.6.5, and a fix for clicks lost while a group opens as Gloom 0.6.6. **Phase 4,
 live chat, is out as Gloom 0.7.0** (2026-10-31). **Phases 5 and 6**, the diff and terminal panes,
-then rewind, edit and worktrees, were built the same night at your request and go out together
-as **Gloom 0.8.0**. **Next: Phase 7**, the polish pass, on your OK.
+then rewind, edit and worktrees, were built the same night at your request and are out together
+as **Gloom 0.8.0** (2026-10-31). **Next: Phase 7**, the polish pass, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -844,6 +844,9 @@ disclosure pages; `apple-design` for motion).
      a checkout on another branch, remove, recreate, Working Tree since the base); end-to-end,
      Rewind to Here with Undo, Edit with Esc, and a new session in a worktree with its branch and
      Merge; the opt-in real-CLI test of rewind and edit.
+   - Released with Phase 5 as **Gloom 0.8.0**, after a check of the packaged build: from inside the
+     app archive, the diff pane, a PowerShell in the terminal pane (node-pty from
+     `app.asar.unpacked`; `--smoke-pty` too) and the rewind preview (on the fake claude).
 7. **Polish pass with the skills.** An `apple-hig` and `apple-design` review of every screen, then
    `review-animations`, `animation-performance`, and `break-ui` with worst-case data (500 sessions,
    folders 8 levels deep, 200-character titles, empty folders, your 496 MB transcript). Then reduced
