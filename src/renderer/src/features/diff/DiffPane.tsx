@@ -17,6 +17,7 @@ import { useTranscript } from '../../stores/transcript'
 import { useUi, type DiffTab } from '../../stores/ui'
 import { useHighlight } from '../chat/highlight'
 import { resolveLanguage } from '../chat/languages'
+import { ChangeBadge, Track } from '../concept/parts'
 import { PaneToolbar } from '../shell/Toolbar'
 
 /** Lines per row of the list: a long hunk is several rows, so only what's on screen is drawn. */
@@ -66,11 +67,46 @@ export function DiffPane({ sessionId, clearCaptionButtons }: { sessionId: string
 }
 
 /**
+ * The concept's Changes view: what the session changed as one card per file,
+ * under a header that counts them, with This Session and Working Tree on a
+ * small track. The first file opens; a click opens or closes the others. (The
+ * shell reads the changes while this view or the inspector shows.)
+ */
+export function ChangesView({ sessionId }: { sessionId: string }) {
+  const tab = useUi((s) => s.diffTab)
+  const setTab = useUi((s) => s.setDiffTab)
+  const loaded = useDiff((s) => s[tab]) as Loaded<SessionDiff | TreeDiff>
+  const value = loaded.id === sessionId ? loaded.value : null
+  const files = value && 'files' in value ? value.files : null
+  const { added, removed } = totals(files ?? [])
+  return (
+    <section aria-label="Changes" data-pane="diff" className="concept-changes absolute inset-0 flex flex-col bg-[var(--surface)]">
+      <header className="mx-auto flex w-full max-w-[860px] shrink-0 flex-wrap items-center gap-x-3 gap-y-1 px-8 pt-1.5 pb-2">
+        <h2 className="font-display text-[15px] font-semibold tracking-[-0.01em] text-label">
+          {files ? (files.length ? `${files.length} ${files.length === 1 ? 'File' : 'Files'} Changed` : 'No Changes') : 'Changes'}
+        </h2>
+        {files && files.length > 0 && <Counts added={added} removed={removed} />}
+        <div className="flex-1" />
+        <Track small label="Changes to show" value={tab} segments={SEGMENTS} onChange={(next) => setTab(next)} panel="changes-panel" />
+        <Tooltip label="Refresh" shortcut="F5">
+          <Button aria-label="Refresh" shape="round" size="small" onClick={() => useDiff.getState().load(tab, sessionId, true)}>
+            <RotateCw size={14} strokeWidth={1.75} aria-hidden />
+          </Button>
+        </Tooltip>
+      </header>
+      <div id="changes-panel" role="tabpanel" aria-label={tab === 'session' ? 'This Session' : 'Working Tree'} className="flex min-h-0 flex-1 flex-col">
+        <DiffContent key={`${sessionId}:${tab}`} sessionId={sessionId} tab={tab} cards />
+      </div>
+    </section>
+  )
+}
+
+/**
  * Reads the tab for the session when it shows, and again as things change: a
  * new line in the transcript (an edit landing), a turn ending, coming back to
  * Gloom (you may have changed files elsewhere).
  */
-function useDiffRefresh(sessionId: string | null, tab: DiffTab): void {
+export function useDiffRefresh(sessionId: string | null, tab: DiffTab): void {
   useEffect(() => {
     if (!sessionId) return
     const load = useDiff.getState().load
@@ -99,7 +135,7 @@ function useDiffRefresh(sessionId: string | null, tab: DiffTab): void {
   }, [sessionId, tab])
 }
 
-function DiffContent({ sessionId, tab }: { sessionId: string; tab: DiffTab }) {
+function DiffContent({ sessionId, tab, cards = false }: { sessionId: string; tab: DiffTab; cards?: boolean }) {
   const loaded = useDiff((s) => s[tab]) as Loaded<SessionDiff | TreeDiff>
   const current = loaded.id === sessionId ? loaded : null
   const slow = useDelayed(!current?.value && current?.status !== 'error', 300)
@@ -127,7 +163,7 @@ function DiffContent({ sessionId, tab }: { sessionId: string; tab: DiffTab }) {
         </EmptyState>
       )
     }
-    return <DiffList tab="session" files={files} />
+    return <DiffList tab="session" files={files} cards={cards} />
   }
   const tree = current.value as TreeDiff
   switch (tree.kind) {
@@ -179,7 +215,7 @@ function DiffContent({ sessionId, tab }: { sessionId: string; tab: DiffTab }) {
       </EmptyState>
     )
   }
-  return <DiffList tab="tree" files={tree.files} branch={tree.branch} since={tree.since} truncated={tree.truncated} />
+  return <DiffList tab="tree" files={tree.files} branch={tree.branch} since={tree.since} truncated={tree.truncated} cards={cards} />
 }
 
 // ─── The list ────────────────────────────────────────────────────────────────
@@ -190,12 +226,12 @@ type Item =
   | { kind: 'note'; text: string }
 
 /** Each file's rows under its header: notes, line chunks, and the unchanged lines between hunks. */
-function layoutFiles(files: DiffFile[], folded: ReadonlySet<string>, tab: DiffTab): { counts: number[]; items: Item[] } {
+function layoutFiles(files: DiffFile[], closed: readonly boolean[]): { counts: number[]; items: Item[] } {
   const counts: number[] = []
   const items: Item[] = []
-  for (const file of files) {
+  for (const [f, file] of files.entries()) {
     const before = items.length
-    if (!folded.has(`${tab}:${file.path}`)) {
+    if (!closed[f]) {
       if (file.note) items.push({ kind: 'note', text: file.note })
       file.hunks.forEach((h, i) => {
         const prev = file.hunks[i - 1]
@@ -221,20 +257,36 @@ function layoutFiles(files: DiffFile[], folded: ReadonlySet<string>, tab: DiffTa
   return { counts, items }
 }
 
-function DiffList({ tab, files, branch, since, truncated }: { tab: DiffTab; files: DiffFile[]; branch?: string | null; since?: string; truncated?: boolean }) {
+function DiffList({ tab, files, branch, since, truncated, cards = false }: { tab: DiffTab; files: DiffFile[]; branch?: string | null; since?: string; truncated?: boolean; cards?: boolean }) {
   const folded = useDiff((s) => s.folded)
-  const { counts, items } = useMemo(() => layoutFiles(files, folded, tab), [files, folded, tab])
+  // The pane opens every file; the concept's cards open the first and keep the rest closed, so
+  // there a key in `folded` marks a file turned from how it starts.
+  const keys = useMemo(() => files.map((f) => (cards ? `${tab}:cards:${f.path}` : `${tab}:${f.path}`)), [files, tab, cards])
+  const closed = useMemo(() => keys.map((k, i) => (cards && i > 0 ? !folded.has(k) : folded.has(k))), [keys, folded, cards])
+  const { counts, items } = useMemo(() => layoutFiles(files, closed), [files, closed])
   const [menu, setMenu] = useState<number | null>(null)
-  // Which file each item belongs to, for the item renderer.
-  const fileOf = useMemo(() => {
-    const out: number[] = []
+  // Which file each item belongs to, and the last item of each, for the item renderer.
+  const { fileOf, lastOf } = useMemo(() => {
+    const fileOf: number[] = []
+    const lastOf: boolean[] = []
     counts.forEach((n, f) => {
-      for (let i = 0; i < n; i++) out.push(f)
+      for (let i = 0; i < n; i++) {
+        fileOf.push(f)
+        lastOf.push(i === n - 1)
+      }
     })
-    return out
+    return { fileOf, lastOf }
   }, [counts])
-  const keys = files.map((f) => `${tab}:${f.path}`)
-  const allFolded = keys.every((k) => folded.has(k))
+  const allFolded = closed.every(Boolean)
+  /** Opens or closes these files, whichever way each one starts. */
+  const setOpen = (indexes: number[], open: boolean) => {
+    const marked = (i: number) => (cards && i > 0 ? open : !open)
+    useDiff.getState().setFolded(indexes.filter(marked).map((i) => keys[i]), true)
+    useDiff.getState().setFolded(indexes.filter((i) => !marked(i)).map((i) => keys[i]), false)
+  }
+  const every = files.map((_, i) => i)
+  // Alt-click does every file, as in the pane.
+  const toggle = (f: number, all: boolean) => setOpen(all ? every : [f], closed[f])
   const onContextMenu = (e: MouseEvent<HTMLElement>) => {
     const at = (e.target as HTMLElement).closest<HTMLElement>('[data-file]')?.dataset.file
     setMenu(at === undefined ? null : Number(at))
@@ -245,13 +297,29 @@ function DiffList({ tab, files, branch, since, truncated }: { tab: DiffTab; file
     <ContextMenuRoot onOpenChange={(open) => !open && setMenu(null)}>
       <ContextMenuTrigger onContextMenu={onContextMenu} className="flex min-h-0 flex-1 flex-col">
         <GroupedVirtuoso<unknown, SummaryProps>
-          className="scroll-edge diff-list"
+          className={cn('scroll-edge diff-list', cards && 'concept-file-list')}
           groupCounts={counts}
           increaseViewportBy={600}
           context={{ files, branch: tab === 'tree' ? branch : undefined, since, truncated }}
-          components={LIST_PARTS}
-          groupContent={(f) => <FileHeader file={files[f]} index={f} folded={folded.has(keys[f])} keys={keys} />}
-          itemContent={(i) => <ItemView item={items[i]} file={files[fileOf[i]]} index={fileOf[i]} />}
+          components={cards ? CARD_PARTS : LIST_PARTS}
+          groupContent={(f) =>
+            cards ? (
+              <FileCardHeader file={files[f]} index={f} open={!closed[f]} onToggle={(all) => toggle(f, all)} />
+            ) : (
+              <FileHeader file={files[f]} index={f} folded={closed[f]} onToggle={(all) => toggle(f, all)} />
+            )
+          }
+          itemContent={(i) =>
+            cards ? (
+              <div className="concept-file-row">
+                <div className={cn('concept-file-body', lastOf[i] && 'is-last')}>
+                  <ItemView item={items[i]} file={files[fileOf[i]]} index={fileOf[i]} />
+                </div>
+              </div>
+            ) : (
+              <ItemView item={items[i]} file={files[fileOf[i]]} index={fileOf[i]} />
+            )
+          }
         />
       </ContextMenuTrigger>
       <ContextMenuPopup label={menuFile ? `${menuFile.path} actions` : 'Diff actions'}>
@@ -266,7 +334,7 @@ function DiffList({ tab, files, branch, since, truncated }: { tab: DiffTab; file
             <MenuSeparator />
           </>
         )}
-        <MenuItem label={allFolded ? 'Unfold All' : 'Fold All'} icon={allFolded ? <UnfoldVertical /> : <FoldVertical />} onClick={() => useDiff.getState().setFolded(keys, !allFolded)} />
+        <MenuItem label={allFolded ? 'Unfold All' : 'Fold All'} icon={allFolded ? <UnfoldVertical /> : <FoldVertical />} onClick={() => setOpen(every, allFolded)} />
       </ContextMenuPopup>
     </ContextMenuRoot>
   )
@@ -351,20 +419,19 @@ const STATUS: Record<FileStatus, { label: string; icon: typeof FilePen; tone: st
  * folds or unfolds it (Alt-click does every file), right-click for more. The
  * folder part of the path gives way first, so the file's name always shows.
  */
-const FileHeader = memo(function FileHeader({ file, index, folded, keys }: { file: DiffFile; index: number; folded: boolean; keys: string[] }) {
+const FileHeader = memo(function FileHeader({ file, index, folded, onToggle }: { file: DiffFile; index: number; folded: boolean; onToggle(all: boolean): void }) {
   const status = STATUS[file.status]
   const Icon = status.icon
   const slash = file.path.lastIndexOf('/')
   const dir = slash >= 0 ? file.path.slice(0, slash + 1) : ''
   const name = file.path.slice(slash + 1)
-  const key = keys[index]
   return (
     <div className="diff-file-header" data-file={index}>
       <button
         type="button"
         aria-expanded={!folded}
         aria-label={`${file.path}, ${status.label}${file.from ? `, from ${file.from}` : ''}, ${plural(file.added, 'line')} added, ${file.removed} removed`}
-        onClick={(e) => useDiff.getState().setFolded(e.altKey ? keys : [key], !folded)}
+        onClick={(e) => onToggle(e.altKey)}
         className="no-drag flex h-8 w-full min-w-0 items-center gap-1.5 px-3 text-left outline-none select-none hover:bg-fill active:bg-fill-strong focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent-ring)]"
       >
         <ChevronRight size={12} strokeWidth={2.25} aria-hidden className={cn('shrink-0 text-label-secondary transition-transform duration-[var(--duration-tooltip)] ease-out motion-reduce:transition-none', !folded && 'rotate-90')} />
@@ -378,6 +445,55 @@ const FileHeader = memo(function FileHeader({ file, index, folded, keys }: { fil
     </div>
   )
 })
+
+/**
+ * A file's card header in the concept's Changes view: its badge, its path
+ * (the folder part gives way first), and the lines added and removed. A click
+ * opens or closes the card; Alt-click does every file.
+ */
+function FileCardHeader({ file, index, open, onToggle }: { file: DiffFile; index: number; open: boolean; onToggle(all: boolean): void }) {
+  const slash = file.path.lastIndexOf('/')
+  const dir = slash >= 0 ? file.path.slice(0, slash + 1) : ''
+  const name = file.path.slice(slash + 1)
+  return (
+    <div className={cn('concept-file-row', index > 0 && 'is-spaced')} data-file={index}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={`${file.path}, ${STATUS[file.status].label}${file.from ? `, from ${file.from}` : ''}, ${plural(file.added, 'line')} added, ${file.removed} removed`}
+        onClick={(e) => onToggle(e.altKey)}
+        className={cn('concept-file-head no-drag', open && 'is-open')}
+      >
+        <ChevronRight size={12} strokeWidth={2.25} aria-hidden className="concept-chevron" />
+        <ChangeBadge status={file.status} />
+        <span className="flex min-w-0 flex-1 items-baseline font-mono text-[12.5px]" title={file.from ? `${file.from} → ${file.path}` : file.path}>
+          {dir && <span className="min-w-0 truncate text-label-secondary">{dir}</span>}
+          <span className="shrink-0 text-label">{name}</span>
+        </span>
+        <Counts added={file.added} removed={file.removed} />
+      </button>
+    </div>
+  )
+}
+
+/** The cards' own parts: the branch above the files (Working Tree), room under the last. */
+const CARD_PARTS = {
+  Scroller,
+  Header: ({ context }: { context: SummaryProps }) =>
+    context.branch || context.truncated ? (
+      <div className="concept-file-row pb-2 text-footnote text-label-secondary">
+        {context.branch && (
+          <span className="flex min-w-0 items-center gap-1">
+            <GitBranch size={13} strokeWidth={2} aria-hidden className="shrink-0" />
+            <span className="truncate font-medium text-label">{context.branch}</span>
+            {context.since && <span className="shrink-0">since {context.since}</span>}
+          </span>
+        )}
+        {context.truncated && <p>Too much changed to show every line: files are listed with their counts.</p>}
+      </div>
+    ) : null,
+  Footer: () => <div className="h-10" />
+}
 
 /** A language from a file's name: its extension, or the name itself (Dockerfile, Makefile). */
 function languageOf(path: string): string | undefined {

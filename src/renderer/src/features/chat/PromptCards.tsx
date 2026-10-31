@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { createContext, forwardRef, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'motion/react'
 import { Check, ChevronDown, ClipboardList, FilePen, FileText, Globe, MessageCircleQuestion, Search, SquareTerminal, Wrench } from 'lucide-react'
 import { MODES, modeInfo, type CardAnswer, type LiveSummary, type ModeId, type PermissionCard, type PlanCard, type PromptCard, type QuestionCard } from '@shared/live'
@@ -6,59 +6,89 @@ import { Button } from '../../components/ui/Button'
 import { MenuPopup, MenuRadioGroup, MenuRadioItem, MenuRoot, MenuTrigger, MenuItem } from '../../components/ui/Menu'
 import { cn } from '../../lib/cn'
 import { useLive } from '../../stores/live'
+import { startNoting, stopNoting } from '../concept/noting'
 import { Markdown } from './Markdown'
 
 /** An answer from the keyboard snaps the card away; one from the pointer lets it go back into the composer. */
 let answeredByKeyboard = false
 
 /**
- * Claude asking you something: a permission, its plan, or its own questions.
- * One card at a time, above the composer, where your answer goes; Enter
- * answers with the default, Esc declines. More waiting say so.
+ * How a card is drawn: in glass above the composer (classic), or in the
+ * concept, as a card of content at the foot of the conversation, its symbol
+ * on an accent tile and its keys beside its buttons.
  */
-export function PromptCards({ sessionId, summary }: { sessionId: string; summary: LiveSummary }) {
+const CardLook = createContext<{ inline: boolean; sessionId: string }>({ inline: false, sessionId: '' })
+
+/**
+ * Claude asking you something: a permission, its plan, or its own questions.
+ * One card at a time, above the composer, where your answer goes (in the
+ * concept, at the end of the conversation); Enter answers with the default,
+ * Esc declines. More waiting say so.
+ */
+export function PromptCards({ sessionId, summary, inline = false }: { sessionId: string; summary: LiveSummary; inline?: boolean }) {
   const reduce = useReducedMotion()
   const card = summary.cards[0]
   const more = summary.cards.length - 1
   const answer = (a: CardAnswer, viaKeyboard: boolean) => {
     answeredByKeyboard = viaKeyboard
+    stopNoting()
     void useLive.getState().answer(sessionId, a)
   }
+  const look = useMemo(() => ({ inline, sessionId }), [inline, sessionId])
   // A card answered leaves the layout at once (popLayout): the next one takes its place while it goes.
   return (
-    <AnimatePresence initial={false} mode="popLayout">
-      {card && (
-        <CardShell key={card.requestId} label={card.kind === 'permission' ? 'Permission request' : card.kind === 'plan' ? 'Plan for review' : 'Question from Claude'} reduce={!!reduce}>
-          {card.kind === 'permission' && <Permission card={card} onAnswer={answer} />}
-          {card.kind === 'plan' && <Plan card={card} onAnswer={answer} />}
-          {card.kind === 'question' && <Questions card={card} onAnswer={answer} />}
-          {more > 0 && <p className="px-4 pb-3 text-[11.5px] text-label-secondary">{more === 1 ? 'One more request waits after this one.' : `${more} more requests wait after this one.`}</p>}
-        </CardShell>
-      )}
-    </AnimatePresence>
+    <CardLook.Provider value={look}>
+      <AnimatePresence initial={false} mode="popLayout">
+        {card && (
+          <CardShell key={card.requestId} label={card.kind === 'permission' ? 'Permission request' : card.kind === 'plan' ? 'Plan for review' : 'Question from Claude'} reduce={!!reduce} inline={inline}>
+            {card.kind === 'permission' && <Permission card={card} onAnswer={answer} />}
+            {card.kind === 'plan' && <Plan card={card} onAnswer={answer} />}
+            {card.kind === 'question' && <Questions card={card} onAnswer={answer} />}
+            {more > 0 && <p className="px-4 pb-3 text-[11.5px] text-label-secondary">{more === 1 ? 'One more request waits after this one.' : `${more} more requests wait after this one.`}</p>}
+          </CardShell>
+        )}
+      </AnimatePresence>
+    </CardLook.Provider>
   )
 }
 
-/** The card's glass. It rises out of the composer and goes back into it; once answered it can't be reached. */
-const CardShell = forwardRef<HTMLElement, { label: string; reduce: boolean; children: ReactNode }>(function CardShell({ label, reduce, children }, ref) {
+/**
+ * The card's glass. It rises out of the composer and goes back into it; once
+ * answered it can't be reached. Inline (the concept) it's a card on the page
+ * that settles 10 px down as it goes.
+ */
+const CardShell = forwardRef<HTMLElement, { label: string; reduce: boolean; inline: boolean; children: ReactNode }>(function CardShell({ label, reduce, inline, children }, ref) {
   const present = useIsPresent()
+  const lift = inline ? 10 : 14
   return (
     <motion.section
       ref={ref}
       aria-label={label}
       inert={!present}
       aria-hidden={!present || undefined}
-      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.98 }}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: lift, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={answeredByKeyboard ? { opacity: 0, transition: { duration: 0 } } : reduce ? { opacity: 0, transition: { duration: 0.15 } } : { opacity: 0, y: 14, scale: 0.98, transition: { duration: 0.16, ease: [0.23, 1, 0.32, 1] } }}
+      exit={answeredByKeyboard ? { opacity: 0, transition: { duration: 0 } } : reduce ? { opacity: 0, transition: { duration: 0.15 } } : { opacity: 0, y: lift, scale: 0.98, transition: { duration: 0.16, ease: [0.23, 1, 0.32, 1] } }}
       transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
       style={{ transformOrigin: '50% 100%' }}
-      className="glass-strong prompt-card flex max-h-[min(62vh,620px)] flex-col rounded-[18px] text-label"
+      className={cn(
+        'prompt-card flex flex-col text-label',
+        inline ? 'concept-ask max-h-[min(70vh,680px)]' : 'glass-strong max-h-[min(62vh,620px)] rounded-[18px]'
+      )}
     >
       <div className="relative z-[2] flex min-h-0 flex-1 flex-col">{children}</div>
     </motion.section>
   )
 })
+
+/** A key that answers the card, beside its button (Esc, ↩), in the concept. */
+function KeyHint({ children }: { children: ReactNode }) {
+  return useContext(CardLook).inline ? (
+    <span aria-hidden className="text-[11px] font-normal opacity-70">
+      {children}
+    </span>
+  ) : null
+}
 
 type Answer = (answer: CardAnswer, viaKeyboard: boolean) => void
 
@@ -75,9 +105,17 @@ function useCardKeys(primary: React.RefObject<HTMLButtonElement | null>) {
 }
 
 function Header({ icon, title, subtitle }: { icon: ReactNode; title: string; subtitle?: string | null }) {
+  const { inline } = useContext(CardLook)
   return (
-    <header className="flex items-start gap-2.5 px-4 pt-3.5">
-      <span className="mt-[1px] flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-fill-strong text-label [&>svg]:size-[14px]" aria-hidden>
+    <header className={cn('flex items-start gap-2.5 px-4', inline ? 'pt-4' : 'pt-3.5')}>
+      <span
+        className={cn(
+          'mt-[1px] flex size-6 shrink-0 items-center justify-center rounded-[7px] [&>svg]:size-[14px]',
+          // The concept's one coloured tile: Claude asking.
+          inline ? 'bg-accent text-white' : 'bg-fill-strong text-label'
+        )}
+        aria-hidden
+      >
         {icon}
       </span>
       <div className="min-w-0 flex-1">
@@ -89,8 +127,9 @@ function Header({ icon, title, subtitle }: { icon: ReactNode; title: string; sub
 }
 
 function Actions({ children, start }: { children: ReactNode; start?: ReactNode }) {
+  const { inline } = useContext(CardLook)
   return (
-    <footer className="flex flex-wrap items-center gap-2 px-4 pt-2 pb-3.5">
+    <footer className={cn('flex flex-wrap items-center gap-2 px-4', inline ? 'pt-3 pb-4' : 'pt-2 pb-3.5')}>
       {start}
       <div className="flex-1" />
       {children}
@@ -221,6 +260,9 @@ function Permission({ card, onAnswer }: { card: PermissionCard; onAnswer: Answer
   const deny = useRef<HTMLButtonElement>(null)
   const [noting, setNoting] = useState(false)
   const [note, setNote] = useState('')
+  const { inline, sessionId } = useContext(CardLook)
+  // The concept takes the note in the composer, where you write to Claude anyway.
+  const tell = () => (inline ? startNoting({ sessionId, requestId: card.requestId }) : setNoting(true))
   useCardKeys(card.defaultToNo ? deny : allow)
   // The CLI's description often repeats what the title or the preview already says ("hello.txt"): then it goes.
   const said = [str(card.input.description), base(str(card.input.file_path))].filter(Boolean)
@@ -260,9 +302,10 @@ function Permission({ card, onAnswer }: { card: PermissionCard; onAnswer: Answer
           <>
             <Button ref={deny} size="text" tone="secondary" onClick={(e) => answer('deny', e.detail === 0)}>
               {noting && note.trim() ? 'Deny and Tell Claude' : 'Deny'}
+              <KeyHint>Esc</KeyHint>
             </Button>
             {!noting && (
-              <Button size="text" className="text-accent-text" onClick={() => setNoting(true)}>
+              <Button size="text" className="concept-tell text-accent-text" onClick={tell}>
                 Tell Claude What to Do…
               </Button>
             )}
@@ -289,6 +332,7 @@ function Permission({ card, onAnswer }: { card: PermissionCard; onAnswer: Answer
         )}
         <Button ref={allow} size="text" tone="primary" onClick={(e) => answer('once', e.detail === 0)}>
           Allow Once
+          {!card.defaultToNo && <KeyHint>↩</KeyHint>}
         </Button>
       </Actions>
       {card.always.length === 1 && <p className="-mt-2 px-4 pb-3 text-right text-[11px] text-label-secondary">{card.always[0].detail}</p>}

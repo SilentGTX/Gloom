@@ -16,6 +16,10 @@ export const IPC = {
   revealSession: 'library:reveal',
   /** invoke(sessionId): copies the session ID to the clipboard */
   copySessionId: 'library:copy-id',
+  /** invoke(sessionId) → boolean: opens its working folder in the code editor (else File Explorer); false if it's gone */
+  openInEditor: 'library:open-in-editor',
+  /** invoke → string | null: the code editor a folder opens in, by name (VS Code, when it's installed) */
+  editorName: 'library:editor-name',
   /** invoke → string | null: a folder chosen in the system's folder picker */
   pickFolder: 'library:pick-folder',
   /** invoke(TranscriptRequest) → TranscriptPage */

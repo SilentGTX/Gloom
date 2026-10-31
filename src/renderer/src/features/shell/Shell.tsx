@@ -4,16 +4,15 @@ import { ErrorBoundary } from '../../components/ui/ErrorBoundary'
 import { useOpenSession } from '../../stores/library'
 import { useUi } from '../../stores/ui'
 import { ChatColumn } from '../chat/ChatColumn'
-import { DiffPane } from '../diff/DiffPane'
+import { Inspector } from '../concept/Inspector'
+import { DiffPane, useDiffRefresh } from '../diff/DiffPane'
 import { LibraryDnd } from '../library/drag'
 import { SidebarPanel } from '../sidebar/Sidebar'
 import { TerminalPane } from '../terminal/TerminalPane'
-import { CHAT_MIN, CHAT_MIN_BESIDE_DIFF, CHAT_MIN_HEIGHT, computeLayout, DIFF, SIDEBAR, TERMINAL } from './layout'
+import { CHAT_MIN, CHAT_MIN_BESIDE_DIFF, CHAT_MIN_HEIGHT, computeLayout, DIFF, FRAME, INSPECTOR, inspectorFits, SIDEBAR, TERMINAL } from './layout'
 import { OverlaySheet } from './OverlaySheet'
 import { Splitter } from './Splitter'
 
-/** The sidebar floats this far inside the window's edges. */
-const FRAME = 8
 /** A show or hide this recent was yours; later layout changes come from resizing the window and don't slide. */
 const TOGGLE_MS = 600
 
@@ -39,12 +38,17 @@ function paneTransition(slides: boolean, reduce: boolean | null): Transition {
  * toolbar floating over its top, the terminal pane under it, and the diff pane
  * beside it on the trailing side. A narrow window folds the sidebar into a
  * sheet, and lets the diff pane float over the chat.
+ *
+ * The concept design keeps the sidebar and the chat, turns the terminal and
+ * diff panes into views of the chat, and puts an inspector on the trailing
+ * side instead: beside the chat while it keeps 640 px, a sheet over it below that.
  */
 export function Shell() {
   const { width, height } = useWindowSize()
   const ui = useUi()
   const reduce = useReducedMotion()
   const session = useOpenSession()
+  const concept = ui.design === 'concept'
   // Bigger text lets the sidebar go wider (deep folders and long titles stay readable); back at
   // the usual size it narrows again, and the wider choice waits for the bigger text.
   const widest = SIDEBAR.max * Math.max(1, ui.textScale)
@@ -68,10 +72,20 @@ export function Shell() {
 
   // The diff pane sits beside the chat while the chat keeps 560 px; narrower, it floats over it.
   const diffMax = Math.max(DIFF.min, Math.min(DIFF.max, width - sidebarSpace - CHAT_MIN_BESIDE_DIFF))
-  const diffInline = ui.diffOpen && width - sidebarSpace - DIFF.min >= CHAT_MIN_BESIDE_DIFF
+  const diffInline = !concept && ui.diffOpen && width - sidebarSpace - DIFF.min >= CHAT_MIN_BESIDE_DIFF
   const diffWidth = Math.min(ui.diffWidth, diffMax)
   const terminalMax = Math.max(TERMINAL.min, height - CHAT_MIN_HEIGHT - 48)
   const terminalHeight = Math.min(ui.terminalHeight, terminalMax)
+
+  // The concept's inspector, and the changes it lists (read while it or the Changes view shows).
+  const inspectorRoom = inspectorFits(width, { sidebarWidth, sidebarHidden: ui.sidebarHidden })
+  const inspectorInline = concept && ui.inspectorOpen && inspectorRoom
+  const inspectorSheet = concept && ui.inspectorSheet && !inspectorRoom
+  const { settleInspector } = ui
+  useEffect(() => {
+    if (concept && inspectorRoom) settleInspector()
+  }, [concept, inspectorRoom, settleInspector])
+  useDiffRefresh(concept && (inspectorInline || inspectorSheet || ui.view === 'changes') ? (session?.id ?? null) : null, ui.diffTab)
 
   // Shown or hidden with the pointer, the sidebar slides in and out along the
   // same path, past its own width so the shadow goes too; from the keyboard it
@@ -87,6 +101,10 @@ export function Shell() {
   }
   const diffVariants = {
     away: (t: Transition) => ({ ...(reduce ? { opacity: 0 } : { x: diffWidth + 24 }), transition: t }),
+    here: (t: Transition) => ({ ...(reduce ? { opacity: 1 } : { x: 0 }), transition: t })
+  }
+  const inspectorVariants = {
+    away: (t: Transition) => ({ ...(reduce ? { opacity: 0 } : { x: INSPECTOR.width + 24 }), transition: t }),
     here: (t: Transition) => ({ ...(reduce ? { opacity: 1 } : { x: 0 }), transition: t })
   }
   const terminalVariants = {
@@ -121,9 +139,9 @@ export function Shell() {
         )}
 
         <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-          <ChatColumn session={session} sidebarShown={sidebarInline || sheet} clearCaptionButtons={!diffInline} />
+          <ChatColumn session={session} sidebarShown={sidebarInline || sheet} clearCaptionButtons={concept ? !inspectorInline : !diffInline} />
           <AnimatePresence initial={false} mode="popLayout" custom={paneMotion}>
-            {ui.terminalOpen && (
+            {!concept && ui.terminalOpen && (
               <motion.div
                 key="terminal"
                 className="relative z-10 flex shrink-0 flex-col"
@@ -164,10 +182,26 @@ export function Shell() {
               </ErrorBoundary>
             </motion.div>
           )}
+          {inspectorInline && (
+            <motion.div
+              key="inspector"
+              className="relative z-10 shrink-0"
+              style={{ width: INSPECTOR.width }}
+              custom={paneMotion}
+              variants={inspectorVariants}
+              initial="away"
+              animate="here"
+              exit="away"
+            >
+              <ErrorBoundary part="Inspector" resetKey={session?.id}>
+                <Inspector session={session} clearCaptionButtons />
+              </ErrorBoundary>
+            </motion.div>
+          )}
         </AnimatePresence>
 
         <OverlaySheet
-          open={ui.diffOpen && !diffInline}
+          open={!concept && ui.diffOpen && !diffInline}
           instant={ui.paneInstant}
           area={{ inset: 0 }}
           inset={FRAME}
@@ -179,6 +213,23 @@ export function Shell() {
           <div className="diff-sheet h-full overflow-hidden rounded-[var(--radius-panel)]">
             <ErrorBoundary part="Diff" resetKey={session?.id}>
               <DiffPane sessionId={session?.id ?? null} clearCaptionButtons />
+            </ErrorBoundary>
+          </div>
+        </OverlaySheet>
+
+        <OverlaySheet
+          open={inspectorSheet}
+          instant={ui.paneInstant}
+          area={{ inset: 0 }}
+          inset={FRAME}
+          width={Math.min(INSPECTOR.width, width - FRAME * 2 - 48)}
+          side="right"
+          label="Inspector"
+          onClose={(viaKeyboard) => ui.toggleInspector(viaKeyboard, false)}
+        >
+          <div className="concept-sheet h-full overflow-hidden">
+            <ErrorBoundary part="Inspector" resetKey={session?.id}>
+              <Inspector session={session} clearCaptionButtons={false} />
             </ErrorBoundary>
           </div>
         </OverlaySheet>

@@ -4,7 +4,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { SmartFolder } from '@shared/library'
-import { computeLayout, DIFF, SIDEBAR, TERMINAL, type ColumnPrefs } from '../features/shell/layout'
+import { computeLayout, DIFF, inspectorFits, SIDEBAR, TERMINAL, type ColumnPrefs } from '../features/shell/layout'
 import { SHOWN_STEP } from '../features/sidebar/tree'
 
 /** Up to 200%, Apple's floor for "support larger text". */
@@ -14,6 +14,13 @@ export type { SmartFolder }
 export type SortOrder = 'activity' | 'name' | 'created'
 /** The diff pane's two tabs: Claude's edits in this session, or what git sees. */
 export type DiffTab = 'session' | 'tree'
+/**
+ * Gloom's look, while you try the concept: a quiet neutral window with an
+ * inspector beside the chat, or the classic dusk with its panes. View › Design.
+ */
+export type Design = 'concept' | 'classic'
+/** What the chat shows in the concept design: the conversation, the session's changes, or its terminal. */
+export type ChatView = 'conversation' | 'changes' | 'terminal'
 
 /** What's being renamed in place. */
 export type Renaming = { kind: 'folder' | 'session'; id: string } | null
@@ -53,6 +60,13 @@ interface UiState extends ColumnPrefs {
   /** The diff or terminal pane was last shown or hidden from the keyboard, and when: like the sidebar's. */
   paneInstant: boolean
   paneToggledAt: number
+  design: Design
+  /** The concept's segmented control: what the chat shows. Not kept: Gloom opens on the conversation. */
+  view: ChatView
+  /** The concept's inspector, beside the chat. It slides like the panes. */
+  inspectorOpen: boolean
+  /** The inspector slid in as a sheet over the chat, in a window too narrow for it. Not kept. */
+  inspectorSheet: boolean
 
   setSidebarWidth(width: number): void
   toggleDiff(viaKeyboard: boolean, open?: boolean): void
@@ -81,6 +95,12 @@ interface UiState extends ColumnPrefs {
   rename(renaming: Renaming): void
   setInfo(open: boolean): void
   revealRow(key: string | null): void
+  setDesign(design: Design): void
+  setView(view: ChatView): void
+  /** Beside the chat when the window has room for it, else as a sheet over it. */
+  toggleInspector(viaKeyboard: boolean, open?: boolean): void
+  /** The window grew wide enough: an inspector sheet becomes the column. */
+  settleInspector(): void
 }
 
 export const useUi = create<UiState>()(
@@ -112,6 +132,11 @@ export const useUi = create<UiState>()(
         terminalHeight: TERMINAL.initial,
         paneInstant: false,
         paneToggledAt: 0,
+        // You asked for the concept: it's what Gloom opens in, and Classic is one click back.
+        design: 'concept',
+        view: 'conversation',
+        inspectorOpen: true,
+        inspectorSheet: false,
 
         setSidebarWidth: (width) => set({ sidebarWidth: width }),
         toggleDiff: (viaKeyboard, open) => {
@@ -166,7 +191,23 @@ export const useUi = create<UiState>()(
         select: (ids) => set({ selection: ids }),
         rename: (renaming) => set({ renaming }),
         setInfo: (open) => set({ info: open }),
-        revealRow: (key) => set({ reveal: key })
+        revealRow: (key) => set({ reveal: key }),
+        setDesign: (design) => set({ design, view: 'conversation', info: false }),
+        setView: (view) => set({ view }),
+        toggleInspector: (viaKeyboard, open) => {
+          const s = get()
+          const moved = { paneInstant: viaKeyboard, paneToggledAt: Date.now() }
+          if (inspectorFits(window.innerWidth, s)) {
+            const next = open ?? !s.inspectorOpen
+            if (next !== s.inspectorOpen || s.inspectorSheet) set({ inspectorOpen: next, inspectorSheet: false, ...moved })
+          } else {
+            const next = open ?? !s.inspectorSheet
+            if (next !== s.inspectorSheet) set({ inspectorSheet: next, ...moved })
+          }
+        },
+        settleInspector: () => {
+          if (get().inspectorSheet) set({ inspectorSheet: false, inspectorOpen: true, paneInstant: true })
+        }
       }
     },
     {
@@ -182,6 +223,8 @@ export const useUi = create<UiState>()(
         terminalHeight: s.terminalHeight,
         textScale: s.textScale,
         glassAlways: s.glassAlways,
+        design: s.design,
+        inspectorOpen: s.inspectorOpen,
         sort: s.sort,
         openSmart: s.openSmart,
         // The open session comes back after a restart (an update, say).

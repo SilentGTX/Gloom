@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
 import { TooltipProvider } from './components/ui/Tooltip'
+import { useFinishedTracking } from './features/concept/finished'
 import { Palette } from './features/palette/Palette'
 import { SessionsSheetsHost } from './features/sessions/SheetsHost'
 import { Shell } from './features/shell/Shell'
@@ -28,8 +29,10 @@ export function App() {
   useEffect(() => startScreens(), [])
   useWaitingBadge()
   useSessionVisits()
+  useFinishedTracking()
   const textScale = useUi((s) => s.textScale)
   const glassAlways = useUi((s) => s.glassAlways)
+  const design = useUi((s) => s.design)
   const updateScreen = useUpdateScreen()
   const palette = usePalette((s) => s.open)
   useEffect(() => {
@@ -38,6 +41,10 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.glass = glassAlways ? 'on' : 'auto'
   }, [glassAlways])
+  // Before paint, so the first frame is already in the look you chose.
+  useLayoutEffect(() => {
+    document.documentElement.dataset.design = design
+  }, [design])
 
   return (
     <TooltipProvider>

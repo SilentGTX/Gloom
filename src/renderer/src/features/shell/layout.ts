@@ -11,6 +11,12 @@ export const CHAT_MIN_BESIDE_DIFF = 560
 export const TERMINAL = { min: 120, initial: 260 }
 /** The chat keeps at least this much height above the terminal. */
 export const CHAT_MIN_HEIGHT = 220
+/** The sidebar floats this far inside the window's edges. */
+export const FRAME = 8
+/** The concept's inspector, beside the chat on the trailing side. */
+export const INSPECTOR = { width: 300 }
+/** Narrower than this beside the inspector (a window under about 1240 px), the chat lets it float over it. */
+export const CHAT_MIN_BESIDE_INSPECTOR = 640
 
 export interface ColumnPrefs {
   sidebarWidth: number
@@ -32,4 +38,10 @@ export function computeLayout(width: number, p: ColumnPrefs): Layout {
 /** Whether the diff pane fits beside the chat, given what the sidebar takes. */
 export function diffFits(width: number, sidebarColumn: number, diffWidth: number): boolean {
   return width - sidebarColumn - diffWidth >= CHAT_MIN_BESIDE_DIFF
+}
+
+/** Whether the concept's inspector fits beside the chat, given what the sidebar takes. */
+export function inspectorFits(width: number, p: ColumnPrefs): boolean {
+  const sidebarColumn = computeLayout(width, p).sidebarInline ? p.sidebarWidth + FRAME * 2 : 0
+  return width - sidebarColumn - INSPECTOR.width >= CHAT_MIN_BESIDE_INSPECTOR
 }

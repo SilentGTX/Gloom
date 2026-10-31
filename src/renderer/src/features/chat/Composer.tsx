@@ -9,6 +9,8 @@ import { setComposerSpace } from '../../lib/composer-space'
 import { useNow } from '../../lib/now'
 import { notify } from '../../lib/toast'
 import { isBusy, useElsewhere, useLive, type Draft, type DraftImage } from '../../stores/live'
+import { stopNoting, useNoting } from '../concept/noting'
+import { useConcept } from '../concept/parts'
 import { ContextMeter } from './ContextMeter'
 import { insertMention, mentionAt, prepareFiles, rankFiles, type PreparedFiles } from './mentions'
 import { EffortPicker, effortsFor, ModelPicker, ModePicker } from './pickers'
@@ -73,6 +75,7 @@ async function attach(sessionId: string, files: File[]): Promise<void> {
 export function Composer({ sessionId, meta }: { sessionId: string; meta: SessionMeta | undefined }) {
   const stack = useRef<HTMLDivElement>(null)
   const summary = useLive((s) => s.sessions[sessionId])
+  const concept = useConcept()
   const claude = useLive((s) => s.claude)
   const now = useNow(5_000)
   const elsewhere = useElsewhere(meta, now) && !isBusy(summary)
@@ -123,10 +126,11 @@ export function Composer({ sessionId, meta }: { sessionId: string; meta: Session
         : undefined
 
   return (
-    <div ref={stack} data-pane="composer" className="pointer-events-none absolute inset-x-0 bottom-0 z-[4] px-4 pb-4 @[560px]:px-6">
+    <div ref={stack} data-pane="composer" className={cn('pointer-events-none absolute inset-x-0 bottom-0 z-[4] px-4 @[560px]:px-6', concept ? 'pb-5' : 'pb-4')}>
       <div className="composer-edge" aria-hidden />
       <div className="pointer-events-auto relative mx-auto flex w-full max-w-[720px] flex-col gap-2">
-        {summary && <PromptCards sessionId={sessionId} summary={summary} />}
+        {/* The concept puts Claude's requests at the end of the conversation instead. */}
+        {summary && !concept && <PromptCards sessionId={sessionId} summary={summary} />}
         {can && !can.ok ? (
           <Notice icon={<CircleAlert size={15} strokeWidth={1.75} />} text={can.reason} path={can.path} action={action(can.kind)} />
         ) : elsewhere ? (
@@ -277,6 +281,14 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
   const [dragging, setDragging] = useState(false)
   const busy = isBusy(summary)
   const canSend = ready && (!!draft.text.trim() || draft.images.length > 0)
+  // "Tell Claude What to Do…" on the concept's card: what you write here denies the request with it.
+  const noting = useNoting((s) => (s.card?.sessionId === sessionId && summary?.cards.some((c) => c.requestId === s.card?.requestId) ? s.card : null))
+  const concept = useConcept()
+  useEffect(() => {
+    // The card went (answered, or the turn stopped): the box is for messages again.
+    const card = useNoting.getState().card
+    if (card?.sessionId === sessionId && !noting) stopNoting()
+  }, [noting, sessionId])
 
   const model = summary ? summary.model : settings.model
   const mode = summary?.mode ?? settings.mode
@@ -331,6 +343,14 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
   const setText = (text: string) => useLive.getState().setDraft(sessionId, { ...useLive.getState().draft(sessionId), text })
   const send = () => {
     if (!canSend) return
+    if (noting) {
+      const note = draft.text.trim()
+      if (!note) return
+      stopNoting()
+      setText('')
+      void useLive.getState().answer(sessionId, { kind: 'permission', requestId: noting.requestId, decision: 'deny', note })
+      return
+    }
     void useLive.getState().send(sessionId)
   }
   const stop = () => void useLive.getState().stop(sessionId)
@@ -378,6 +398,10 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       send()
+    } else if (e.key === 'Escape' && noting) {
+      // Back to writing a message; the card still waits.
+      e.preventDefault()
+      stopNoting()
     } else if (e.key === 'Escape' && busy) {
       e.preventDefault()
       stop()
@@ -408,7 +432,7 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
 
   return (
     <div
-      className={cn('composer glass-strong relative rounded-[20px] transition-shadow duration-[var(--duration-menu)]', dragging && 'is-dropping')}
+      className={cn('composer relative rounded-[20px] transition-shadow duration-[var(--duration-menu)]', concept ? 'concept-composer' : 'glass-strong', dragging && 'is-dropping')}
       onDragOver={(e) => {
         if (![...e.dataTransfer.types].includes('Files')) return
         e.preventDefault()
@@ -445,8 +469,8 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
           onBlur={() => setCaret(null)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          placeholder={summary?.state === 'new' ? 'What should Claude do?' : 'Message Claude'}
-          aria-label="Message"
+          placeholder={noting ? 'Tell Claude what to do instead' : summary?.state === 'new' ? 'What should Claude do?' : 'Message Claude'}
+          aria-label={noting ? 'What Claude should do instead' : 'Message'}
           aria-autocomplete={slash !== null || mention !== null ? 'list' : undefined}
           aria-controls={menuOpen ? 'slash-commands' : filesOpen ? 'mention-files' : undefined}
           aria-activedescendant={menuOpen ? `slash-commands-${highlight}` : filesOpen ? `mention-files-${highlight}` : undefined}
@@ -472,10 +496,10 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
               </Button>
             </Tooltip>
           )}
-          <Tooltip label={busy ? 'Send When Claude Finishes' : 'Send'} shortcut="Enter">
+          <Tooltip label={noting ? 'Deny, and Tell Claude This' : busy ? 'Send When Claude Finishes' : 'Send'} shortcut="Enter">
             <button
               type="button"
-              aria-label={busy ? 'Send when Claude finishes' : 'Send'}
+              aria-label={noting ? 'Deny, and tell Claude this' : busy ? 'Send when Claude finishes' : 'Send'}
               disabled={!canSend}
               onClick={send}
               className="no-drag ml-1 flex size-[28px] shrink-0 items-center justify-center rounded-full bg-[var(--signal)] text-white outline-none transition-[transform,opacity,filter] duration-[var(--duration-press)] ease-out enabled:hover:brightness-110 enabled:active:scale-[0.92] disabled:opacity-30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-ring)] motion-reduce:enabled:active:scale-100"

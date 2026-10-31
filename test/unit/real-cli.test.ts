@@ -33,7 +33,8 @@ describe.skipIf(!process.env.GLOOM_REAL_CLI)('against your real claude.exe (spen
         settled: () => {},
         attention: () => {},
         rateLimit: () => {},
-        models: () => {}
+        models: () => {},
+        account: () => {}
       },
       () => true
     )
@@ -99,7 +100,8 @@ describe.skipIf(!process.env.GLOOM_REAL_CLI)('against your real claude.exe (spen
         settled: () => {},
         attention: () => {},
         rateLimit: () => {},
-        models: () => {}
+        models: () => {},
+        account: () => {}
       },
       () => false
     )

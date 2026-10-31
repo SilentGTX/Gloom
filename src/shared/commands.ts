@@ -68,6 +68,9 @@ export const COMMANDS = [
   { id: 'view.textSmaller', label: 'Smaller Text', group: 'view', accelerator: 'CmdOrCtrl+-', runs: 'renderer', keywords: 'zoom font size' },
   { id: 'view.textReset', label: 'Default Text Size', group: 'view', accelerator: 'CmdOrCtrl+0', runs: 'renderer', keywords: 'zoom font' },
   { id: 'view.toggleGlass', label: 'Always Show Glass', group: 'view', runs: 'renderer' },
+  // Gloom's look while you try the concept: a quiet neutral window with an inspector, or the classic dusk.
+  { id: 'view.designConcept', label: 'Concept', group: 'view', submenu: 'Design', runs: 'renderer', keywords: 'look redesign new' },
+  { id: 'view.designClassic', label: 'Classic', group: 'view', submenu: 'Design', runs: 'renderer', keywords: 'look dusk old' },
   { id: 'view.fullScreen', label: 'Full Screen', group: 'view', accelerator: 'F11', runs: 'main' },
   { id: 'help.checkUpdates', label: 'Check for Updates…', group: 'help', runs: 'main', keywords: 'version upgrade' },
   { id: 'help.smokeTest', label: 'Run Packaging Smoke Test', group: 'help', runs: 'main' },

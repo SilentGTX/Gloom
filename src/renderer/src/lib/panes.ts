@@ -4,7 +4,7 @@
 // showing is skipped. From a toolbar between panes, F6 goes on to the next one.
 // Tab still walks the controls inside a pane.
 
-const PANES = ['sidebar', 'transcript', 'composer', 'diff', 'terminal'] as const
+const PANES = ['sidebar', 'transcript', 'composer', 'diff', 'terminal', 'inspector'] as const
 type Pane = (typeof PANES)[number]
 
 const shown = (el: Element) => el.getClientRects().length > 0 && !el.closest('[inert]')
@@ -34,6 +34,8 @@ function entry(pane: Pane, root: HTMLElement): HTMLElement | null {
       return first('[aria-label="Changes"]', '[role="tab"][aria-selected="true"]')
     case 'terminal':
       return first('textarea', 'button')
+    case 'inspector':
+      return first('button:not([disabled])')
   }
 }
 

@@ -91,7 +91,8 @@ test('a packaged build opens a session, its panes and its keyboard', async () =>
   // A profile an earlier Gloom ran in: its settings under file:// (by Electron
   // itself, as storage.spec.ts does) and its window's place.
   const profile = tempDir('gloom-packaged-profile-')
-  const ui = { state: { sidebarWidth: 300, sidebarHidden: false, textScale: 1.0625, glassAlways: false, sort: 'created', openSmart: [], selection: [] }, version: 4 }
+  // In the classic design, which the steps below were written for; the last switches to the concept.
+  const ui = { state: { sidebarWidth: 300, sidebarHidden: false, textScale: 1.0625, glassAlways: false, design: 'classic', sort: 'created', openSmart: [], selection: [] }, version: 4 }
   execFileSync(require('electron') as unknown as string, [join(root, 'test', 'support', 'seed-storage.cjs'), `--user-data-dir=${profile}`], {
     env: { ...process.env, GLOOM_SEED: JSON.stringify([['gloom.ui', JSON.stringify(ui)]]) },
     timeout: 30_000
@@ -177,6 +178,11 @@ test('a packaged build opens a session, its panes and its keyboard', async () =>
     await page.getByRole('button', { name: 'Session info' }).click()
     await page.getByRole('button', { name: 'Resume in Terminal' }).click()
     await expect(page.getByText('Resumed in a terminal window')).toBeVisible()
+
+    // The concept design draws from the archive too: its views, and the inspector listing what git sees.
+    await command(page, 'view.designConcept')
+    await expect(page.getByRole('tablist', { name: 'Show' })).toBeVisible()
+    await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('server.ts', { timeout: 15_000 })
     expect(errors).toEqual([])
   } finally {
     await quit(gloom)

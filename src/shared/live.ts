@@ -312,6 +312,14 @@ export interface UsageWindow {
   resetsAt: number | null
 }
 
+/** Who Claude Code is signed in as, as the CLI says once a session starts. */
+export interface AccountSummary {
+  email: string | null
+  organization: string | null
+  /** Your plan ("max", "pro"…), as the CLI names it. */
+  plan: string | null
+}
+
 /** Your plan's limits, as the CLI reports them. */
 export interface UsageInfo {
   fiveHour: UsageWindow | null
@@ -431,6 +439,7 @@ export type LiveEvent =
   | { type: 'entries'; id: string; entries: TranscriptEntry[]; results: Record<string, ToolResult>; reset: boolean }
   | { type: 'stream'; id: string; stream: StreamState | null }
   | { type: 'usage'; usage: UsageInfo }
+  | { type: 'account'; account: AccountSummary }
   | { type: 'models'; models: ModelChoice[] }
   /** A notification was clicked: show this session. */
   | { type: 'reveal'; id: string }

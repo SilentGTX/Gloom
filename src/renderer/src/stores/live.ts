@@ -19,7 +19,8 @@ import {
   type SetRequest,
   type Settings,
   type StreamState,
-  type UsageInfo
+  type UsageInfo,
+  type AccountSummary
 } from '@shared/live'
 import { ELSEWHERE_MS, type SessionMeta } from '@shared/library'
 import { notify } from '../lib/toast'
@@ -65,6 +66,8 @@ interface LiveState {
   /** Messages being reworded, by session. */
   editing: Record<string, Editing>
   usage: UsageInfo | null
+  /** Who Claude Code is signed in as: told once a session starts, kept for the next launch. */
+  account: AccountSummary | null
   models: ModelChoice[]
   settings: Settings
   claude: ClaudeInfo | null
@@ -97,6 +100,17 @@ interface LiveState {
   updateSettings(patch: Partial<Settings>): Promise<void>
 }
 
+const ACCOUNT_KEY = 'gloom.account'
+
+function loadAccount(): AccountSummary | null {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ACCOUNT_KEY) ?? 'null') as AccountSummary | null
+    return raw && typeof raw === 'object' ? raw : null
+  } catch {
+    return null
+  }
+}
+
 function failure(error: unknown): string {
   // "Error invoking remote method 'live:send': Error: <reason>"
   return String((error as Error)?.message ?? error).replace(/^.*?Error: /, '')
@@ -111,6 +125,7 @@ export const useLive = create<LiveState>()((set, get) => ({
   drafts: {},
   editing: {},
   usage: null,
+  account: loadAccount(),
   models: DEFAULT_MODELS,
   settings: DEFAULT_SETTINGS,
   claude: null,
@@ -354,6 +369,14 @@ function onEvent(event: LiveEvent): void {
       return
     case 'usage':
       useLive.setState({ usage: event.usage })
+      return
+    case 'account':
+      useLive.setState({ account: event.account })
+      try {
+        localStorage.setItem(ACCOUNT_KEY, JSON.stringify(event.account))
+      } catch {
+        // Shown again once the next session starts.
+      }
       return
     case 'models':
       useLive.setState({ models: event.models })

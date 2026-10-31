@@ -41,7 +41,8 @@ function run(fixture: string, { resume = false } = {}) {
       settled: () => {},
       attention: (kind) => attention.push(kind),
       rateLimit: () => {},
-      models: () => {}
+      models: () => {},
+      account: () => {}
     },
     () => false
   )

@@ -1,9 +1,10 @@
-import { Fragment, useId, useState } from 'react'
+import { createContext, Fragment, useContext, useId, useState } from 'react'
 import { ChevronRight, Circle, CircleCheck, CircleDot, LoaderCircle } from 'lucide-react'
 import type { Hunk, Part, TextPart, ToolEntry, ToolResult } from '@shared/transcript'
 import { hunksOf } from '@shared/transcript'
 import { cn } from '../../lib/cn'
 import { useTranscript } from '../../stores/transcript'
+import { Spinner, useConcept } from '../concept/parts'
 import { Markdown } from './Markdown'
 import { ImageStrip, ShowAll, useBlob, useFullText } from './media'
 import { describeTool, type ToolView } from './tools'
@@ -21,6 +22,39 @@ export function ToolRow({ sessionId, rowKey, call, result, running }: { sessionI
   const panel = useId()
   const failed = result?.isError === true
   const Icon = view.icon
+  const concept = useConcept()
+  const latestTodos = useContext(LatestTodos)
+
+  if (concept) {
+    // The newest to-do list stands open as a checklist; earlier ones fold away like any step.
+    if (view.details === 'todos' && latestTodos === rowKey) return <TodoCard todos={Array.isArray(call.input.todos) ? (call.input.todos as Todo[]) : []} />
+    return (
+      <div className="concept-step">
+        <button type="button" aria-expanded={open} aria-controls={panel} onClick={() => setExpanded(rowKey, !open)} className="concept-step-head no-drag">
+          <ChevronRight size={12} strokeWidth={2.25} aria-hidden className={cn('concept-chevron', open && 'is-open')} />
+          <span className="concept-glyph" aria-hidden>
+            {running ? <Spinner /> : <Icon size={14} strokeWidth={1.75} className={cn(failed && 'text-[var(--removed-text)]')} />}
+          </span>
+          {running && <span className="sr-only">Running</span>}
+          <span className="flex min-w-0 flex-1 items-baseline gap-1.5 text-[0.875rem] leading-[1.5]">
+            <span className="shrink-0 text-label-secondary">{view.verb}</span>
+            {view.target && <span className={cn('min-w-0 truncate text-label', view.mono && 'font-mono text-[0.78125rem]')}>{view.target}</span>}
+            {view.note && <span className="min-w-0 shrink-0 truncate text-[0.78125rem] text-label-secondary">{view.note}</span>}
+          </span>
+          {failed ? (
+            <span className="shrink-0 text-[0.78125rem] font-medium text-[var(--removed-text)]">Failed</span>
+          ) : (
+            <Counts added={view.added} removed={view.removed} />
+          )}
+        </button>
+        {open && (
+          <div id={panel} className="concept-step-body">
+            <Details sessionId={sessionId} call={call} result={result} view={view} running={running} />
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -53,6 +87,47 @@ export function ToolRow({ sessionId, rowKey, call, result, running }: { sessionI
           <Details sessionId={sessionId} call={call} result={result} view={view} running={running} />
         </div>
       )}
+    </div>
+  )
+}
+
+/** The key of the transcript's newest to-do list, which the concept shows as an open checklist. */
+export const LatestTodos = createContext<string | null>(null)
+
+type Todo = { content?: unknown; status?: unknown }
+
+/** "+12 −3" at a step card's trailing edge. */
+function Counts({ added, removed }: { added?: number; removed?: number }) {
+  if (!added && !removed) return null
+  return (
+    <span className="flex shrink-0 gap-1.5 text-[0.78125rem] font-medium tabular">
+      {!!added && <span className="text-[var(--added-text)]">+{added}</span>}
+      {!!removed && <span className="text-[var(--removed-text)]">−{removed}</span>}
+    </span>
+  )
+}
+
+/**
+ * The concept's to-do list: a card of round checks, filled with a tick when
+ * done, a dot in a ring while under way, an empty ring still to do. The
+ * shapes say it as well as the colour, and each item says it aloud.
+ */
+function TodoCard({ todos }: { todos: Todo[] }) {
+  if (!todos.length) return null
+  return (
+    <div className="concept-step">
+      <ul aria-label="To-do list" className="flex flex-col gap-2 px-3.5 py-3 text-[0.875rem]">
+        {todos.map((t, i) => {
+          const status = str(t.status)
+          return (
+            <li key={i} className="flex items-start gap-2.5">
+              <span aria-hidden className={cn('concept-check', status === 'completed' ? 'is-done' : status === 'in_progress' ? 'is-now' : 'is-todo')} />
+              <span className="sr-only">{status === 'completed' ? 'Done:' : status === 'in_progress' ? 'Under way:' : 'To do:'}</span>
+              <span className={cn('min-w-0 select-text', status === 'completed' && 'text-label-secondary line-through')}>{str(t.content)}</span>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }

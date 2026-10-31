@@ -17,8 +17,11 @@ import { FolderDefaultsDialog } from '../sessions/NewSession'
 import { deleteFolder, newFolder } from '../folders/folders'
 import { FolderMenu } from '../folders/FolderMenu'
 import { useDrag, type DropData } from '../library/drag'
+import { AccountFooter } from '../concept/AccountFooter'
+import { useConcept } from '../concept/parts'
 import { archiveSessions, SessionMenu } from '../sessions/SessionMenu'
 import { AppMenu } from '../shell/AppMenu'
+import { SidebarButton } from '../shell/Toolbar'
 import { ArchiveRow, GroupContents, GroupRow, MoreRow, RowMotion, SectionHeading, SessionRow } from './rows'
 import {
   buildTree,
@@ -46,10 +49,12 @@ type MenuTarget = { kind: 'folder'; id: string } | { kind: 'sessions'; ids: stri
  * sheet, so it looks the same wherever it appears.
  */
 export function SidebarPanel({ width, inSheet }: { width: number; inSheet?: boolean }) {
+  // The concept's sidebar is frosted glass over the window, with no sky behind it.
+  const concept = useConcept()
   return (
     <div className="relative h-full shrink-0" style={{ width }}>
-      <div className="sky rounded-[var(--radius-panel)]" aria-hidden />
-      <Sidebar width={width} inSheet={inSheet} />
+      {!concept && <div className="sky rounded-[var(--radius-panel)]" aria-hidden />}
+      <Sidebar width={width} inSheet={inSheet} concept={concept} />
     </div>
   )
 }
@@ -59,7 +64,7 @@ export function SidebarPanel({ width, inSheet }: { width: number; inSheet?: bool
  * Groups open to show their sessions nested inside; the selected session is
  * the one the chat shows. Archived waits at the foot.
  */
-function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
+function Sidebar({ width, inSheet, concept }: { width: number; inSheet?: boolean; concept: boolean }) {
   const search = useUi((s) => s.search)
   const sort = useUi((s) => s.sort)
   const openSmart = useUi((s) => s.openSmart)
@@ -530,21 +535,36 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
 
   const layout = tree.rows.length <= LAYOUT_LIMIT
 
+  const archiveRow = (
+    <ul role="tree" aria-label="Archive">
+      <ArchiveRow open={archive} tabbable={tabKey === ARCHIVE} onToggle={toggleArchive} />
+    </ul>
+  )
+
   return (
-    <aside ref={root} aria-label="Sidebar" data-pane="sidebar" className="glass flex h-full shrink-0 flex-col rounded-[var(--radius-panel)]" style={{ width }}>
+    <aside
+      ref={root}
+      aria-label="Sidebar"
+      data-pane="sidebar"
+      className={cn(concept ? 'concept-sidebar' : 'glass', 'flex h-full shrink-0 flex-col rounded-[var(--radius-panel)]')}
+      style={{ width }}
+    >
       <div className="relative z-[2] flex min-h-0 flex-1 flex-col">
         {/* Inset by the frame top and bottom, so these centre on the title bar line. */}
         <div className="drag flex h-[calc(var(--titlebar-h)-2*var(--frame))] shrink-0 items-center gap-0.5 px-1.5">
-          <AppMenu />
+          {/* The concept's round buttons, with the one that hides the sidebar beside the menu, where macOS puts it. */}
+          <AppMenu shape={concept ? 'round' : undefined} />
+          {concept && <SidebarButton shown />}
           <div className="flex-1" />
           <Tooltip label="New Session" shortcut="Ctrl+N">
-            <Button aria-label="New session" onClick={() => runCommand('session.new')}>
+            <Button aria-label="New session" shape={concept ? 'round' : undefined} onClick={() => runCommand('session.new')}>
               <SquarePen size={16} strokeWidth={1.75} />
             </Button>
           </Tooltip>
         </div>
 
         <SearchField
+          concept={concept}
           onLeave={() => {
             const first = order[0]
             setCursor(first)
@@ -561,7 +581,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
           <MotionConfig transition={viaKeyboard ? { duration: 0 } : { type: 'spring', bounce: 0, duration: 0.25 }} reducedMotion="user">
             <ContextMenuRoot onOpenChange={(open) => !open && setMenu(null)}>
               <ContextMenuTrigger onContextMenu={onContextMenu} className="flex min-h-0 flex-1 flex-col">
-                <nav aria-label="Sessions" className="flex flex-1 flex-col overflow-y-auto px-2 pb-2">
+                <nav aria-label="Sessions" className={cn('flex flex-1 flex-col overflow-y-auto pb-2', concept ? 'px-2.5' : 'px-2')}>
                   {tree.sections.map((section, i) => (
                     <div key={section.key} className={cn('flex flex-col', section.key !== 'folders' && section.rows.length === 0 && 'flex-1')}>
                       {heading(section, i === 0)}
@@ -574,17 +594,15 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
                       )}
                     </div>
                   ))}
+                  {/* The concept keeps its foot for your account: Archived ends the list instead. */}
+                  {concept && <div className="mt-3">{archiveRow}</div>}
                 </nav>
               </ContextMenuTrigger>
               {menuFolder && <FolderMenu folder={menuFolder} onRules={() => setRulesFor(menuFolder.id)} onDefaults={() => setDefaultsFor(menuFolder.id)} />}
               {menu?.kind === 'sessions' && <SessionMenu ids={menu.ids} />}
             </ContextMenuRoot>
 
-            <div className="border-t border-separator px-2 pt-1.5 pb-2">
-              <ul role="tree" aria-label="Archive">
-                <ArchiveRow open={archive} tabbable={tabKey === ARCHIVE} onToggle={toggleArchive} />
-              </ul>
-            </div>
+            {concept ? <AccountFooter /> : <div className="border-t border-separator px-2 pt-1.5 pb-2">{archiveRow}</div>}
           </MotionConfig>
         </div>
       </div>
@@ -594,17 +612,26 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
   )
 }
 
-/** The search field: filters every folder's sessions by title, prompts and project as you type. */
-function SearchField({ onLeave }: { onLeave(): void }) {
+/**
+ * The search field: filters every folder's sessions by title, prompts and
+ * project as you type. The concept's says its shortcut while it's empty.
+ */
+function SearchField({ onLeave, concept }: { onLeave(): void; concept: boolean }) {
   const search = useUi((s) => s.search)
   const setSearch = useUi((s) => s.setSearch)
   return (
-    <div className="px-2.5 pt-1 pb-2">
-      <label className="flex h-7 items-center gap-2 rounded-[var(--radius-control)] bg-[var(--search-fill)] pr-0.5 pl-2.5 text-label-secondary transition-[background-color] duration-[var(--duration-press)] ease-out hover:not-focus-within:bg-[var(--search-hover)] focus-within:bg-[var(--search-focus)] focus-within:outline-2 focus-within:outline-[var(--accent-ring)]">
-        <Search size={14} strokeWidth={1.75} aria-hidden className="shrink-0" />
+    <div className={cn('px-2.5 pt-1', concept ? 'pb-3' : 'pb-2')}>
+      <label
+        className={cn(
+          'group/search flex items-center gap-2 bg-[var(--search-fill)] pr-0.5 pl-2.5 text-label-secondary transition-[background-color] duration-[var(--duration-press)] ease-out hover:not-focus-within:bg-[var(--search-hover)] focus-within:bg-[var(--search-focus)] focus-within:outline-2 focus-within:outline-[var(--accent-ring)]',
+          concept ? 'h-[30px] rounded-[9px] shadow-[inset_0_0_0_1px_var(--separator)]' : 'h-7 rounded-[var(--radius-control)]'
+        )}
+      >
+        <Search size={concept ? 15 : 14} strokeWidth={1.75} aria-hidden className="shrink-0" />
         <input
           type="search"
           data-search
+          aria-keyshortcuts="Control+Shift+F"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => {
@@ -621,7 +648,7 @@ function SearchField({ onLeave }: { onLeave(): void }) {
           spellCheck={false}
           className="no-drag w-full min-w-0 bg-transparent text-[13px] text-label outline-none select-text placeholder:text-label-secondary [&::-webkit-search-cancel-button]:hidden"
         />
-        {search && (
+        {search ? (
           <button
             type="button"
             aria-label="Clear search"
@@ -630,6 +657,12 @@ function SearchField({ onLeave }: { onLeave(): void }) {
           >
             <X size={13} strokeWidth={2} />
           </button>
+        ) : (
+          concept && (
+            <span aria-hidden className="shrink-0 pr-2 text-[11px] whitespace-nowrap group-focus-within/search:hidden">
+              Ctrl+Shift+F
+            </span>
+          )
         )}
       </label>
     </div>

@@ -14,10 +14,10 @@ import { AppMenu } from './AppMenu'
  * actions trailing. It is the window's title bar too, so it drags the window;
  * the rightmost one keeps clear of the caption buttons.
  */
-export function PaneToolbar({ children, clearCaptionButtons }: { children: ReactNode; clearCaptionButtons?: boolean }) {
+export function PaneToolbar({ children, clearCaptionButtons, className }: { children: ReactNode; clearCaptionButtons?: boolean; className?: string }) {
   return (
     <header
-      className="drag absolute inset-x-0 top-0 z-10 flex h-[var(--titlebar-h)] items-center gap-2 px-3"
+      className={cn('drag absolute inset-x-0 top-0 z-10 flex h-[var(--titlebar-h)] items-center gap-2 px-3', className)}
       style={clearCaptionButtons ? { paddingRight: 'calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 8px)' } : undefined}
     >
       {children}
@@ -43,11 +43,16 @@ export function BarTitle({ children, status, live }: { children: ReactNode; stat
   )
 }
 
-/** With the sidebar away, its menu and New Session ride at the chat toolbar's leading edge. */
-export function SidebarStandIns() {
+/**
+ * With the sidebar away, its menu and New Session ride at the chat toolbar's
+ * leading edge; in the concept, with the button that brings the sidebar back,
+ * where it stood in the sidebar.
+ */
+export function SidebarStandIns({ withToggle }: { withToggle?: boolean }) {
   return (
     <GlassCapsule label="Navigation">
       <AppMenu shape="round" />
+      {withToggle && <SidebarButton shown={false} />}
       <Tooltip label="New Session" shortcut="Ctrl+N">
         <Button aria-label="New session" shape="round" onClick={() => runCommand('session.new')}>
           <SquarePen size={16} strokeWidth={1.75} />

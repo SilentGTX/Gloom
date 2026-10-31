@@ -8,6 +8,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorBoundary } from '../../components/ui/ErrorBoundary'
 import { GlassCapsule } from '../../components/ui/Glass'
 import { Tooltip } from '../../components/ui/Tooltip'
+import { cn } from '../../lib/cn'
 import { runCommand } from '../../lib/commands'
 import { useNow } from '../../lib/now'
 import { relativeTime } from '../../lib/time'
@@ -15,12 +16,28 @@ import { useLibrary } from '../../stores/library'
 import { loadSnapshot, useElsewhere, useLive } from '../../stores/live'
 import { useTranscript } from '../../stores/transcript'
 import { useUi } from '../../stores/ui'
+import { ConceptToolbar, type Status } from '../concept/ChatToolbar'
+import { TerminalView } from '../concept/TerminalView'
+import { ChangesView } from '../diff/DiffPane'
 import { BarTitle, PaneToolbar, SidebarButton, SidebarStandIns } from '../shell/Toolbar'
 import { UpdateButton } from '../update/UpdateButton'
 import { Composer } from './Composer'
 import { SessionInfo } from './SessionInfo'
 import { Transcript } from './Transcript'
 import { WorktreeCapsule } from './Worktree'
+
+/** The concept's status pill: amber while Claude waits for you, the spinner while it works, else when it was last active. */
+function conceptStatus(summary: LiveSummary | undefined, updated: number, elsewhere: boolean, now: number): Status {
+  switch (summary?.state) {
+    case 'waiting':
+      return { kind: 'waiting', text: 'Waiting for you' }
+    case 'starting':
+      return { kind: 'working', text: 'Starting' }
+    case 'working':
+      return { kind: 'working', text: 'Working' }
+  }
+  return { kind: 'idle', text: status(summary, updated, elsewhere, now) }
+}
 
 /** What the session is doing, beside its title: Gloom's own state first, then the file's. */
 function status(summary: LiveSummary | undefined, updated: number, elsewhere: boolean, now: number): string {
@@ -49,6 +66,8 @@ function status(summary: LiveSummary | undefined, updated: number, elsewhere: bo
 // Memo: a splitter drag re-renders the shell every frame, and nothing the chat takes changes with it.
 export const ChatColumn = memo(function ChatColumn({ session, sidebarShown, clearCaptionButtons }: { session: SessionMeta | undefined; sidebarShown: boolean; clearCaptionButtons: boolean }) {
   const selection = useUi((s) => s.selection)
+  const concept = useUi((s) => s.design === 'concept')
+  const view = useUi((s) => s.view)
   const entry = useLibrary((s) => (session ? s.library.sessions[session.id] : undefined))
   const summary = useLive((s) => (session ? s.sessions[session.id] : undefined))
   const now = useNow(15_000)
@@ -73,30 +92,60 @@ export const ChatColumn = memo(function ChatColumn({ session, sidebarShown, clea
     }
   }, [id])
 
+  const conversation = (open: SessionMeta) => (
+    <>
+      <Transcript sessionId={open.id} live={elsewhere} />
+      <Composer key={open.id} sessionId={open.id} meta={open} />
+    </>
+  )
   return (
     <main className="@container relative flex min-h-0 min-w-0 flex-1 flex-col pt-[var(--titlebar-h)]">
-      <PaneToolbar clearCaptionButtons={clearCaptionButtons}>
-        {!sidebarShown && <SidebarStandIns />}
-        {session && title && (
-          <BarTitle status={status(summary, session.updated, elsewhere, now)} live={summary?.state === 'working' || summary?.state === 'starting'}>
-            {title}
-          </BarTitle>
-        )}
-        {session && <WorktreeCapsule id={session.id} />}
-        <div className="flex-1" />
-        <UpdateButton />
-        <GlassCapsule label="Session">
-          <SidebarButton shown={sidebarShown} />
-          <PaneButton pane="terminal" />
-          <PaneButton pane="diff" />
-          <SessionInfo session={session} />
-        </GlassCapsule>
-      </PaneToolbar>
+      {concept ? (
+        <ConceptToolbar
+          session={session}
+          title={title}
+          status={session ? conceptStatus(summary, session.updated, elsewhere, now) : null}
+          sidebarShown={sidebarShown}
+          clearCaptionButtons={clearCaptionButtons}
+        />
+      ) : (
+        <PaneToolbar clearCaptionButtons={clearCaptionButtons}>
+          {!sidebarShown && <SidebarStandIns />}
+          {session && title && (
+            <BarTitle status={status(summary, session.updated, elsewhere, now)} live={summary?.state === 'working' || summary?.state === 'starting'}>
+              {title}
+            </BarTitle>
+          )}
+          {session && <WorktreeCapsule id={session.id} />}
+          <div className="flex-1" />
+          <UpdateButton />
+          <GlassCapsule label="Session">
+            <SidebarButton shown={sidebarShown} />
+            <PaneButton pane="terminal" />
+            <PaneButton pane="diff" />
+            <SessionInfo session={session} />
+          </GlassCapsule>
+        </PaneToolbar>
+      )}
       {session ? (
         // Under the toolbar, which stays usable when a session won't draw.
         <ErrorBoundary part="Chat" resetKey={session.id}>
-          <Transcript sessionId={session.id} live={elsewhere} />
-          <Composer key={session.id} sessionId={session.id} meta={session} />
+          {concept ? (
+            <>
+              {/* The conversation keeps its place (scrolled, half-written) while Changes or Terminal shows over it. */}
+              <div className={cn('relative flex min-h-0 flex-1 flex-col', view !== 'conversation' && 'invisible')} inert={view !== 'conversation'}>
+                {conversation(session)}
+              </div>
+              {view === 'changes' && (
+                <div className="absolute inset-x-0 top-[var(--titlebar-h)] bottom-0">
+                  <ChangesView sessionId={session.id} />
+                </div>
+              )}
+              {view === 'terminal' && <TerminalView session={session} />}
+            </>
+          ) : (
+            conversation(session)
+          )}
         </ErrorBoundary>
       ) : selection.length > 1 ? (
         <EmptyState icon={<MessagesSquare size={40} strokeWidth={1.25} />} title={`${selection.length} Sessions Selected`}>

@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './tokens.css';
+@import './concept.css';
 
 /* Semantic tokens as Tailwind utilities: text-label, bg-fill, border-separator… */
 @theme inline {

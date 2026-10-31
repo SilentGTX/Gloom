@@ -10,6 +10,8 @@ import type { SmartFolder } from '@shared/library'
 import { cn } from '../../lib/cn'
 import { fullDate, relativeTime } from '../../lib/time'
 import { useElsewhere, useLive } from '../../stores/live'
+import { useFinished } from '../concept/finished'
+import { Spinner, useConcept } from '../concept/parts'
 import { useDrag, type DragData, type DropData } from '../library/drag'
 import { SMART_LABELS, type GroupRow as GroupRowData, type MoreRow as MoreRowData, type SessionRow as SessionRowData } from './tree'
 
@@ -108,7 +110,7 @@ function Count({ value }: { value: number }) {
 }
 
 /** One shape for the rows that hold things: a library group, a folder, Archived. */
-const groupBox = 'relative flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-row)] py-1 pr-2.5 text-left text-label hover:bg-fill active:bg-fill-pressed'
+const groupBox = 'relative flex w-full items-center gap-2 rounded-[var(--radius-row)] py-1 pr-2.5 text-left text-label hover:bg-fill active:bg-fill-pressed'
 
 /**
  * A library group or one of your folders. A click anywhere on it opens or
@@ -154,6 +156,7 @@ export function GroupRow({
   const lit = useLitGroup()
   const refs = useRefs(ref, dragRef, dropRef)
   const trail = row.kind === 'folder' ? row.trail : []
+  const concept = useConcept()
 
   // Every click counts, however fast they come. (dnd kit swallows the click a drag ends with.)
   const click = (e: MouseEvent) => onToggle(e.altKey)
@@ -181,6 +184,8 @@ export function GroupRow({
       <div
         className={cn(
           groupBox,
+          // The concept's rows are 30 px and give a little under the pointer.
+          concept ? 'concept-press min-h-[30px] text-[0.8125rem]' : 'min-h-8',
           'group-focus-visible/row:outline-2 group-focus-visible/row:-outline-offset-2 group-focus-visible/row:outline-[var(--accent-ring)]',
           zone === 'inside' && 'drop-inside',
           landed && 'drop-landed',
@@ -198,11 +203,16 @@ export function GroupRow({
             />
           )}
         </span>
-        <Icon size={16} strokeWidth={1.75} aria-hidden className="shrink-0 text-accent-text" />
+        {concept && folder ? (
+          // A filled folder in the accent, as the concept draws them.
+          <FolderIcon size={16} fill="currentColor" fillOpacity={0.85} stroke="none" aria-hidden className="shrink-0 text-accent" />
+        ) : (
+          <Icon size={16} strokeWidth={1.75} aria-hidden className={cn('shrink-0', concept ? 'text-accent' : 'text-accent-text')} />
+        )}
         {renaming ? (
           <RenameField initial={label} label="Folder name" onDone={onRenameEnd} />
         ) : (
-          <span className="min-w-0 flex-1 truncate font-semibold">{label}</span>
+          <span className={cn('min-w-0 flex-1 truncate', concept ? 'font-medium' : 'font-semibold')}>{label}</span>
         )}
         {!renaming && <Count value={row.count} />}
         {(zone === 'before' || zone === 'after') && <InsertionLine at={zone} indent={4 + row.depth * INDENT + 22} />}
@@ -264,6 +274,67 @@ export function SessionRow({
   const waiting = live?.state === 'waiting'
   const updated = Math.max(meta.updated, live && live.state !== 'new' ? live.lastActive : 0)
   const preview = meta.lastPrompt && meta.lastPrompt !== title ? meta.lastPrompt : meta.firstPrompt !== title ? meta.firstPrompt : null
+  const concept = useConcept()
+  const finished = useFinished((s) => s.ids.has(id))
+
+  if (concept) {
+    // One line, 30 px: what it's doing as a mark, its title, then when or "Waiting".
+    return (
+      <motion.li
+        {...motionProps}
+        ref={refs}
+        role="treeitem"
+        aria-level={row.depth + 1}
+        aria-posinset={row.posInSet}
+        aria-setsize={row.setSize}
+        aria-selected={selected}
+        tabIndex={tabbable ? 0 : -1}
+        data-nav={row.key}
+        data-label={title}
+        data-session-id={id}
+        onPointerDown={(e: PointerEvent<HTMLLIElement>) => {
+          onPress(e)
+          listeners?.onPointerDown?.(e)
+        }}
+        onClick={onClick}
+        title={preview ?? undefined}
+        className="group/row no-drag relative flex flex-col outline-none select-none"
+        style={{ paddingLeft: row.depth ? guideX(row.depth - 1) + 10 : 0 }}
+      >
+        <Guides trail={row.trail} lit={lit} />
+        <div
+          className={cn(
+            'session-row concept-press relative my-px flex h-[30px] items-center gap-2 rounded-[var(--radius-row)] pr-2 pl-2',
+            !selected && 'group-focus-visible/row:outline-2 group-focus-visible/row:-outline-offset-2 group-focus-visible/row:outline-[var(--accent-ring)]',
+            selected ? 'is-selected' : 'hover:bg-fill',
+            ringed && 'outline-2 -outline-offset-2 outline-[var(--accent-ring)]',
+            dragging && 'opacity-50'
+          )}
+        >
+          <StatusMark working={working || elsewhere} waiting={waiting} finished={finished && !selected} />
+          {entry?.pinned && <Pin size={11} strokeWidth={2} className="row-secondary shrink-0 rotate-45" aria-label="Pinned" />}
+          {renaming ? (
+            <RenameField initial={title} label="Session name" onDone={onRenameEnd} className="text-[0.8125rem]" />
+          ) : (
+            <span className={cn('row-label min-w-0 flex-1 truncate text-[0.8125rem]', selected && 'font-medium')}>{title}</span>
+          )}
+          {elsewhere && <span className="sr-only">Running in another app</span>}
+          {working && <span className="sr-only">Claude is working</span>}
+          {finished && !selected && <span className="sr-only">Claude finished</span>}
+          {waiting ? (
+            <span className="row-waiting shrink-0 pl-1 text-[0.75rem] font-medium">Waiting</span>
+          ) : (
+            !working &&
+            !elsewhere && (
+              <time dateTime={new Date(updated).toISOString()} title={fullDate(updated)} className="row-secondary shrink-0 pl-1 text-[0.75rem] tabular">
+                {relativeTime(updated, now)}
+              </time>
+            )
+          )}
+        </div>
+      </motion.li>
+    )
+  }
 
   return (
     <motion.li
@@ -325,6 +396,20 @@ export function SessionRow({
 }
 
 /**
+ * The concept's mark before a session's title: a spinner while it works, an
+ * amber dot while Claude waits for you, a green one when it finished while you
+ * were elsewhere, and a hollow ring at rest. Shape and colour differ, so
+ * neither carries the meaning alone; the row also says it in words.
+ */
+function StatusMark({ working, waiting, finished }: { working: boolean; waiting: boolean; finished: boolean }) {
+  return (
+    <span aria-hidden className="flex size-[11px] shrink-0 items-center justify-center">
+      {working ? <Spinner /> : <span className={cn('concept-dot', waiting ? 'is-waiting' : finished ? 'is-finished' : 'is-idle')} />}
+    </span>
+  )
+}
+
+/**
  * "Show More", after the sessions a group shows so far: five more each time.
  * Inside a folder it takes drops for the folder, like the sessions above it.
  */
@@ -379,7 +464,7 @@ export function ArchiveRow({ open, tabbable, onToggle }: { open: boolean; tabbab
       className={cn(
         'no-drag outline-none select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent-ring)]',
         groupBox,
-        'pl-2.5',
+        'min-h-8 pl-2.5',
         open && '[background:var(--row-selected-tint)]',
         zone && 'drop-inside',
         landed && 'drop-landed'

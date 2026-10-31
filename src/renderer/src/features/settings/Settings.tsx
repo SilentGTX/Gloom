@@ -112,6 +112,7 @@ function General() {
   const models = useLive((s) => s.models)
   const update = (patch: Partial<SettingsData>) => void useLive.getState().updateSettings(patch)
   const glass = useUi((s) => s.glassAlways)
+  const design = useUi((s) => s.design)
   const efforts = effortsFor(settings.model, models)
   return (
     <div>
@@ -151,6 +152,17 @@ function General() {
         <ShellPicker value={settings.shell} onChange={(shell) => update({ shell })} />
       </Row>
       <h3 className="mt-4 mb-1 text-[11px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">Window</h3>
+      <Row label="Design" hint="Concept: a quiet neutral window with an inspector beside the chat. Classic: the dusk, with the diff and terminal as panes.">
+        <Segmented
+          label="Design"
+          value={design}
+          options={[
+            { value: 'concept', label: 'Concept' },
+            { value: 'classic', label: 'Classic' }
+          ]}
+          onChange={(next) => runCommand(next === 'concept' ? 'view.designConcept' : 'view.designClassic')}
+        />
+      </Row>
       <Row label="Appearance">
         <Segmented
           label="Appearance"

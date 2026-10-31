@@ -3,6 +3,7 @@ import { ArrowLeftRight, Bell, ChevronRight, CircleAlert, ClipboardType, Hand, I
 import type { CompactEntry, MentionEntry, NoticeEntry, NoticeIcon, OutputEntry, PromptEntry, SummaryEntry, TextEntry, ThinkingEntry } from '@shared/transcript'
 import { cn } from '../../lib/cn'
 import { useTranscript } from '../../stores/transcript'
+import { useConcept } from '../concept/parts'
 import { StreamRow, WorkingRow } from './LiveRows'
 import { Markdown } from './Markdown'
 import { ImageStrip, ShowAll, useFullText } from './media'
@@ -13,12 +14,19 @@ import { describeMention, modelName } from './tools'
 
 /** One row of the transcript. Rows only ever fade; Virtuoso measures them, so nothing animates their size. */
 export const RowView = memo(function RowView({ row, sessionId }: { row: Row; sessionId: string }) {
+  const concept = useConcept()
   return (
-    <div data-row-key={row.key} className="mx-auto w-full max-w-[720px] px-6" style={{ paddingTop: row.space }}>
+    // The concept's column is 720 px with 32 px sides, and its cards sit a little further apart.
+    <div data-row-key={row.key} className={cn('mx-auto w-full max-w-[720px]', concept ? 'px-8' : 'px-6')} style={{ paddingTop: concept ? conceptSpace(row) : row.space }}>
       <RowBody row={row} sessionId={sessionId} />
     </div>
   )
 })
+
+/** Cards need air between them: a run of tool calls, tight as lines, opens up to 8 px as cards. */
+function conceptSpace(row: Row): number {
+  return row.space === 2 ? 8 : row.space === 12 ? 16 : row.space
+}
 
 function RowBody({ row, sessionId }: { row: Row; sessionId: string }) {
   switch (row.kind) {
@@ -89,14 +97,21 @@ function PromptRow({ sessionId, entry }: { sessionId: string; entry: PromptEntry
   const { full, loading, load } = useFullText(sessionId, entry.more)
   const text = full ?? entry.text
   const rewind = useContext(RewindAllowed) && !entry.queued
+  const concept = useConcept()
   return (
-    <div className="group/prompt flex flex-col items-end gap-1.5 pl-[12%]">
+    <div className={cn('group/prompt flex flex-col items-end gap-1.5', concept ? 'pl-[20%]' : 'pl-[12%]')}>
       {entry.queued && <span className="text-caption text-label-secondary">Sent while Claude was working</span>}
       {entry.images.length > 0 && <ImageStrip sessionId={sessionId} images={entry.images} height={132} label="Attached image" />}
       {(entry.command || text) && (
         <div className="flex max-w-full items-center gap-2">
           {rewind && <PromptActions sessionId={sessionId} entry={entry} />}
-          <div className="min-w-0 rounded-[18px] bg-[var(--bubble)] px-3.5 py-2 text-[0.9375rem] leading-[1.5] shadow-[var(--bubble-shadow)] select-text">
+          <div
+            className={cn(
+              'min-w-0 bg-[var(--bubble)] text-[0.9375rem] leading-[1.5] shadow-[var(--bubble-shadow)] select-text',
+              // The concept's bubble has a tail at its bottom right, towards you.
+              concept ? 'rounded-[16px_16px_4px_16px] px-3.5 py-2.5' : 'rounded-[18px] px-3.5 py-2'
+            )}
+          >
             {entry.command ? <span className="font-mono text-[0.875rem]">{entry.command}</span> : <PromptText text={text} />}
             {entry.more && !full && (
               <div className="-mb-0.5 -ml-1.5">

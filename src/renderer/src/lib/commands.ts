@@ -1,6 +1,7 @@
 // The renderer's half of the command registry: handlers for the commands it
 // owns, and the bridge that receives accelerators from the main process.
 import { useEffect } from 'react'
+import { flushSync } from 'react-dom'
 import { COMMANDS, findCommand, matchesAccelerator, type CommandId, type CommandSpec } from '@shared/commands'
 import { useFind } from '../features/chat/find'
 import { useWorktrees } from '../features/chat/Worktree'
@@ -13,7 +14,7 @@ import { isBusy, useLive } from '../stores/live'
 import { closePalette, togglePalette } from '../stores/palette'
 import { newTerminal, wantFocus } from '../stores/terminals'
 import { useTranscript } from '../stores/transcript'
-import { useUi } from '../stores/ui'
+import { useUi, type ChatView, type Design } from '../stores/ui'
 import { focusPane } from './panes'
 import { notify } from './toast'
 
@@ -23,6 +24,35 @@ function inSidebar(viaKeyboard: boolean, then: () => void) {
   requestAnimationFrame(() => requestAnimationFrame(then))
 }
 
+/**
+ * Changes Gloom's look. The old window crossfades into the new one (a view
+ * transition, 240 ms) rather than jumping; under reduced motion it changes at once.
+ */
+function switchDesign(design: Design) {
+  if (useUi.getState().design === design) return
+  const go = () =>
+    flushSync(() => {
+      document.documentElement.dataset.design = design
+      useUi.getState().setDesign(design)
+    })
+  if (document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.startViewTransition(go)
+  else go()
+}
+
+/** The concept's views: Ctrl+Shift+D and Ctrl+` show Changes or Terminal, and the same key goes back to the conversation. */
+function toggleView(view: Exclude<ChatView, 'conversation'>) {
+  const ui = useUi.getState()
+  const leaving = ui.view === view
+  if (view === 'terminal') {
+    // Shown, the shell takes the keyboard; hidden while you were typing in it, the composer has you back.
+    if (!leaving) wantFocus()
+    else if (screenHasFocus()) requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('textarea[data-composer]')?.focus())
+  }
+  ui.setView(leaving ? 'conversation' : view)
+}
+
+const concept = () => useUi.getState().design === 'concept'
+
 const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
   'edit.undo': () => {
     const field = document.activeElement as HTMLElement | null
@@ -30,7 +60,10 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
     else void useLibrary.getState().undo()
   },
   'edit.find': (k) => {
-    if (useTranscript.getState().status === 'ready') useFind.getState().show(k)
+    if (useTranscript.getState().status !== 'ready') return
+    // Find looks through the conversation, so the concept shows it.
+    if (concept()) useUi.getState().setView('conversation')
+    useFind.getState().show(k)
   },
   // With Find closed, F3 opens it on the last search, as on the Mac.
   'edit.findNext': (k) => (useFind.getState().open ? useFind.getState().step(1) : handlers['edit.find']?.(k)),
@@ -39,9 +72,11 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
     const id = useTranscript.getState().id
     if (id) void resumeSession(id)
   },
-  'session.info': () => {
+  'session.info': (k) => {
     const ui = useUi.getState()
-    if (ui.selection.length === 1) ui.setInfo(!ui.info)
+    // In the concept, the session's details live in the inspector.
+    if (ui.design === 'concept') ui.toggleInspector(k)
+    else if (ui.selection.length === 1) ui.setInfo(!ui.info)
   },
   'session.new': () => useLive.getState().openNewSession(),
   'session.stop': () => {
@@ -60,20 +95,24 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
   'view.nextPane': () => focusPane(1),
   'view.previousPane': () => focusPane(-1),
   'view.toggleSidebar': (k) => useUi.getState().toggleSidebar(k),
-  'view.toggleDiff': (k) => useUi.getState().toggleDiff(k),
+  'view.toggleDiff': (k) => (concept() ? toggleView('changes') : useUi.getState().toggleDiff(k)),
   'view.diffSession': (k) => {
     useUi.getState().setDiffTab('session')
-    useUi.getState().toggleDiff(k, true)
+    if (concept()) useUi.getState().setView('changes')
+    else useUi.getState().toggleDiff(k, true)
   },
   'view.diffTree': (k) => {
     useUi.getState().setDiffTab('tree')
-    useUi.getState().toggleDiff(k, true)
+    if (concept()) useUi.getState().setView('changes')
+    else useUi.getState().toggleDiff(k, true)
   },
   'view.refreshDiff': () => {
-    const { diffOpen, diffTab, selection } = useUi.getState()
-    if (diffOpen && selection.length === 1) useDiff.getState().load(diffTab, selection[0], true)
+    const { diffOpen, diffTab, selection, view, inspectorOpen } = useUi.getState()
+    const showing = concept() ? view === 'changes' || inspectorOpen : diffOpen
+    if (showing && selection.length === 1) useDiff.getState().load(diffTab, selection[0], true)
   },
   'view.toggleTerminal': (k) => {
+    if (concept()) return toggleView('terminal')
     const ui = useUi.getState()
     // Hidden while you were typing in it, the composer has you back; shown, the shell takes the keyboard.
     if (!ui.terminalOpen) wantFocus()
@@ -97,7 +136,9 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
   'view.textBigger': () => useUi.getState().stepText(1),
   'view.textSmaller': () => useUi.getState().stepText(-1),
   'view.textReset': () => useUi.getState().resetText(),
-  'view.toggleGlass': () => useUi.getState().toggleGlass()
+  'view.toggleGlass': () => useUi.getState().toggleGlass(),
+  'view.designConcept': () => switchDesign('concept'),
+  'view.designClassic': () => switchDesign('classic')
 }
 
 /** Commands that leave the command palette up: they work on its field, or only change the text size. */

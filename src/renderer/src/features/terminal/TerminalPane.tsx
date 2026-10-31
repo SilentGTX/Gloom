@@ -30,7 +30,7 @@ function tabLabels(terminals: TerminalInfo[]): string[] {
  * the View menu with no shell yet, it starts one; the last tab closing puts
  * the pane away.
  */
-export function TerminalPane({ session }: { session: SessionMeta | undefined }) {
+export function TerminalPane({ session, embedded }: { session: SessionMeta | undefined; /** In the concept's Terminal view, which the toolbar's segments hide. */ embedded?: boolean }) {
   const all = useTerminals((s) => s.terminals)
   const folder = session?.cwd ?? null
   const terminals = useMemo(() => folderTerminals(all, folder), [all, folder])
@@ -133,11 +133,13 @@ export function TerminalPane({ session }: { session: SessionMeta | undefined }) 
           </Button>
         </Tooltip>
         <div className="flex-1" />
-        <Tooltip label="Hide Terminal" shortcut={formatAccelerator('CmdOrCtrl+`')}>
-          <Button size="small" aria-label="Hide terminal" onClick={() => runCommand('view.toggleTerminal')}>
-            <ChevronDown size={15} strokeWidth={1.75} aria-hidden />
-          </Button>
-        </Tooltip>
+        {!embedded && (
+          <Tooltip label="Hide Terminal" shortcut={formatAccelerator('CmdOrCtrl+`')}>
+            <Button size="small" aria-label="Hide terminal" onClick={() => runCommand('view.toggleTerminal')}>
+              <ChevronDown size={15} strokeWidth={1.75} aria-hidden />
+            </Button>
+          </Tooltip>
+        )}
       </div>
       <div className="relative min-h-0 flex-1">
         {active ? (

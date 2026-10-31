@@ -30,6 +30,7 @@ import {
   finishStreamBlock,
   isEffort,
   isMode,
+  type AccountSummary,
   type Activity,
   type CardAnswer,
   type CommandInfo,
@@ -87,6 +88,8 @@ export interface RunnerEvents {
   rateLimit(info: Record<string, unknown>): void
   /** The first process to start says which models your plan has. */
   models(models: ModelChoice[]): void
+  /** Who Claude Code is signed in as, and on what plan. */
+  account(account: AccountSummary): void
 }
 
 /** A push-driven prompt stream: messages go to the CLI as they're sent. */
@@ -273,6 +276,7 @@ export class Runner {
   private blobSeq = 1
   commands: CommandInfo[] | null = null
   private askedForModels = false
+  private askedForAccount = false
 
   constructor(
     options: RunnerOptions,
@@ -679,10 +683,17 @@ export class Runner {
     }
   }
 
-  /** What its first process can tell us: slash commands, and the models on your plan. */
+  /** What its first process can tell us: slash commands, the models on your plan, and the account. */
   private learn(): void {
     const q = this.q
     if (!q) return
+    if (!this.askedForAccount) {
+      this.askedForAccount = true
+      q.accountInfo().then(
+        (info) => this.events.account({ email: info.email ?? null, organization: info.organization ?? null, plan: info.subscriptionType ?? null }),
+        () => {}
+      )
+    }
     if (!this.commands) {
       q.supportedCommands().then(
         (list: SlashCommand[]) => (this.commands = list.map((c) => ({ name: c.name, description: c.description ?? '', argumentHint: c.argumentHint ?? '' }))),

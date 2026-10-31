@@ -1,0 +1,760 @@
+/* The concept design (View › Design › Concept): a quiet neutral window with one
+   accent, a violet from Gloom's icon (your pick over the handoff's orange). The
+   sidebar floats in frosted glass with no sky behind it, the
+   chat switches between its conversation, its changes and its terminal, and an
+   inspector stands beside it. Same token names as the classic dusk, new values;
+   Classic is one click back.
+
+   Text colours keep 4.5:1 or better where they sit: the handoff's secondary
+   ink (#6e6e73) is 4.4:1 on the sidebar's glass, so it's a shade darker; its
+   greens, reds and amber are for fills and marks, and darker versions of them
+   carry text in the light appearance. White text sits on a deeper violet
+   (5.6:1) than the accent (4.3:1); the accent itself, as a mark, keeps 3.6:1
+   on the sidebar in both appearances. */
+
+:root[data-design='concept'] {
+  /* The accent is the concept's own, whatever Windows' is (window-state.ts sets
+     the inline one, which only an important declaration outranks). */
+  --accent: oklch(0.6 0.2 293) !important;
+  --on-accent: #ffffff !important;
+  /* Behind white text: Send, Allow Once, primary buttons. */
+  --accent-strong: oklch(0.54 0.2 293);
+  --accent-text: color-mix(in oklab, var(--accent) 62%, var(--label));
+  --accent-fill: oklch(0.6 0.2 293 / 0.14);
+  --accent-ring: color-mix(in oklab, var(--accent) 70%, transparent);
+  --signal: var(--accent-strong);
+  --signal-glow: oklch(0.6 0.2 293 / 0.55);
+  --signal-symbol: var(--accent-text);
+
+  --label: #1d1d1f;
+  --label-secondary: #69696e;
+  --label-tertiary: #a1a1a6;
+  --label-quaternary: rgb(0 0 0 / 0.18);
+  --fill: rgb(0 0 0 / 0.045);
+  --fill-strong: rgb(0 0 0 / 0.07);
+  --fill-pressed: rgb(0 0 0 / 0.1);
+  --separator: rgb(0 0 0 / 0.08);
+  --separator-strong: rgb(0 0 0 / 0.12);
+
+  --surface: #fbfbfa;
+  --card: #ffffff;
+  --card-edge: rgb(0 0 0 / 0.08);
+  --code: #f5f5f3;
+  --bubble: rgb(0 0 0 / 0.045);
+  --bubble-shadow: 0 0.5px 1px rgb(0 0 0 / 0.12);
+  --field: #ffffff;
+
+  /* The sidebar's frosted glass and the composer's, over the window. */
+  --sidebar-glass: rgb(236 236 234 / 0.72);
+  --sidebar-blur: blur(40px) saturate(1.6);
+  --composer-glass: rgb(255 255 255 / 0.72);
+  --composer-blur: blur(28px) saturate(1.7);
+  --composer-shadow: 0 0 0 0.5px var(--separator), inset 0 1px 0 rgb(255 255 255 / 0.35), 0 12px 40px rgb(0 0 0 / 0.14);
+
+  /* Menus, popovers, tooltips: the same neutral glass, a hairline for an edge. */
+  --glass-fill: var(--sidebar-glass);
+  --glass-fill-strong: rgb(255 255 255 / 0.84);
+  --glass-sheen: transparent;
+  --glass-blur: var(--sidebar-blur);
+  --glass-strong-blur: blur(28px) saturate(1.7);
+  --glass-rim: none;
+  --glass-shadow: 0 0 0 0.5px var(--separator-strong), 0 12px 40px rgb(0 0 0 / 0.14);
+  --glass-light: transparent;
+  /* Toolbar capsules are a quiet fill on the window. */
+  --capsule-fill: var(--fill);
+  --capsule-blur: none;
+  --capsule-shadow: none;
+  --scrim: rgb(0 0 0 / 0.18);
+
+  /* The open session: the accent at 14%, the title in full ink. */
+  --selection: var(--accent-fill);
+  --row-selected: var(--accent-fill);
+  --on-row-selected: var(--label);
+  --row-selected-blur: var(--fill-strong);
+  --row-selected-tint: var(--accent-fill);
+  --segment-thumb: #ffffff;
+  --search-fill: var(--fill);
+  --search-hover: var(--fill-strong);
+  --search-focus: var(--card);
+  --status-elsewhere: var(--accent);
+  --status-elsewhere-glow: oklch(0.6 0.2 293 / 0.45);
+
+  /* Text (5:1 or better on the window), and the marks and fills the handoff drew. */
+  --added-text: oklch(0.5 0.13 150);
+  --removed-text: oklch(0.54 0.19 25);
+  --warning: oklch(0.5 0.12 70);
+  --added-mark: oklch(0.62 0.15 150);
+  --removed-mark: oklch(0.6 0.19 25);
+  --warning-mark: oklch(0.75 0.14 75);
+  --added-fill: oklch(0.62 0.15 150 / 0.12);
+  --removed-fill: oklch(0.6 0.19 25 / 0.1);
+  --warning-fill: oklch(0.75 0.14 75 / 0.16);
+
+  /* The terminal, on the code colour (plain hex: xterm reads its theme as strings). */
+  --terminal-bg: #f5f5f3;
+  --terminal-fg: #1d1d1f;
+  --terminal-cursor: #8860ea;
+  --terminal-selection: #8860ea3d;
+
+  --radius-panel: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-design='concept'] {
+    --accent-text: color-mix(in oklab, var(--accent) 80%, var(--label));
+    --label: #f5f5f7;
+    --label-secondary: #a1a1a6;
+    --label-tertiary: #6e6e73;
+    --label-quaternary: rgb(255 255 255 / 0.16);
+    --fill: rgb(255 255 255 / 0.06);
+    --fill-strong: rgb(255 255 255 / 0.09);
+    --fill-pressed: rgb(255 255 255 / 0.13);
+    --separator: rgb(255 255 255 / 0.09);
+    --separator-strong: rgb(255 255 255 / 0.13);
+
+    --surface: #1e1e1f;
+    --card: #2a2a2c;
+    --card-edge: rgb(255 255 255 / 0.09);
+    --code: #252527;
+    --bubble: rgb(255 255 255 / 0.06);
+    --bubble-shadow: 0 0.5px 1px rgb(0 0 0 / 0.3);
+    --field: rgb(255 255 255 / 0.06);
+
+    --sidebar-glass: rgb(40 40 42 / 0.72);
+    --composer-glass: rgb(50 50 52 / 0.72);
+    --composer-shadow: 0 0 0 0.5px var(--separator), inset 0 1px 0 rgb(255 255 255 / 0.06), 0 12px 40px rgb(0 0 0 / 0.3);
+    --glass-fill-strong: rgb(44 44 46 / 0.86);
+    --glass-shadow: 0 0 0 0.5px var(--separator-strong), 0 12px 40px rgb(0 0 0 / 0.3);
+    --scrim: rgb(0 0 0 / 0.45);
+    /* The handoff's thumb is the card colour, which all but vanishes on the
+       track in the dark: one step lighter, so the chosen segment shows. */
+    --segment-thumb: #3a3a3c;
+
+    --added-text: oklch(0.72 0.15 150);
+    --removed-text: oklch(0.7 0.16 25);
+    --warning: oklch(0.75 0.14 75);
+
+    --terminal-bg: #252527;
+    --terminal-fg: #f5f5f7;
+    --terminal-selection: #8860ea4d;
+  }
+}
+
+/* A window you've stepped away from: the selection turns gray, as on the Mac. */
+:root[data-design='concept'][data-focused='false'] {
+  --accent-fill: var(--fill-strong);
+}
+
+/* Reduce Transparency: the sidebar, the composer and every popover go opaque,
+   with no blur. Always Show Glass (View menu) keeps the glass. */
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-design='concept']:not([data-glass='on']) {
+    --sidebar-glass: #efefed;
+    --sidebar-blur: none;
+    --composer-glass: #ffffff;
+    --composer-blur: none;
+    --glass-fill-strong: #ffffff;
+    --glass-strong-blur: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
+  :root[data-design='concept']:not([data-glass='on']) {
+    --sidebar-glass: #262628;
+    --composer-glass: #323234;
+    --glass-fill-strong: #2c2c2e;
+  }
+}
+
+/* Increase Contrast: defined edges and stronger secondary text. */
+@media (prefers-contrast: more) {
+  :root[data-design='concept'] {
+    --separator: rgb(0 0 0 / 0.4);
+    --separator-strong: rgb(0 0 0 / 0.6);
+    --card-edge: rgb(0 0 0 / 0.4);
+    --label-secondary: #46464b;
+    --label-tertiary: #69696e;
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root[data-design='concept'] {
+    --separator: rgb(255 255 255 / 0.4);
+    --separator-strong: rgb(255 255 255 / 0.6);
+    --card-edge: rgb(255 255 255 / 0.4);
+    --label-secondary: #d1d1d6;
+    --label-tertiary: #a1a1a6;
+  }
+}
+
+/* Switching designs crossfades the window, as a theme change should. The
+   window under the crossfade is already the new one, and takes the pointer. */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 240ms;
+  animation-timing-function: var(--curve-out);
+}
+
+/* ─── The concept's parts ────────────────────────────────────────────────────
+   Outside any layer, so they outrank the Tailwind utilities on the same
+   elements; every selector names a concept-only class or sits under the
+   concept's root, so the classic design never sees them. */
+
+/* The sidebar: frosted glass over the window, a hairline edge, no shadow. */
+.concept-sidebar {
+  background: var(--sidebar-glass);
+  -webkit-backdrop-filter: var(--sidebar-blur);
+  backdrop-filter: var(--sidebar-blur);
+  box-shadow: inset 0 0 0 0.5px var(--separator);
+}
+
+/* Rows give a little under the pointer (120 ms, ease-out). */
+.concept-press {
+  transition: transform var(--duration-press) var(--curve-out);
+}
+.concept-press:active {
+  transform: scale(0.98);
+}
+
+/* A session's mark: a hollow ring at rest, amber while Claude waits, green when it finished. */
+.concept-dot {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+.concept-dot.is-idle {
+  box-shadow: inset 0 0 0 1.5px var(--label-tertiary);
+}
+.concept-dot.is-waiting {
+  background: var(--warning-mark);
+}
+.concept-dot.is-finished {
+  background: var(--added-mark);
+}
+:root[data-design='concept'] .session-row.is-selected .row-waiting {
+  color: var(--warning);
+}
+
+/* Work under way: the accent running round a faint ring. */
+.concept-spinner {
+  display: inline-block;
+  flex: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  border: 1.6px solid color-mix(in oklab, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+  animation: concept-spin 0.8s linear infinite;
+}
+@keyframes concept-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The segmented track: a quiet fill, one raised thumb that slides. */
+.concept-track {
+  position: relative;
+  display: grid;
+  flex: none;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--fill);
+}
+.concept-track-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  border-radius: 7px;
+  background: var(--segment-thumb);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.12),
+    0 0 0 0.5px var(--separator);
+  transition: transform 220ms var(--curve-out);
+}
+.concept-track-segment {
+  position: relative;
+  z-index: 1;
+  padding: 3px 16px;
+  border-radius: 7px;
+  color: var(--label-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+  outline: none;
+  transition: color 150ms var(--curve-out);
+}
+.concept-track.is-small .concept-track-segment {
+  padding: 2px 12px;
+}
+.concept-track-segment.is-selected {
+  color: var(--label);
+}
+.concept-track-segment:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -1px;
+}
+@media (hover: hover) {
+  .concept-track-segment:not(.is-selected):hover {
+    color: var(--label);
+  }
+}
+
+/* The toolbar: a little more room than the classic one. As the chat narrows,
+   the segments tighten and the resting status goes (the sidebar and inspector
+   say when a session was active); narrower still, the segments give way
+   before the title does. */
+.concept-toolbar {
+  gap: 12px;
+  padding-left: 18px;
+  padding-right: 14px;
+}
+@container (max-width: 780px) {
+  .concept-toolbar .concept-track-segment {
+    padding-inline: 10px;
+  }
+  .concept-toolbar .concept-pill.is-idle {
+    display: none;
+  }
+}
+@container (max-width: 620px) {
+  .concept-toolbar .concept-track {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .concept-toolbar .concept-track-segment {
+    min-width: 0;
+    overflow: hidden;
+    padding-inline: 6px;
+    text-overflow: ellipsis;
+  }
+}
+
+/* What the session is doing. */
+.concept-pill {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 13px;
+  color: var(--label-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.concept-pill.is-idle {
+  padding: 0 4px;
+}
+.concept-pill.is-working {
+  background: var(--fill-strong);
+}
+.concept-pill.is-waiting {
+  background: var(--warning-fill);
+  color: var(--warning);
+  font-weight: 500;
+}
+.concept-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* A step (a tool call) as a card: a header you click, its detail below. */
+.concept-step {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 0.5px var(--card-edge),
+    0 1px 2px rgb(0 0 0 / 0.04);
+}
+.concept-step-head {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  text-align: left;
+  outline: none;
+  transition: background-color var(--duration-press) var(--curve-out);
+}
+.concept-step-head:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+  border-radius: 10px;
+}
+@media (hover: hover) {
+  .concept-step-head:hover {
+    background: var(--fill);
+  }
+}
+.concept-chevron {
+  flex: none;
+  color: var(--label-secondary);
+  transition: transform 150ms var(--curve-out);
+}
+.concept-chevron.is-open,
+.is-open > .concept-chevron {
+  transform: rotate(90deg);
+}
+.concept-glyph {
+  display: grid;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--fill-strong);
+  color: var(--label-secondary);
+}
+.concept-step-body {
+  padding: 10px 12px;
+  box-shadow: inset 0 0.5px 0 var(--separator-strong);
+  animation: concept-fade 150ms var(--curve-out);
+}
+@keyframes concept-fade {
+  from {
+    opacity: 0;
+  }
+}
+/* Code and output run edge to edge on the code colour, as the handoff draws them. */
+.concept-step-body .code-card {
+  margin-inline: -12px;
+  border-radius: 0;
+  background: var(--code);
+  box-shadow: none;
+}
+.concept-step-body > .code-card:first-child,
+.concept-step-body > :first-child > .code-card:first-child,
+.concept-step-body > :first-child > :first-child > .code-card:first-child {
+  margin-top: -10px;
+}
+.concept-step-body > .code-card:last-child,
+.concept-step-body > :last-child > .code-card:last-child,
+.concept-step-body > :last-child > :last-child > .code-card:last-child {
+  margin-bottom: -10px;
+}
+.concept-step-body .code-text {
+  font-size: 0.78125rem;
+  line-height: 1.7;
+}
+
+/* The to-do list's checks: filled with a tick, a dot in a ring, an empty ring. */
+.concept-check {
+  position: relative;
+  display: grid;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  place-items: center;
+  border-radius: 999px;
+  border: 1.5px solid var(--label-tertiary);
+  transition:
+    background-color 200ms var(--curve-out),
+    border-color 200ms var(--curve-out);
+}
+.concept-check.is-done {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.concept-check.is-done::after {
+  content: '';
+  width: 6px;
+  height: 3px;
+  border: solid #fff;
+  border-width: 0 0 1.6px 1.6px;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+.concept-check.is-now {
+  border-color: var(--accent);
+}
+.concept-check.is-now::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+/* Claude asking, at the end of the conversation: a card of content, not glass. */
+.concept-ask {
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 0.5px var(--card-edge),
+    0 10px 30px rgb(0 0 0 / 0.08);
+}
+.concept-ask .code-card {
+  border-radius: 9px;
+  background: var(--code);
+  box-shadow: inset 0 0 0 0.5px var(--separator);
+}
+@media (prefers-color-scheme: dark) {
+  .concept-ask {
+    box-shadow:
+      0 0 0 0.5px var(--card-edge),
+      0 10px 30px rgb(0 0 0 / 0.3);
+  }
+}
+
+/* The composer's glass. */
+.concept-composer {
+  background: var(--composer-glass);
+  -webkit-backdrop-filter: var(--composer-blur);
+  backdrop-filter: var(--composer-blur);
+  box-shadow: var(--composer-shadow);
+}
+.concept-composer.is-dropping {
+  box-shadow:
+    0 0 0 2px var(--accent-ring),
+    var(--composer-shadow);
+}
+:root[data-design='concept'] .composer-edge {
+  height: 110px;
+}
+/* Its chips say their choice in words, as the handoff draws them. */
+:root[data-design='concept'] .chip-icon {
+  display: none;
+}
+:root[data-design='concept'] .prose-gloom {
+  text-wrap: pretty;
+}
+
+/* The inspector: a column of the window, a hairline down its leading edge. */
+.concept-inspector {
+  background: var(--surface);
+  box-shadow: inset 0.5px 0 0 var(--separator-strong);
+}
+/* In a narrow window it floats over the chat. */
+.concept-sheet {
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow:
+    0 0 0 0.5px var(--separator-strong),
+    var(--glass-shadow);
+}
+.concept-sheet .concept-inspector {
+  box-shadow: none;
+}
+.concept-list {
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 0.5px var(--separator-strong);
+}
+.concept-list > li + li {
+  box-shadow: inset 0 0.5px 0 var(--separator);
+}
+.concept-list-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  outline: none;
+}
+.concept-list-row:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .concept-list-row:hover {
+    background: var(--fill);
+  }
+}
+.concept-ring-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 0.5px var(--separator-strong);
+}
+.concept-ring {
+  display: grid;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 999px;
+  background: conic-gradient(var(--accent) 0 var(--ring, 0%), var(--fill-strong) 0);
+}
+.concept-ring::after {
+  content: '';
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--card);
+}
+.concept-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px 12px;
+  margin: 0;
+  font-size: 12.5px;
+}
+.concept-facts dt {
+  color: var(--label-secondary);
+}
+.concept-facts dd {
+  margin: 0;
+  color: var(--label);
+  text-align: right;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* A file's change: M, A, U, D, R on its mark's colour. The letter is dark in
+   both appearances: 5:1 or better on every mark (the window's own light
+   colour, as drawn, gives 2.2:1 on the amber). */
+.concept-badge {
+  display: grid;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 4px;
+  color: #1d1d1f;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.concept-badge.is-modified {
+  background: var(--warning-mark);
+}
+.concept-badge.is-added,
+.concept-badge.is-untracked {
+  background: var(--added-mark);
+}
+.concept-badge.is-deleted {
+  background: oklch(0.66 0.18 25);
+}
+/* The violet is too deep for a dark letter (3.9:1): white, on the deeper one (5.6:1). */
+.concept-badge.is-renamed {
+  background: var(--accent-strong);
+  color: #ffffff;
+}
+
+/* "Tell Claude What to Do…": a text button in the accent's ink. */
+.concept-ask .concept-tell {
+  color: var(--accent-text);
+}
+
+/* The Changes view: a card per file in an 860 px column. Each card is drawn
+   in pieces (the list is virtual): the header, then the body in chunks, the
+   last of them rounding off the card. */
+.concept-file-row {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 32px;
+  background: var(--surface);
+}
+.concept-file-row.is-spaced {
+  padding-top: 12px;
+}
+.concept-file-head {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 0.5px var(--card-edge);
+  text-align: left;
+  outline: none;
+}
+.concept-file-head.is-open {
+  border-radius: 10px 10px 0 0;
+}
+.concept-file-head:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .concept-file-head:hover {
+    background: linear-gradient(var(--fill), var(--fill)), var(--card);
+  }
+}
+.concept-file-body {
+  background: var(--code);
+  box-shadow:
+    inset 0.5px 0 0 var(--card-edge),
+    inset -0.5px 0 0 var(--card-edge);
+}
+.concept-file-body.is-last {
+  padding-bottom: 6px;
+  border-radius: 0 0 10px 10px;
+  box-shadow:
+    inset 0.5px 0 0 var(--card-edge),
+    inset -0.5px 0 0 var(--card-edge),
+    inset 0 -0.5px 0 var(--card-edge);
+}
+.concept-file-list .code-text {
+  font-size: 0.78125rem;
+  line-height: 1.7;
+}
+
+/* The Terminal view's card. */
+.concept-terminal {
+  border-radius: 12px;
+  background: var(--terminal-bg);
+  box-shadow: inset 0 0 0 0.5px var(--separator-strong);
+}
+.concept-terminal .terminal-pane {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .concept-press:active {
+    transform: none;
+  }
+  .concept-spinner {
+    animation: none;
+  }
+  .concept-track-thumb,
+  .concept-chevron {
+    transition: none;
+  }
+  .concept-step-body {
+    animation: none;
+  }
+}
+
+/* Windows' contrast themes: the chosen segment and the cards' edges in the theme's colours. */
+@media (forced-colors: active) {
+  .concept-track-thumb {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+  .concept-track-segment.is-selected {
+    forced-color-adjust: none;
+    color: HighlightText;
+  }
+  .concept-step,
+  .concept-ask,
+  .concept-list,
+  .concept-file-head,
+  .concept-sidebar,
+  .concept-composer {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+  .concept-dot.is-idle {
+    box-shadow: inset 0 0 0 1.5px CanvasText;
+  }
+}

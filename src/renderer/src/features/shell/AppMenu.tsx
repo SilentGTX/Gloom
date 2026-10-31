@@ -16,7 +16,7 @@ import {
   MenuTrigger
 } from '../../components/ui/Menu'
 import { runCommand } from '../../lib/commands'
-import { DIFF_TABS, SORTS, useCommandState } from '../../lib/command-state'
+import { DESIGNS, DIFF_TABS, SORTS, useCommandState } from '../../lib/command-state'
 import { useUi } from '../../stores/ui'
 
 const ORDER: CommandGroup[] = ['file', 'edit', 'view', 'help', 'developer']
@@ -25,10 +25,13 @@ const ORDER: CommandGroup[] = ['file', 'edit', 'view', 'help', 'developer']
 export function AppMenu({ shape = 'rounded' }: { shape?: 'rounded' | 'round' }) {
   const ui = useUi()
   const stateOf = useCommandState()
-  // A submenu is one choice of several: how sessions sort, what the diff shows.
+  // A submenu is one choice of several: how sessions sort, what the diff shows, Gloom's look.
   const radio = (commands: CommandSpec[]) => {
-    const choices: Record<string, string> = commands.some((c) => c.id in DIFF_TABS) ? DIFF_TABS : SORTS
-    const value = choices === DIFF_TABS ? ui.diffTab : ui.sort
+    const [choices, value]: [Record<string, string>, string] = commands.some((c) => c.id in DIFF_TABS)
+      ? [DIFF_TABS, ui.diffTab]
+      : commands.some((c) => c.id in DESIGNS)
+        ? [DESIGNS, ui.design]
+        : [SORTS, ui.sort]
     return (
       <MenuRadioGroup value={value} onChange={(v) => runCommand(commands.find((c) => choices[c.id] === v)!.id as CommandId)}>
         {commands.map((c) => (

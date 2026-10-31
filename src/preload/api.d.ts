@@ -114,6 +114,10 @@ export interface GloomApi {
   /** Opens the session's working folder in Explorer; false if it no longer exists. */
   revealSession(id: string): Promise<boolean>
   copySessionId(id: string): Promise<void>
+  /** Opens the session's working folder in the code editor (File Explorer without one); false if it no longer exists. */
+  openInEditor(id: string): Promise<boolean>
+  /** The code editor a folder opens in, by name ("Visual Studio Code"), or null without one. */
+  editorName(): Promise<string | null>
   /** A folder chosen in the system's folder picker, or null. */
   pickFolder(): Promise<string | null>
   /** A page of a session's transcript, newest first; following it sends its changes to `onTranscript`. */

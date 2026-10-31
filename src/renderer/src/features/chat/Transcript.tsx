@@ -11,11 +11,14 @@ import { composerSpace } from '../../lib/composer-space'
 import { useDelayed } from '../../lib/delayed'
 import { isBusy, useLive } from '../../stores/live'
 import { useTranscript } from '../../stores/transcript'
+import { useConcept } from '../concept/parts'
 import { clearMatches, findMatches, paintMatches, popMatch, useFind } from './find'
 import { FindBar } from './FindBar'
+import { PromptCards } from './PromptCards'
 import { cutAt, RewindAllowed } from './Rewind'
 import { buildRows, liveRows, type Row } from './rows'
 import { RowView } from './RowView'
+import { LatestTodos } from './ToolRow'
 
 /** Virtuoso counts rows from here, so older pages can be put above without the view jumping. */
 const BASE_INDEX = 1_000_000
@@ -54,6 +57,7 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
     return tail.length ? [...base, ...tail] : base
   }, [base, busy, stream, since, activity])
   const slow = useDelayed(status === 'loading', 300)
+  const latestTodos = useMemo(() => rows.findLast((r) => r.kind === 'tool' && r.entry.name === 'TodoWrite')?.key ?? null, [rows])
 
   if (status === 'loading' || status === 'idle') {
     return <div className="flex flex-1 items-center justify-center">{slow && <LoaderCircle size={20} strokeWidth={1.75} aria-label="Loading the transcript" className="animate-spin text-label-secondary motion-reduce:animate-none" />}</div>
@@ -85,7 +89,9 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
   }
   return (
     <RewindAllowed.Provider value={!live && !running}>
-      <TranscriptList key={`${sessionId}:${epoch}`} sessionId={sessionId} rows={rows} />
+      <LatestTodos.Provider value={latestTodos}>
+        <TranscriptList key={`${sessionId}:${epoch}`} sessionId={sessionId} rows={rows} />
+      </LatestTodos.Provider>
     </RewindAllowed.Provider>
   )
 }
@@ -109,6 +115,20 @@ function useFirstItemIndex(rows: Row[]): number {
 
 interface ListContext {
   loadingOlder: boolean
+  sessionId: string
+  /** The concept: Claude's requests wait at the end of the conversation, not over the composer. */
+  inline: boolean
+}
+
+/** The card Claude waits on, at the end of the conversation (the concept), in the rows' column. */
+function InlineCards({ sessionId }: { sessionId: string }) {
+  const summary = useLive((s) => s.sessions[sessionId])
+  if (!summary) return null
+  return (
+    <div className="mx-auto w-full max-w-[720px] px-8 pt-4">
+      <PromptCards sessionId={sessionId} summary={summary} inline />
+    </div>
+  )
 }
 
 /**
@@ -138,7 +158,12 @@ const components = {
       {context?.loadingOlder && <LoaderCircle size={16} strokeWidth={1.75} aria-label="Loading earlier messages" className="animate-spin text-label-secondary motion-reduce:animate-none" />}
     </div>
   ),
-  Footer: () => <div style={{ height: `calc(var(--composer-space, 0px) + ${BOTTOM_SPACE}px)` }} />
+  Footer: ({ context }: { context?: ListContext }) => (
+    <>
+      {context?.inline && <InlineCards sessionId={context.sessionId} />}
+      <div style={{ height: `calc(var(--composer-space, 0px) + ${BOTTOM_SPACE}px)` }} />
+    </>
+  )
 }
 
 function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] }) {
@@ -152,6 +177,8 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
   const [atBottom, setAtBottom] = useState(true)
   const visible = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
   const reduce = useReducedMotion()
+  const inline = useConcept()
+  const waitingCard = useLive((s) => s.sessions[sessionId]?.cards[0]?.requestId ?? null)
 
   // ─── Staying at the bottom ─────────────────────────────────────────────────
   // Whether you're at the bottom is decided when you scroll, not when the
@@ -181,6 +208,18 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
     return () => window.removeEventListener('gloom:composer', onComposer)
   }, [toBottom])
   useEffect(() => () => cancelAnimationFrame(settle.current), [])
+  // In the concept Claude's request waits at the end of the conversation: it comes into view as it
+  // arrives (it takes the keyboard, so it must be seen), and the status pill brings you back to it.
+  useEffect(() => {
+    if (!inline) return
+    const show = () => {
+      pinned.current = true
+      toBottom()
+    }
+    if (waitingCard) show()
+    window.addEventListener('gloom:show-card', show)
+    return () => window.removeEventListener('gloom:show-card', show)
+  }, [inline, waitingCard, toBottom])
   const onScroll = useCallback((e: Event) => {
     const s = e.currentTarget as HTMLElement
     pinned.current = s.scrollHeight - s.clientHeight - s.scrollTop < bottomSpace() + 64
@@ -264,7 +303,7 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
           scroller.current?.addEventListener('scroll', onScroll, { passive: true })
         }}
         data={rows}
-        context={{ loadingOlder }}
+        context={{ loadingOlder, sessionId, inline }}
         components={components}
         firstItemIndex={firstItemIndex}
         // Opens at the very bottom, past the last row's end to the spacer under it.

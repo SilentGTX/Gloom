@@ -11,6 +11,8 @@ export interface LaunchOptions {
   userData?: string
   /** Claude Code's folder (CLAUDE_CONFIG_DIR). By default an empty one: tests never read your sessions. */
   claudeDir?: string
+  /** The look to test. The suite was written for the classic one; concept.spec.ts tests the concept, Gloom's default. */
+  design?: 'concept' | 'classic'
 }
 
 /** Launches the built app with a throwaway profile, so tests never see your real state. */
@@ -27,6 +29,13 @@ export async function launch(options: LaunchOptions = {}): Promise<{ app: Electr
   })
   const page = await app.firstWindow()
   await page.waitForSelector('main')
+  const design = options.design ?? 'classic'
+  if ((await page.locator('html').getAttribute('data-design')) !== design) {
+    await page.evaluate((d) => window.gloom!.runCommand(d === 'classic' ? 'view.designClassic' : 'view.designConcept'), design)
+    await page.waitForSelector(`html[data-design="${design}"]`)
+    // The switch crossfades (240 ms): tests start once it's over, so nothing they measure is mid-fade.
+    await page.waitForFunction(() => !document.getAnimations().some((a) => (a.effect as KeyframeEffect | null)?.pseudoElement?.startsWith('::view-transition')))
+  }
   return { app, page }
 }
 

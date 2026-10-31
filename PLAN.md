@@ -1235,6 +1235,60 @@ disclosure pages; `apple-design` for motion).
      against the release key, and its hashes match the installer and zip that went out (GitHub's
      own digests of them as well).
 
+11. **Concept design** (your handoff, `Downloads\Gloom\design_handoff_gloom_concept`; branch
+    `concept-design`, not released). You asked to try it and to be able to go back easily, so
+    it's a switch: **View › Design › Concept / Classic** (also Settings › Window › Design and the
+    command palette). Concept is what Gloom opens in; Classic is the window as it was, untouched
+    (the end-to-end suite runs in it). Switching crossfades the window (a view transition,
+    240 ms). Nearly all of it lives in `features/concept/` and `styles/concept.css`, so either
+    look can go later in one change.
+   - **What changed:** the dusk is gone for a neutral window (`#FBFBFA` / `#1E1E1F`) and one
+     accent: a violet from Gloom's icon, oklch 0.6 0.2 293 (`#8860EA`), your pick over the
+     handoff's orange. The sidebar is frosted glass with a hairline edge: round Menu,
+     Hide Sidebar and New Session buttons, the search field (saying its shortcut), one-line
+     30 px session rows with a mark (a spinner while it works, amber while Claude waits, green
+     when it finished while you were elsewhere, a hollow ring at rest), the open session in the
+     accent at 14%, filled folders in the accent, and at the foot your account, plan and weekly
+     use (from the Agent SDK's `accountInfo()` and the usage Gloom already reads; it shows once a
+     session has started, and is remembered). The chat's toolbar has the title over its folder
+     and branch, Conversation | Changes | Terminal in the middle, a status pill (Waiting for you,
+     Working, Active 33m ago) and the inspector's button. Tool calls are cards with a glyph tile;
+     the newest to-do list is an open checklist; your bubble has its tail. Claude's requests wait
+     at the end of the conversation as cards (the accent tile, Esc and ↩ beside their buttons);
+     Tell Claude What to Do… puts the note in the composer ("Tell Claude what to do instead"),
+     and sending it denies the request with that note. The Changes view is a card per file (the
+     first open), This Session / Working Tree on a small track, Refresh; the Terminal view is the
+     shells on a card. The inspector (Ctrl+I, which is Session Info in Classic; View › Show
+     Inspector) lists the changes (Review Diff, Open in Editor: VS Code by its `vscode://` link,
+     else File Explorer), the context as a ring, and the model, mode, branch and folder, with
+     Resume in Terminal. Below about 1240 px it floats over the chat as a sheet; below about
+     770 px the sidebar folds away as before.
+   - **Departures**, deliberate:
+     - text colours are a shade darker where the handoff's fall under 4.5:1: secondary ink
+       `#69696e` (4.8:1 on the sidebar's glass, the handoff's 4.4:1), and in light the greens,
+       reds and amber used for text (+6, −3, Waiting) are darker versions of the handoff's
+       marks; white text sits on a deeper violet (5.6:1; the accent gives 4.3:1); badge
+       letters are dark on the bright marks (5:1 or better; the window colour gives 2.2:1 on the
+       amber), white on the deep violet for a rename;
+     - the dark segmented thumb is one step lighter than the card colour, which vanished on its
+       track;
+     - the idle session mark is a hollow ring, so idle and finished differ in shape as well as
+       colour; the rows say it to a screen reader too;
+     - folders keep their disclosure triangle (Gloom's folders nest);
+     - Gloom's Library, Folders and Archived stay (Archived ends the list; the foot is for your
+       account); a session row's last prompt is its tooltip;
+     - the search field's hint says its real shortcut (Ctrl+Shift+F; Ctrl+K is the palette);
+     - Hide Sidebar sits by the menu (macOS's place) and comes to the chat's leading edge with the
+       sidebar away; the handoff's Appearance button was for reviewers and isn't there;
+     - the toolbar stays 48 px (the caption buttons' height); the composer keeps Effort.
+   - **Not done:** the theme crossfade when Windows switches light and dark (the page can't see
+     the old colours once Windows has changed them); the handoff's step durations ("0.4s") and
+     "No errors", which the transcript doesn't record.
+   - **Tests:** `test/e2e/concept.spec.ts` (the window in light and dark, the three views, the
+     inspector and its sheet, a narrow window, a permission card answered with Tell Claude What
+     to Do; captures in `test-screens/concept/`); the rest of the suite pins Classic
+     (`launch({ design })`); the packaged check ends by switching to the concept.
+
 ## Verification
 
 - **Acceptance:** the week as a daily driver described under "Decided with you". Each phase also

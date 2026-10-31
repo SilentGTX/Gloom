@@ -127,6 +127,27 @@ if (smokeArg) {
       }
       return (await shell.openPath(cwd)) === ''
     })
+    // A folder opens in VS Code through its own link (vscode://file/…), so nothing is run by name
+    // from the folder; without VS Code it opens in File Explorer.
+    const editorName = () => app.getApplicationNameForProtocol('vscode://') || null
+    ipcMain.handle(IPC.editorName, (event) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      return editorName()
+    })
+    ipcMain.handle(IPC.openInEditor, async (event, id: unknown) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      const meta = typeof id === 'string' ? library.session(id) : undefined
+      const cwd = meta?.cwd
+      if (!cwd || meta.remote || !existsSync(cwd) || !statSync(cwd).isDirectory()) return false
+      if (!editorName()) return (await shell.openPath(cwd)) === ''
+      const path = cwd
+        .replace(/\\/g, '/')
+        .split('/')
+        .map((part, i) => (i === 0 && /^[A-Za-z]:$/.test(part) ? part : encodeURIComponent(part)))
+        .join('/')
+      await shell.openExternal(`vscode://file/${path}`)
+      return true
+    })
     ipcMain.handle(IPC.copySessionId, (event, id: unknown) => {
       if (!trusted(event)) throw new Error('untrusted sender')
       if (typeof id === 'string' && library.session(id)) clipboard.writeText(id)

@@ -227,6 +227,8 @@ export function startScreens(): () => void {
   }
   dark.addEventListener('change', retheme)
   const offScale = useUi.subscribe((s, before) => {
+    // Another design repaints the screens in its colours, once <html> says which it is.
+    if (s.design !== before.design) requestAnimationFrame(retheme)
     if (s.textScale === before.textScale) return
     for (const [id, screen] of screens) {
       screen.term.options.fontSize = fontSize()

@@ -25,6 +25,7 @@ import {
   type RewindRequest,
   type SetRequest,
   type UsageInfo,
+  type AccountSummary,
   type UsageWindow
 } from '@shared/live'
 import { parseRef } from '@shared/transcript'
@@ -61,6 +62,7 @@ export class Sessions {
   private commandsKnown: CommandInfo[] = []
   private modelsAsked = false
   private usageInfo: UsageInfo | null = null
+  private accountInfo: AccountSummary | null = null
   private usageAt = 0
 
   constructor(
@@ -240,6 +242,11 @@ export class Sessions {
       models: (models) => {
         rememberModels(models)
         this.events.event({ type: 'models', models: knownModels() })
+      },
+      account: (account) => {
+        if (JSON.stringify(account) === JSON.stringify(this.accountInfo)) return
+        this.accountInfo = account
+        this.events.event({ type: 'account', account })
       }
     }
     return new Runner(options, events, () => {
