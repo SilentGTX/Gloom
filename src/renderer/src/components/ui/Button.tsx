@@ -30,8 +30,10 @@ const button = cva(
       },
       tone: {
         plain: '',
-        // A dialog's default action: the background carries the accent.
-        primary: 'bg-accent font-medium text-[var(--on-accent)] enabled:hover:bg-accent enabled:hover:text-[var(--on-accent)] enabled:hover:brightness-110 enabled:active:bg-accent',
+        // The default action: Gloom's dusk indigo, whatever Windows' accent is (a gray one reads as
+        // disabled), as the open session's row is. White on it is 5.4:1.
+        primary:
+          'bg-[var(--signal)] font-medium text-white enabled:hover:bg-[var(--signal)] enabled:hover:text-white enabled:hover:brightness-110 enabled:active:bg-[var(--signal)]',
         // Its other actions sit on a quiet fill.
         secondary: 'bg-fill-strong text-label enabled:hover:bg-fill-pressed'
       }

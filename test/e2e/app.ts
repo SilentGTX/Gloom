@@ -20,7 +20,8 @@ export async function launch(options: LaunchOptions = {}): Promise<{ app: Electr
   const app = await electron.launch({
     args: ['.', `--user-data-dir=${userData}`],
     cwd: join(__dirname, '..', '..'),
-    env: { ...process.env, CLAUDE_CONFIG_DIR: claudeDir },
+    // Closing mid-turn would ask first; the tests close whenever they're done.
+    env: { ...process.env, CLAUDE_CONFIG_DIR: claudeDir, GLOOM_QUIT_WITHOUT_ASKING: '1' },
     // Playwright forces a light colour scheme by default; follow nativeTheme like the real app.
     colorScheme: null
   })

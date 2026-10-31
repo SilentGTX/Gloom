@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { forwardRef, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'motion/react'
 import { Check, ChevronDown, ClipboardList, FilePen, FileText, Globe, MessageCircleQuestion, Search, SquareTerminal, Wrench } from 'lucide-react'
 import { MODES, modeInfo, type CardAnswer, type LiveSummary, type ModeId, type PermissionCard, type PlanCard, type PromptCard, type QuestionCard } from '@shared/live'
 import { Button } from '../../components/ui/Button'
@@ -24,31 +24,41 @@ export function PromptCards({ sessionId, summary }: { sessionId: string; summary
     answeredByKeyboard = viaKeyboard
     void useLive.getState().answer(sessionId, a)
   }
+  // A card answered leaves the layout at once (popLayout): the next one takes its place while it goes.
   return (
-    <AnimatePresence initial={false}>
+    <AnimatePresence initial={false} mode="popLayout">
       {card && (
-        <motion.section
-          key={card.requestId}
-          aria-label={card.kind === 'permission' ? 'Permission request' : card.kind === 'plan' ? 'Plan for review' : 'Question from Claude'}
-          // It rises out of the composer and goes back into it.
-          initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={answeredByKeyboard ? { opacity: 0, transition: { duration: 0 } } : reduce ? { opacity: 0, transition: { duration: 0.15 } } : { opacity: 0, y: 14, scale: 0.98, transition: { duration: 0.16, ease: [0.23, 1, 0.32, 1] } }}
-          transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
-          style={{ transformOrigin: '50% 100%' }}
-          className="glass-strong prompt-card flex max-h-[min(62vh,620px)] flex-col rounded-[18px] text-label"
-        >
-          <div className="relative z-[2] flex min-h-0 flex-1 flex-col">
-            {card.kind === 'permission' && <Permission card={card} onAnswer={answer} />}
-            {card.kind === 'plan' && <Plan card={card} onAnswer={answer} />}
-            {card.kind === 'question' && <Questions card={card} onAnswer={answer} />}
-            {more > 0 && <p className="px-4 pb-3 text-[11.5px] text-label-secondary">{more === 1 ? 'One more request waits after this one.' : `${more} more requests wait after this one.`}</p>}
-          </div>
-        </motion.section>
+        <CardShell key={card.requestId} label={card.kind === 'permission' ? 'Permission request' : card.kind === 'plan' ? 'Plan for review' : 'Question from Claude'} reduce={!!reduce}>
+          {card.kind === 'permission' && <Permission card={card} onAnswer={answer} />}
+          {card.kind === 'plan' && <Plan card={card} onAnswer={answer} />}
+          {card.kind === 'question' && <Questions card={card} onAnswer={answer} />}
+          {more > 0 && <p className="px-4 pb-3 text-[11.5px] text-label-secondary">{more === 1 ? 'One more request waits after this one.' : `${more} more requests wait after this one.`}</p>}
+        </CardShell>
       )}
     </AnimatePresence>
   )
 }
+
+/** The card's glass. It rises out of the composer and goes back into it; once answered it can't be reached. */
+const CardShell = forwardRef<HTMLElement, { label: string; reduce: boolean; children: ReactNode }>(function CardShell({ label, reduce, children }, ref) {
+  const present = useIsPresent()
+  return (
+    <motion.section
+      ref={ref}
+      aria-label={label}
+      inert={!present}
+      aria-hidden={!present || undefined}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={answeredByKeyboard ? { opacity: 0, transition: { duration: 0 } } : reduce ? { opacity: 0, transition: { duration: 0.15 } } : { opacity: 0, y: 14, scale: 0.98, transition: { duration: 0.16, ease: [0.23, 1, 0.32, 1] } }}
+      transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
+      style={{ transformOrigin: '50% 100%' }}
+      className="glass-strong prompt-card flex max-h-[min(62vh,620px)] flex-col rounded-[18px] text-label"
+    >
+      <div className="relative z-[2] flex min-h-0 flex-1 flex-col">{children}</div>
+    </motion.section>
+  )
+})
 
 type Answer = (answer: CardAnswer, viaKeyboard: boolean) => void
 
@@ -67,7 +77,7 @@ function useCardKeys(primary: React.RefObject<HTMLButtonElement | null>) {
 function Header({ icon, title, subtitle }: { icon: ReactNode; title: string; subtitle?: string | null }) {
   return (
     <header className="flex items-start gap-2.5 px-4 pt-3.5">
-      <span className="mt-[1px] flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-accent text-[var(--on-accent)] [&>svg]:size-[14px]" aria-hidden>
+      <span className="mt-[1px] flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-fill-strong text-label [&>svg]:size-[14px]" aria-hidden>
         {icon}
       </span>
       <div className="min-w-0 flex-1">
@@ -212,7 +222,10 @@ function Permission({ card, onAnswer }: { card: PermissionCard; onAnswer: Answer
   const [noting, setNoting] = useState(false)
   const [note, setNote] = useState('')
   useCardKeys(card.defaultToNo ? deny : allow)
-  const subtitle = card.description ?? card.reason ?? (card.blockedPath ? `It needs ${card.blockedPath}, outside the session’s folder.` : null)
+  // The CLI's description often repeats what the title or the preview already says ("hello.txt"): then it goes.
+  const said = [str(card.input.description), base(str(card.input.file_path))].filter(Boolean)
+  const description = card.description && !said.includes(card.description) ? card.description : null
+  const subtitle = description ?? card.reason ?? (card.blockedPath ? `It affects ${card.blockedPath}.` : null)
   const answer = (decision: 'once' | 'always' | 'deny', viaKeyboard: boolean, always?: number) =>
     onAnswer({ kind: 'permission', requestId: card.requestId, decision, always, note: decision === 'deny' && note.trim() ? note : undefined }, viaKeyboard)
 

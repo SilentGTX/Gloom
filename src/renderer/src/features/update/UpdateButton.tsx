@@ -3,7 +3,10 @@ import { ArrowDownToLine, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { GlassCapsule } from '../../components/ui/Glass'
 import { Tooltip } from '../../components/ui/Tooltip'
+import { cn } from '../../lib/cn'
+import { notify } from '../../lib/toast'
 import { takeLastVersion, useUpdateState } from '../../lib/update'
+import { isBusy, useLive } from '../../stores/live'
 
 /**
  * The title bar's update button: absent until a check finds a newer Gloom
@@ -26,12 +29,16 @@ export function UpdateButton() {
           transition={{ type: 'spring', bounce: 0, duration: 0.45 }}
         >
           <GlassCapsule>
-            <Tooltip label="Update Ready" detail={`Gloom ${update.available}`}>
+            {/* Clicked while Claude works, it waits for the turns to end, as the Claude app's updates do. */}
+            <Tooltip label={update.waiting ? 'Updates When Claude Finishes' : 'Update Ready'} detail={`Gloom ${update.available}`}>
               <button
                 type="button"
-                aria-label={`Update to Gloom ${update.available}`}
-                onClick={() => void window.gloom?.installUpdate()}
-                className="update-button no-drag"
+                aria-label={update.waiting ? `Gloom ${update.available} installs when Claude finishes` : `Update to Gloom ${update.available}`}
+                onClick={() => {
+                  if (!update.waiting) notifyIfWaiting()
+                  void window.gloom?.installUpdate()
+                }}
+                className={cn('update-button no-drag', update.waiting && 'opacity-60')}
               >
                 <span className="update-glow" aria-hidden />
                 <ArrowDownToLine size={16} strokeWidth={2} aria-hidden />
@@ -42,6 +49,12 @@ export function UpdateButton() {
       )}
     </AnimatePresence>
   )
+}
+
+/** Says why nothing happens yet, when Claude is mid-turn somewhere. */
+function notifyIfWaiting(): void {
+  const busy = Object.values(useLive.getState().sessions).filter(isBusy).length
+  if (busy) notify(busy === 1 ? 'Gloom updates when Claude finishes in your running session.' : `Gloom updates when Claude finishes in your ${busy} running sessions.`)
 }
 
 /** After an update relaunches Gloom, a quiet note says which version it is now. */

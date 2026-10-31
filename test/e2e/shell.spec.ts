@@ -63,7 +63,9 @@ test('the menu button lists every command', async () => {
   await page.getByRole('button', { name: 'Menu' }).first().click()
   const menu = page.getByRole('menu')
   await expect(menu).toBeVisible()
-  await expect(menu.getByRole('menuitem', { name: /New Session/ })).toHaveAttribute('aria-disabled', 'true')
+  await expect(menu.getByRole('menuitem', { name: /New Session/ })).not.toHaveAttribute('aria-disabled', 'true')
+  // What a later phase builds is listed, but can't be chosen yet.
+  await expect(menu.getByRole('menuitem', { name: /Diff Pane/ })).toHaveAttribute('aria-disabled', 'true')
   await expect(menu.getByRole('menuitem', { name: /Sort Sessions By/ })).toBeVisible()
   // Toggles say what they will do.
   await menu.getByRole('menuitem', { name: /Hide Sidebar/ }).click()

@@ -510,7 +510,8 @@ export class Runner {
           this.activeModel = model
           this.emit()
         }
-        this.setStream(finishStreamBlock(this.stream, m.message.id), true)
+        // The streamed copy goes before its finished line arrives, so the two never show together.
+        this.setStream(finishStreamBlock(this.stream, m.message.id))
         const line = m as unknown as Record<string, unknown>
         this.show({ ...line, isApiErrorMessage: model === '<synthetic>' || !!line.error })
         return

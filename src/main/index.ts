@@ -239,7 +239,9 @@ if (smokeArg) {
     let quitAnyway = false
     mainWindow.on('close', (event) => {
       const win = mainWindow
-      if (quitAnyway || !win || !sessions.busy()) return
+      // The end-to-end tests close the app mid-turn on purpose (development builds only).
+      const testing = !app.isPackaged && process.env.GLOOM_QUIT_WITHOUT_ASKING === '1'
+      if (quitAnyway || testing || !win || !sessions.busy()) return
       event.preventDefault()
       const working = sessions.list().filter((s) => s.state === 'starting' || s.state === 'working' || s.state === 'waiting').length
       void dialog

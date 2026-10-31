@@ -17,7 +17,7 @@ import { describeTool, type ToolView } from './tools'
 export function ToolRow({ sessionId, rowKey, call, result, running }: { sessionId: string; rowKey: string; call: ToolEntry; result: ToolResult | undefined; running: boolean }) {
   const open = useTranscript((s) => s.expanded.has(rowKey))
   const setExpanded = useTranscript((s) => s.setExpanded)
-  const view = describeTool(call, result)
+  const view = describeTool(call, result, running)
   const panel = useId()
   const failed = result?.isError === true
   const Icon = view.icon

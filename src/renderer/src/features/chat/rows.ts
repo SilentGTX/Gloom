@@ -32,12 +32,13 @@ export type Row = RowBase &
     | { kind: 'working'; since: number; activity: Activity | null }
   )
 
-/** What a session Gloom runs adds below its transcript. */
-export interface LiveRows {
-  /** Calls without results are still running. */
-  live?: boolean
-  stream?: StreamState | null
-  working?: { since: number; activity: Activity | null } | null
+/** The space above a row, from the row before it: tight inside a run of tool calls, loose before a new turn. */
+function spaceAfter(before: Row | undefined, kind: Row['kind']): Space {
+  if (!before) return 12
+  if (compact(kind) && compact(before.kind)) return 2
+  if (before.kind === 'time') return 6
+  if (kind === 'prompt' || kind === 'compact') return 20
+  return 12
 }
 
 /** A pause this long, or a new day, puts the time above the next prompt. */
@@ -50,7 +51,8 @@ function startsTurn(e: TranscriptEntry): boolean {
 const isReply = (e: TranscriptEntry) => e.kind === 'text' || e.kind === 'tool' || e.kind === 'thinking'
 const compact = (kind: Row['kind']) => kind === 'tool' || kind === 'thinking'
 
-export function buildRows(entries: readonly TranscriptEntry[], results: Readonly<Record<string, ToolResult>>, { live = false, stream = null, working = null }: LiveRows = {}): Row[] {
+/** `live`: the last turn is still going, so its calls without results are running and it has no time yet. */
+export function buildRows(entries: readonly TranscriptEntry[], results: Readonly<Record<string, ToolResult>>, { live = false } = {}): Row[] {
   const rows: Row[] = []
   let start: TranscriptEntry | null = null
   let last: TranscriptEntry | null = null
@@ -62,15 +64,7 @@ export function buildRows(entries: readonly TranscriptEntry[], results: Readonly
     if (start && last && replied && last.time - start.time >= 1000) rows.push({ kind: 'turn', key: `turn:${start.key}`, space: 6, ms: last.time - start.time, model })
     start = null
   }
-  /** Space above a row, from what comes before it. */
-  const spaceFor = (kind: Row['kind']): Space => {
-    const before = rows.at(-1)
-    if (!before) return 12
-    if (compact(kind) && compact(before.kind)) return 2
-    if (before.kind === 'time') return 6
-    if (kind === 'prompt' || kind === 'compact') return 20
-    return 12
-  }
+  const spaceFor = (kind: Row['kind']): Space => spaceAfter(rows.at(-1), kind)
 
   for (const e of entries) {
     if (startsTurn(e) || e.kind === 'compact') {
@@ -129,7 +123,7 @@ export function buildRows(entries: readonly TranscriptEntry[], results: Readonly
     }
   }
 
-  if (live || working) {
+  if (live) {
     // The last turn is still going: its calls without results are running, and it has no time yet.
     for (let i = rows.length - 1; i >= 0; i--) {
       const r = rows[i]
@@ -137,14 +131,22 @@ export function buildRows(entries: readonly TranscriptEntry[], results: Readonly
       if (r.kind === 'tool' && !r.result) rows[i] = { ...r, running: true }
     }
   } else endTurn()
+  return rows
+}
 
-  // What's streaming now sits where its finished lines will.
-  const messageId = stream?.messageId
+/**
+ * What a session Gloom runs adds under its transcript: the reply streaming in,
+ * where its finished lines will go, then what Claude is doing. Kept apart from
+ * buildRows, so the rows above keep their identity (and don't render again) as
+ * the stream moves 25 times a second.
+ */
+export function liveRows(before: Row | undefined, stream: StreamState | null, working: { since: number; activity: Activity | null } | null): Row[] {
+  const rows: Row[] = []
   stream?.blocks.forEach((block, i) => {
     if (!block || (block.kind === 'text' && !block.text.trim())) return
-    rows.push({ kind: 'stream', key: `stream:${messageId}:${i}`, space: spaceFor(block.kind), block })
+    rows.push({ kind: 'stream', key: `stream:${stream.messageId}:${i}`, space: spaceAfter(rows.at(-1) ?? before, block.kind), block })
   })
-  if (working) rows.push({ kind: 'working', key: 'working', space: spaceFor('working'), since: working.since, activity: working.activity })
+  if (working) rows.push({ kind: 'working', key: 'working', space: spaceAfter(rows.at(-1) ?? before, 'working'), since: working.since, activity: working.activity })
   return rows
 }
 

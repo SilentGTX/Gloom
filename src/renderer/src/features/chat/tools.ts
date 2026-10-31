@@ -77,7 +77,32 @@ function firstArg(input: Record<string, unknown>): string | null {
   return null
 }
 
-export function describeTool(call: ToolEntry, result: ToolResult | undefined): ToolView {
+/** A call still running says what it's doing, not what it did: "Writing hello.txt" while it waits. */
+const UNDER_WAY: Record<string, string> = {
+  Ran: 'Running',
+  Read: 'Reading',
+  Edited: 'Editing',
+  Wrote: 'Writing',
+  Created: 'Creating',
+  'Searched for': 'Searching for',
+  'Found files matching': 'Finding files matching',
+  Listed: 'Listing',
+  Fetched: 'Fetching',
+  'Searched the web for': 'Searching the web for',
+  'Updated the to-do list': 'Updating the to-do list',
+  Asked: 'Asking',
+  'Presented a plan': 'Presenting a plan',
+  'Used the skill': 'Using the skill',
+  'Loaded tools for': 'Loading tools for',
+  Watched: 'Watching'
+}
+
+export function describeTool(call: ToolEntry, result: ToolResult | undefined, running = false): ToolView {
+  const view = describeDone(call, result)
+  return running && !result && UNDER_WAY[view.verb] ? { ...view, verb: UNDER_WAY[view.verb] } : view
+}
+
+function describeDone(call: ToolEntry, result: ToolResult | undefined): ToolView {
   const input = call.input
   const s = (key: string) => (typeof input[key] === 'string' ? (input[key] as string) : '')
   const info = result?.info ?? {}

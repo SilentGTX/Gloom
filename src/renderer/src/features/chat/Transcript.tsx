@@ -11,7 +11,7 @@ import { isBusy, useLive } from '../../stores/live'
 import { useTranscript } from '../../stores/transcript'
 import { clearMatches, findMatches, paintMatches, popMatch, useFind } from './find'
 import { FindBar } from './FindBar'
-import { buildRows, type Row } from './rows'
+import { buildRows, liveRows, type Row } from './rows'
 import { RowView } from './RowView'
 
 /** Virtuoso counts rows from here, so older pages can be put above without the view jumping. */
@@ -49,13 +49,19 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
   const provisional = useLive((s) => s.provisional[sessionId])
   const stream = useLive((s) => s.streams[sessionId] ?? null)
   const summary = useLive((s) => s.sessions[sessionId])
-  const busy = isBusy(summary) && summary?.state !== 'waiting'
+  const running = isBusy(summary)
+  const busy = running && summary?.state !== 'waiting'
   const since = busy ? (summary?.turnStarted ?? null) : null
   const activity = summary?.activity ?? null
-  const rows = useMemo(() => {
+  // The transcript's rows keep their identity while the stream moves; only the live tail is rebuilt.
+  const base = useMemo(() => {
     const merged = mergeProvisional(entries, results, provisional)
-    return buildRows(merged.entries, merged.results, { live: live || isBusy(summary), stream: busy ? stream : null, working: since ? { since, activity } : null })
-  }, [entries, results, provisional, live, summary, busy, stream, since, activity])
+    return buildRows(merged.entries, merged.results, { live: live || running })
+  }, [entries, results, provisional, live, running])
+  const rows = useMemo(() => {
+    const tail = liveRows(base.at(-1), busy ? stream : null, since ? { since, activity } : null)
+    return tail.length ? [...base, ...tail] : base
+  }, [base, busy, stream, since, activity])
   const slow = useDelayed(status === 'loading', 300)
 
   if (status === 'loading' || status === 'idle') {

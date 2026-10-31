@@ -276,8 +276,9 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
     }
   }
 
+  // A pasted picture rides along; files copied in Explorer go in as their paths, as dropped ones do.
   const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
-    const pasted = [...e.clipboardData.files].filter((f) => IMAGE_TYPES.has(f.type))
+    const pasted = [...e.clipboardData.files]
     if (!pasted.length) return
     e.preventDefault()
     void attach(sessionId, pasted)
@@ -364,7 +365,7 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
               aria-label={busy ? 'Send when Claude finishes' : 'Send'}
               disabled={!canSend}
               onClick={send}
-              className="no-drag ml-1 flex size-[28px] shrink-0 items-center justify-center rounded-full bg-accent text-[var(--on-accent)] outline-none transition-[transform,opacity,filter] duration-[var(--duration-press)] ease-out enabled:hover:brightness-110 enabled:active:scale-[0.92] disabled:opacity-30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-ring)] motion-reduce:enabled:active:scale-100"
+              className="no-drag ml-1 flex size-[28px] shrink-0 items-center justify-center rounded-full bg-[var(--signal)] text-white outline-none transition-[transform,opacity,filter] duration-[var(--duration-press)] ease-out enabled:hover:brightness-110 enabled:active:scale-[0.92] disabled:opacity-30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-ring)] motion-reduce:enabled:active:scale-100"
             >
               <ArrowUp size={16} strokeWidth={2.25} />
             </button>

@@ -84,10 +84,15 @@ const ACTIVITY: Record<Activity, string> = {
 export function WorkingRow({ since, activity }: { since: number; activity: Activity | null }) {
   const now = useNow(1000)
   const seconds = Math.max(0, now - since)
+  // Not a live region: the toolbar's status says "Working…" once; a clock ticking here would be read out every second.
   return (
-    <p role="status" className="flex items-baseline gap-1.5 text-[0.875rem] text-label-secondary">
+    <p className="flex items-baseline gap-1.5 text-[0.875rem] text-label-secondary">
       <span className="live-text font-medium">{ACTIVITY[activity ?? 'requesting']}</span>
-      {seconds >= 1000 && <span className="tabular text-footnote">· {formatDuration(seconds)}</span>}
+      {seconds >= 1000 && (
+        <span className="tabular text-footnote" aria-hidden>
+          · {formatDuration(seconds)}
+        </span>
+      )}
     </p>
   )
 }

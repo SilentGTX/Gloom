@@ -200,9 +200,10 @@ function showUntilIndexed(id: string, cwd: string, prompt?: string): void {
   const existing = sessions[id]
   if (existing?.file) return
   const now = Date.now()
+  // "New Session" until your first message names it; Claude Code's own title takes over with the transcript.
   const meta: SessionMeta = existing
-    ? { ...existing, firstPrompt: existing.firstPrompt ?? prompt ?? null, lastPrompt: prompt ?? existing.lastPrompt, updated: now }
-    : { id, file: '', project: '', cwd, title: null, firstPrompt: prompt ?? null, lastPrompt: prompt ?? null, created: now, updated: now, size: 0, entrypoint: 'sdk-ts', gitBranch: null, version: null, remote: false }
+    ? { ...existing, title: prompt ? null : existing.title, firstPrompt: existing.firstPrompt ?? prompt ?? null, lastPrompt: prompt ?? existing.lastPrompt, updated: now }
+    : { id, file: '', project: '', cwd, title: prompt ? null : 'New Session', firstPrompt: prompt ?? null, lastPrompt: prompt ?? null, created: now, updated: now, size: 0, entrypoint: 'sdk-ts', gitBranch: null, version: null, remote: false }
   useLibrary.setState({ sessions: { ...sessions, [id]: meta } })
 }
 
@@ -228,18 +229,49 @@ export function isBusy(summary: LiveSummary | undefined): boolean {
   return !!summary && (summary.state === 'starting' || summary.state === 'working' || summary.state === 'waiting')
 }
 
+// When Gloom last ran each session outlives a restart (an update, say), so a
+// session it ran a minute ago doesn't come back locked as another app's.
+const RAN_KEY = 'gloom.ranAt'
+const RAN_KEEP_MS = ELSEWHERE_MS * 2
+
+function loadRanAt(): Record<string, number> {
+  try {
+    const now = Date.now()
+    const raw = JSON.parse(localStorage.getItem(RAN_KEY) ?? '{}') as Record<string, unknown>
+    return Object.fromEntries(Object.entries(raw).filter((e): e is [string, number] => typeof e[1] === 'number' && now - e[1] < RAN_KEEP_MS))
+  } catch {
+    return {}
+  }
+}
+
+let ranTimer: ReturnType<typeof setTimeout> | undefined
+function setRanAt(id: string, at: number): void {
+  const ranAt = { ...useLive.getState().ranAt, [id]: at }
+  useLive.setState({ ranAt })
+  clearTimeout(ranTimer)
+  ranTimer = setTimeout(() => {
+    const now = Date.now()
+    try {
+      localStorage.setItem(RAN_KEY, JSON.stringify(Object.fromEntries(Object.entries(useLive.getState().ranAt).filter(([, t]) => now - t < RAN_KEEP_MS))))
+    } catch {
+      // Only a convenience.
+    }
+  }, 1000)
+}
+
 function onEvent(event: LiveEvent): void {
   const s = useLive.getState()
   switch (event.type) {
     case 'summary': {
       const { summary } = event
-      useLive.setState({ sessions: { ...s.sessions, [summary.id]: summary }, ranAt: { ...s.ranAt, [summary.id]: summary.lastActive } })
+      useLive.setState({ sessions: { ...s.sessions, [summary.id]: summary } })
+      setRanAt(summary.id, summary.lastActive)
       if (summary.state === 'new') showUntilIndexed(summary.id, summary.cwd)
       return
     }
     case 'closed': {
       if (event.lastActive) {
-        useLive.setState({ ranAt: { ...s.ranAt, [event.id]: event.lastActive } })
+        setRanAt(event.id, event.lastActive)
         return
       }
       // A new session you left without a message: gone.
@@ -286,6 +318,7 @@ export function useLiveBridge(): void {
     const api = window.gloom
     if (!api) return
     let alive = true
+    useLive.setState({ ranAt: { ...loadRanAt(), ...useLive.getState().ranAt } })
     const offEvent = api.live.onEvent(onEvent)
     const offSettings = api.onSettings((settings) => useLive.setState({ settings }))
     void Promise.all([api.live.list(), api.getSettings(), api.live.models(), api.live.usage(), api.claude.info()]).then(([list, settings, models, usage, claude]) => {

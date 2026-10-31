@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { CircleCheck, CircleAlert } from 'lucide-react'
+import { ChevronDown, CircleAlert, CircleCheck } from 'lucide-react'
 import type { AppInfo } from '@shared/ipc'
 import { isMode, type Settings as SettingsData } from '@shared/live'
 import { Button } from '../../components/ui/Button'
@@ -128,8 +128,9 @@ function General() {
       <h3 className="mt-4 mb-1 text-[11px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">Sessions</h3>
       <Row label="Close idle sessions" hint="Each running session is a Claude Code process with its own MCP servers. A closed one picks up again when you send it a message.">
         <MenuRoot>
-          <MenuTrigger className="no-drag flex h-8 w-full items-center rounded-[var(--radius-control)] bg-[var(--field)] px-2.5 text-left text-[13px] text-label shadow-[inset_0_0_0_0.5px_var(--separator-strong)] outline-none hover:bg-fill-strong focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)]">
-            {idleLabel(settings.idleMinutes)}
+          <MenuTrigger className="no-drag flex h-8 w-full items-center gap-2 rounded-[var(--radius-control)] bg-[var(--field)] px-2.5 text-left text-[13px] text-label shadow-[inset_0_0_0_0.5px_var(--separator-strong)] outline-none hover:bg-fill-strong focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)] data-[popup-open]:bg-fill-strong">
+            <span className="flex-1">{idleLabel(settings.idleMinutes)}</span>
+            <ChevronDown size={12} strokeWidth={2.25} aria-hidden className="shrink-0 opacity-60" />
           </MenuTrigger>
           <MenuPopup align="start">
             <MenuRadioGroup value={String(settings.idleMinutes)} onChange={(v) => update({ idleMinutes: Number(v) })}>
@@ -143,7 +144,7 @@ function General() {
       <Row label="Notifications">
         <Toggle checked={settings.notifications} onChange={(notifications) => update({ notifications })} label="When a session needs you or finishes in the background" />
       </Row>
-      <h3 className="mt-4 mb-1 text-[11px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">Appearance</h3>
+      <h3 className="mt-4 mb-1 text-[11px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">Window</h3>
       <Row label="Appearance">
         <Segmented
           label="Appearance"

@@ -33,7 +33,8 @@ const level = (percent: number) => (percent >= 90 ? 'full' : percent >= 75 ? 'hi
 export function ContextMeter({ sessionId, summary }: { sessionId: string; summary: LiveSummary | undefined }) {
   const usage = useLive((s) => s.usage)
   const context = summary?.context ?? null
-  if (!context && !usage?.fiveHour && !usage?.weekly) return null
+  // Nothing to measure yet (no turn has said how full it is, and no limit reported a percentage): no ring.
+  if (!context && usage?.fiveHour?.percent == null && usage?.weekly?.percent == null) return null
   const percent = context?.percent ?? 0
   const r = 7
   const circumference = 2 * Math.PI * r
