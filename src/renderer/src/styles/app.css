@@ -33,6 +33,13 @@
   --ease-drawer: var(--curve-drawer);
 }
 
+/* Spacing in pixels, not rem: the text-size setting scales text, and chrome
+   (toolbars, capsules, fields, padding) holds its shape around it. With rem
+   spacing a toolbar ballooned at 200% while its symbols stayed put. */
+@theme {
+  --spacing: 4px;
+}
+
 @layer base {
   html {
     /* The app text-size setting scales every rem. */
@@ -599,6 +606,9 @@
     border-bottom: 1px solid var(--separator);
     text-align: left;
     vertical-align: top;
+    /* Cells break between words only, so a wide table scrolls in its box
+       instead of splitting numbers ("1,204,1 / 18") and words mid-way. */
+    overflow-wrap: break-word;
   }
   .prose-gloom th {
     border-bottom-color: var(--separator-strong);
@@ -803,6 +813,52 @@
   }
   .context-bar {
     background: var(--label-secondary);
+  }
+
+  /* Windows' contrast themes repaint every fill with the theme's colours, so
+     what Gloom says with a fill alone would vanish: the open session, the
+     highlighted menu item, the chosen segment and tab, where a drop lands, and
+     the edge of every floating card. They take the theme's own highlight and
+     a hairline frame instead. */
+  @media (forced-colors: active) {
+    .session-row.is-selected,
+    .segment-thumb,
+    .terminal-tab.is-selected,
+    [role='menu'] [data-highlighted],
+    [role='listbox'] [data-highlighted] {
+      forced-color-adjust: none;
+      background: Highlight;
+      color: HighlightText;
+    }
+    .session-row.is-selected :is(.row-label, .row-secondary, .row-waiting),
+    [role='tab'][aria-selected='true'] {
+      forced-color-adjust: none;
+      color: HighlightText;
+    }
+    .drop-inside,
+    .drop-landed::after {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+  }
+}
+
+/* Keyboard focus rings. Tailwind's outline-none also sets --tw-outline-style
+   to none, and outline-2 draws in that style, so "outline-none
+   focus-visible:outline-2" drew nothing: no button, splitter or transcript
+   showed where the keyboard was. A ring asked for on focus is solid. */
+@layer utilities {
+  .outline-none:is(:focus-visible, :focus-within) {
+    --tw-outline-style: solid;
+  }
+  /* In Windows' contrast themes every floating card and capsule gets a hairline
+     edge (see .session-row's forced colours above); here, so menus' and cards'
+     outline-none can't take it away. */
+  @media (forced-colors: active) {
+    :root :is(.glass, .glass-strong, .glass-capsule) {
+      outline: 1px solid CanvasText;
+      outline-offset: -1px;
+    }
   }
 }
 

@@ -13,6 +13,7 @@ import { isBusy, useLive } from '../stores/live'
 import { newTerminal, wantFocus } from '../stores/terminals'
 import { useTranscript } from '../stores/transcript'
 import { useUi } from '../stores/ui'
+import { focusPane } from './panes'
 import { notify } from './toast'
 
 /** Runs once the sidebar has rendered, wherever it was. */
@@ -54,6 +55,8 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
       field?.focus()
       field?.select()
     }),
+  'view.nextPane': () => focusPane(1),
+  'view.previousPane': () => focusPane(-1),
   'view.toggleSidebar': (k) => useUi.getState().toggleSidebar(k),
   'view.toggleDiff': (k) => useUi.getState().toggleDiff(k),
   'view.diffSession': (k) => {

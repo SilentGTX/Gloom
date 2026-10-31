@@ -26,7 +26,7 @@ export function UpdateButton() {
           initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.86 }}
           animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ type: 'spring', bounce: 0, duration: 0.45 }}
+          transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
         >
           <GlassCapsule>
             {/* Clicked while Claude works, it waits for the turns to end, as the Claude app's updates do. */}
@@ -80,7 +80,7 @@ export function UpdatedNote() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
+            transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
           >
             <Sparkles size={15} strokeWidth={1.75} className="relative z-[2] text-[var(--signal)]" aria-hidden />
             <span className="relative z-[2]">Updated to Gloom {version}</span>

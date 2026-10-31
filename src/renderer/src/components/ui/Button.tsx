@@ -16,7 +16,8 @@ const button = cva(
       size: {
         icon: 'size-[28px]',
         small: 'size-[24px]',
-        text: 'h-[28px] px-2.5 text-[13px]'
+        // A frame in Windows' contrast themes, which take away the fill that says it's a button.
+        text: 'h-[28px] px-2.5 text-[13px] forced-colors:border forced-colors:border-[ButtonText]'
       },
       shape: {
         // Plain controls give a little on press.

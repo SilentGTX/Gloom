@@ -34,7 +34,10 @@ export function Splitter({ label, value, min, max, initial, onChange, variant, o
     document.documentElement.style.cursor = cursor
   }
   const move = (e: PointerEvent<HTMLDivElement>) => {
-    if (drag.current) onChange(clamp(drag.current.startSize + sign * ((vertical ? e.clientX : e.clientY) - drag.current.start)))
+    if (!drag.current) return
+    // Only real changes: each one re-lays the window out.
+    const next = clamp(drag.current.startSize + sign * ((vertical ? e.clientX : e.clientY) - drag.current.start))
+    if (next !== value) onChange(next)
   }
   const end = () => {
     drag.current = null

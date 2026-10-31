@@ -6,6 +6,7 @@ import type { CanSend, CommandInfo, LiveSummary } from '@shared/live'
 import { Button } from '../../components/ui/Button'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
+import { setComposerSpace } from '../../lib/composer-space'
 import { useNow } from '../../lib/now'
 import { notify } from '../../lib/toast'
 import { isBusy, useElsewhere, useLive, type Draft, type DraftImage } from '../../stores/live'
@@ -80,15 +81,18 @@ export function Composer({ sessionId, meta }: { sessionId: string; meta: Session
   useLayoutEffect(() => {
     const el = stack.current
     if (!el) return
-    const root = document.documentElement
+    // On the chat, not the whole document: a change restyles only what's under it.
+    const root = el.closest('main') ?? document.documentElement
     const observer = new ResizeObserver(() => {
       root.style.setProperty('--composer-space', `${el.offsetHeight}px`)
+      setComposerSpace(el.offsetHeight)
       window.dispatchEvent(new Event('gloom:composer'))
     })
     observer.observe(el)
     return () => {
       observer.disconnect()
       root.style.setProperty('--composer-space', '0px')
+      setComposerSpace(0)
     }
   }, [])
 
@@ -118,12 +122,12 @@ export function Composer({ sessionId, meta }: { sessionId: string; meta: Session
         : undefined
 
   return (
-    <div ref={stack} className="pointer-events-none absolute inset-x-0 bottom-0 z-[4] px-4 pb-4 @[560px]:px-6">
+    <div ref={stack} data-pane="composer" className="pointer-events-none absolute inset-x-0 bottom-0 z-[4] px-4 pb-4 @[560px]:px-6">
       <div className="composer-edge" aria-hidden />
       <div className="pointer-events-auto relative mx-auto flex w-full max-w-[720px] flex-col gap-2">
         {summary && <PromptCards sessionId={sessionId} summary={summary} />}
         {can && !can.ok ? (
-          <Notice icon={<CircleAlert size={15} strokeWidth={1.75} />} text={can.reason} action={action(can.kind)} />
+          <Notice icon={<CircleAlert size={15} strokeWidth={1.75} />} text={can.reason} path={can.path} action={action(can.kind)} />
         ) : elsewhere ? (
           <Notice icon={<Lock size={15} strokeWidth={1.75} />} text="Running in another app. Messages wait until it’s been quiet for a minute." action={{ label: 'Take Over', run: () => useLive.getState().takeOver(sessionId) }} />
         ) : (
@@ -139,17 +143,35 @@ export function Composer({ sessionId, meta }: { sessionId: string; meta: Session
 }
 
 /** A capsule in the composer's place, saying why you can't write here, with what you can do about it. */
-function Notice({ icon, text, action }: { icon: React.ReactNode; text: string; action?: { label: string; run(): void } }) {
+function Notice({ icon, text, path, action }: { icon: React.ReactNode; text: string; path?: string; action?: { label: string; run(): void } }) {
   return (
     <div role="status" className="glass-strong flex min-h-11 items-center gap-2.5 rounded-[18px] py-1.5 pr-1.5 pl-3.5 text-[13px] text-label">
       <span className="relative z-[2] shrink-0 text-label-secondary">{icon}</span>
-      <span className="relative z-[2] min-w-0 flex-1">{text}</span>
+      <span className="relative z-[2] flex min-w-0 flex-1 flex-col">
+        <span>{text}</span>
+        {path && <PathLine path={path} />}
+      </span>
       {action && (
         <Button size="text" tone="secondary" className="relative z-[2] rounded-full" onClick={action.run}>
           {action.label}
         </Button>
       )}
     </div>
+  )
+}
+
+/**
+ * A path on one line, cut in the middle when it doesn't fit: paths differ at
+ * their ends, so the folder's own name always shows. The whole path on hover.
+ */
+function PathLine({ path }: { path: string }) {
+  const cut = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/')) + 1
+  return (
+    <span title={path} className="flex min-w-0 text-[12px] text-label-secondary select-text">
+      <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{path.slice(0, cut)}</span>
+      {/* Never gives way to the folders before it; cut only when it alone is too long. */}
+      <span className="max-w-full shrink-0 overflow-hidden text-ellipsis whitespace-nowrap">{path.slice(cut)}</span>
+    </span>
   )
 }
 

@@ -7,8 +7,9 @@ import { existsSync } from 'node:fs'
 import { lstat, readFile } from 'node:fs/promises'
 import { join, normalize } from 'node:path'
 import { promisify } from 'node:util'
-import { addedFile, parseGitDiff, untrackedPaths, type DiffFile, type TreeDiff } from '@shared/diff'
+import { addedFile, byPath, parseGitDiff, untrackedPaths, type DiffFile, type TreeDiff } from '@shared/diff'
 import { worktreeOf } from '@shared/git'
+import { gitExe } from '../exec'
 
 const run = promisify(execFile)
 
@@ -22,7 +23,8 @@ const TOO_LARGE = 'Too large to show here.'
 
 /** Runs git in `cwd`: English messages, paths unquoted, no colour, no lock. */
 export async function git(cwd: string, args: string[], maxBuffer = 8 * 1024 * 1024): Promise<string> {
-  const { stdout } = await run('git', ['-c', 'core.quotepath=false', '-c', 'color.ui=false', ...args], {
+  // By its full path: a bare `git` would run a git.exe the repository carries.
+  const { stdout } = await run(gitExe(), ['-c', 'core.quotepath=false', '-c', 'color.ui=false', ...args], {
     cwd,
     windowsHide: true,
     maxBuffer,
@@ -79,7 +81,7 @@ async function read(cwd: string): Promise<TreeDiff> {
     }
     const untracked = untrackedPaths(status)
     for (const [i, path] of untracked.entries()) files.push(i < UNTRACKED_MAX_FILES ? await untrackedFile(root, path) : { path, status: 'untracked', added: 0, removed: 0, hunks: [], note: TOO_LARGE })
-    const all = files.map((f) => ({ ...f, abs: join(root, f.path) })).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+    const all = files.map((f) => ({ ...f, abs: join(root, f.path) })).sort(byPath)
     return { kind: 'ok', root, branch: branch?.trim() || null, ...(since ? { since: since.branch } : {}), files: all, ...(truncated ? { truncated } : {}) }
   } catch (error) {
     return { kind: 'error', message: firstLine(error) }

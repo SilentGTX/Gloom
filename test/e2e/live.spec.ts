@@ -146,7 +146,9 @@ test('a session whose working folder is gone says so in place of the composer', 
   ;({ app, page } = await launch({ claudeDir }))
   await openGroup(page, 'All Sessions')
   await sessionRow(page, TITLE).click()
-  await expect(page.getByText(`Its working folder, ${gone}, no longer exists.`)).toBeVisible()
+  await expect(page.getByText('Its working folder no longer exists.')).toBeVisible()
+  // The path on its own line, whole on hover.
+  await expect(page.getByTitle(gone)).toBeVisible()
   await expect(page.getByRole('textbox', { name: 'Message' })).toHaveCount(0)
 })
 

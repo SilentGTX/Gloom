@@ -1,6 +1,6 @@
 import { Popover } from '@base-ui/react/popover'
 import { Copy, FolderCode, FolderOpen, Info, SquareChevronRight } from 'lucide-react'
-import { projectName, type SessionMeta } from '@shared/library'
+import { displayTitle, projectName, type SessionMeta } from '@shared/library'
 import { Button } from '../../components/ui/Button'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { useNow } from '../../lib/now'
@@ -64,7 +64,9 @@ export function SessionInfo({ session }: { session: SessionMeta | undefined }) {
 /** Where a session ran, when, from what, and its ID, with what you'd do with them (Resume in Terminal moved here from the toolbar, whose terminal button is the pane's now). */
 function InfoCard({ session, onDone }: { session: SessionMeta; onDone(): void }) {
   const folders = useLibrary((s) => s.library.folders)
-  const folderId = useLibrary((s) => s.library.sessions[session.id]?.folderId)
+  const entry = useLibrary((s) => s.library.sessions[session.id])
+  const folderId = entry?.folderId
+  const title = displayTitle(session, entry)
   const now = useNow(15_000)
   const live = useElsewhere(session, now)
   const inFolder = folderId && folders.some((f) => f.id === folderId) ? folderLabel(folders, folderId) : 'Unfiled'
@@ -91,8 +93,10 @@ function InfoCard({ session, onDone }: { session: SessionMeta; onDone(): void })
           </>
         )}
       </p>
-      {session.lastPrompt && (
-        <p className="mt-1.5 line-clamp-3 font-display text-[0.9375rem] leading-snug text-balance text-label select-text">“{session.lastPrompt}”</p>
+      {/* Its name in full, as Get Info starts with one: the toolbar cuts a long title short. */}
+      <h2 className="mt-1.5 font-display text-[0.9375rem] leading-snug font-semibold text-balance break-words text-label select-text">{title}</h2>
+      {session.lastPrompt && session.lastPrompt !== title && (
+        <p className="mt-1 line-clamp-2 text-[0.8125rem] leading-snug break-words text-label-secondary select-text">“{session.lastPrompt}”</p>
       )}
       <dl className="code-card mt-3 divide-y divide-separator text-[12.5px]">
         {facts.map(([term, value, valueClass]) => (

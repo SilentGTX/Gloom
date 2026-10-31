@@ -23,6 +23,7 @@ import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import type { UpdateState } from '@shared/ipc'
 import { isNewer } from '@shared/version'
+import { onPath } from './exec'
 
 const REPO = 'SilentGTX/Gloom'
 const MANIFEST = 'update.json'
@@ -99,8 +100,9 @@ export function setUpdateWaiting(waiting: boolean): void {
 
 async function githubToken(): Promise<string> {
   if (process.env.GLOOM_GITHUB_TOKEN) return process.env.GLOOM_GITHUB_TOKEN
+  const gh = onPath('gh.exe')
   const token = await new Promise<string | null>((resolve) =>
-    execFile('gh', ['auth', 'token'], { windowsHide: true, timeout: 5_000 }, (error, stdout) => resolve(error ? null : stdout.trim() || null))
+    gh ? execFile(gh, ['auth', 'token'], { windowsHide: true, timeout: 5_000 }, (error, stdout) => resolve(error ? null : stdout.trim() || null)) : resolve(null)
   )
   if (!token) throw new Error('No GitHub sign-in: run `gh auth login` in a terminal, then check again.')
   return token
@@ -121,8 +123,11 @@ const localSource = () => process.env.GLOOM_UPDATE_FROM || null
 
 /** The files update.json names, found by `idOf` (undefined when the release lacks one). */
 function releaseFrom(manifest: Manifest, idOf: (name: string) => number | undefined): Release {
+  // The version names a folder Gloom empties and fills, and the files are saved by name: plain ones only.
+  if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) throw new Error(`${MANIFEST} names an odd version: ${String(manifest.version).slice(0, 40)}`)
   const asset = (name: string | undefined, sha256: string | undefined, size: number | undefined): Asset | undefined => {
     if (!name || !sha256 || size === undefined) return undefined
+    if (!/^[\w.-]+$/.test(name) || name.startsWith('.')) throw new Error(`${MANIFEST} names an odd file: ${name.slice(0, 60)}`)
     const assetId = idOf(name)
     if (assetId === undefined) throw new Error(`The release lists ${name} but doesn't include it.`)
     return { name, sha256, size, assetId }

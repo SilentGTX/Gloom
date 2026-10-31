@@ -97,6 +97,8 @@ test('the toolbar names the session and what it’s doing; ⓘ shows its details
   await page.getByRole('button', { name: 'Session info' }).click()
   const card = page.getByRole('dialog', { name: 'Session Info' })
   await expect(card).toBeVisible()
+  // It names the session in full (the toolbar cuts a long title short).
+  await expect(card.getByRole('heading', { name: DEMO_TITLE })).toBeVisible()
   await expect(card).toContainText(cwd)
   await expect(card).toContainText('Unfiled')
   await card.getByRole('button', { name: 'Copy Session ID' }).click()

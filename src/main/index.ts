@@ -1,5 +1,5 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, release } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { findCommand, type CommandId } from '@shared/commands'
@@ -24,7 +24,7 @@ import { claudeInTerminal, resumeInTerminal } from './terminal'
 import { deferUpdatesWhile, finishStarting, installPending, launchCheck, onUpdateScreen, sessionsQuiet, showStarting, updateScreen } from './update-screen'
 import { checkOnFocus, onUpdateState, startBackgroundChecks, updateState } from './updater'
 import { markStarted, removeOldVersions, startNewerVersion } from './versions'
-import { createMainWindow, rendererUrl, windowState } from './window'
+import { createMainWindow, isRendererUrl, windowState } from './window'
 
 /** Started by the version it takes the window over from (handover.ts). */
 const takeover = parseTakeover(process.argv)
@@ -56,7 +56,7 @@ if (smokeArg) {
 
   /** IPC from anything but our own page's main frame is ignored. */
   const trusted = (event: IpcMainInvokeEvent | IpcMainEvent) =>
-    event.senderFrame !== null && event.senderFrame === event.sender.mainFrame && event.senderFrame.url.startsWith(rendererUrl())
+    event.senderFrame !== null && event.senderFrame === event.sender.mainFrame && isRendererUrl(event.senderFrame.url)
 
   void app.whenReady().then(() => {
     app.setAppUserModelId('com.silentgtx.gloom')
@@ -113,6 +113,11 @@ if (smokeArg) {
       if (!trusted(event)) throw new Error('untrusted sender')
       const cwd = typeof id === 'string' ? library.session(id)?.cwd : undefined
       if (!cwd || library.session(id as string)?.remote || !existsSync(cwd)) return false
+      // A folder opens in File Explorer; anything else the transcript names would be run, so it's only shown.
+      if (!statSync(cwd).isDirectory()) {
+        shell.showItemInFolder(cwd)
+        return true
+      }
       return (await shell.openPath(cwd)) === ''
     })
     ipcMain.handle(IPC.copySessionId, (event, id: unknown) => {

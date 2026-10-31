@@ -40,7 +40,7 @@ export function DiffPane({ sessionId, clearCaptionButtons }: { sessionId: string
   const setTab = useUi((s) => s.setDiffTab)
   useDiffRefresh(sessionId, tab)
   return (
-    <aside aria-label="Diff" className="relative flex h-full min-w-0 flex-col pt-[var(--titlebar-h)]">
+    <aside aria-label="Diff" data-pane="diff" className="relative flex h-full min-w-0 flex-col pt-[var(--titlebar-h)]">
       <PaneToolbar clearCaptionButtons={clearCaptionButtons}>
         <Segmented label="Changes to show" value={tab} segments={SEGMENTS} onChange={(next) => setTab(next)} panel="diff-panel" />
         <div className="flex-1" />

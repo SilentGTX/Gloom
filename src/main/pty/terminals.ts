@@ -6,10 +6,11 @@
 // tab, or quitting, ends the shell and everything it started.
 import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { delimiter, dirname, join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { IPty } from 'node-pty'
 import { SHELL_IDS, type ShellId, type ShellInfo, type TerminalAttach, type TerminalData, type TerminalExit, type TerminalInfo } from '@shared/terminal'
 import { killTree } from '../claude/runner'
+import { onPath } from '../exec'
 
 /** Output waits this long for more before it goes to the window. */
 const BATCH_MS = 5
@@ -46,15 +47,6 @@ let ptyModule: typeof import('node-pty') | null = null
 function nodePty(): typeof import('node-pty') {
   ptyModule ??= require('node-pty') as typeof import('node-pty')
   return ptyModule
-}
-
-function onPath(exe: string): string | null {
-  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
-    if (!dir) continue
-    const candidate = join(dir.replace(/^"|"$/g, ''), exe)
-    if (existsSync(candidate)) return candidate
-  }
-  return null
 }
 
 const first = (...paths: (string | null | undefined)[]) => paths.find((p): p is string => !!p && existsSync(p)) ?? null

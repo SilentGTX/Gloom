@@ -81,7 +81,15 @@ export function TranscriptImage({ sessionId, part, height = 160, label = 'Image'
         style={{ height, minWidth: src ? undefined : Math.round(height * 1.33) }}
       >
         {src ? (
-          <img ref={thumb} src={src} alt={label} draggable={false} className={cn('image-in block h-full w-auto max-w-[min(100%,480px)] object-contain', away && 'invisible')} />
+          // Filled and cropped, as Photos crops its thumbnails: a full-page capture shows its top at a
+          // readable width instead of a sliver, a panorama its middle. A click opens the whole picture.
+          <img
+            ref={thumb}
+            src={src}
+            alt={label}
+            draggable={false}
+            className={cn('image-in block h-full w-auto max-w-[min(100%,480px)] min-w-[120px] object-cover object-top', away && 'invisible')}
+          />
         ) : value === null ? (
           <span className="flex h-full items-center justify-center gap-1.5 px-4 text-footnote text-label-secondary">
             <ImageOff size={14} strokeWidth={1.75} aria-hidden />
@@ -141,7 +149,8 @@ function Lightbox({ zoom, src, label, onClose, onClosed }: { zoom: Zoom | null; 
   const thumbnail = {
     x: z.from.x + z.from.width / 2 - window.innerWidth / 2,
     y: z.from.y + z.from.height / 2 - window.innerHeight / 2,
-    scale: z.from.width / width
+    // Inside the thumbnail's frame even when the thumbnail crops a tall or wide picture.
+    scale: Math.min(z.from.width / width, z.from.height / height)
   }
   const hidden = reduce ? { opacity: 0 } : { ...thumbnail, opacity: 1 }
   const transition = reduce ? { duration: 0.2 } : { type: 'spring' as const, bounce: 0, duration: 0.34 }

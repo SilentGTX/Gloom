@@ -390,7 +390,8 @@ are out as Gloom 0.6.5, and a fix for clicks lost while a group opens as Gloom 0
 live chat, is out as Gloom 0.7.0** (2026-10-31). **Phases 5 and 6**, the diff and terminal panes,
 then rewind, edit and worktrees, were built the same night at your request and are out together
 as **Gloom 0.8.0** (2026-10-31), and a fix for the blank window the Effort menu left as Gloom 0.8.1
-(Phase 4's notes). **Next: Phase 7**, the polish pass, on your OK.
+(Phase 4's notes). **Phase 7, the polish pass, is done** (2026-10-31; its notes below), not yet
+released. **Next: Phase 8**, packaging, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -861,6 +862,96 @@ disclosure pages; `apple-design` for motion).
    `review-animations`, `animation-performance`, and `break-ui` with worst-case data (500 sessions,
    folders 8 levels deep, 200-character titles, empty folders, your 496 MB transcript). Then reduced
    motion, transparency and contrast, a full keyboard audit, and a check of the security settings.
+   **Done 2026-10-31**, at your "Phase 7". Reviewed with both Apple skills (`apple-hig`'s foundation
+   pages plus its Liquid Glass, keyboard, focus, sidebar, sheet, toolbar, writing and dark mode
+   pages; `apple-design` for motion), `break-ui` and `animation-performance`; the security check
+   against Electron's checklist.
+   - **Worst case** (`test/support/worst-case.ts`, captured by `test/e2e/worst-case.spec.ts` into
+     `test-screens/worst-case/`): 500 sessions; folders eight deep with sessions at the bottom; a
+     200-character title and a 300-character rename; titles in Chinese, Arabic, Vietnamese, emoji
+     and markup; three sessions all called "phase 2"; a session with no title or prompt; a clock
+     two days ahead; empty folders; 120 archived; and a chat holding the longest of everything (a
+     260-character path, a wide table, a 3,000-line output, a 700-line edit, 60 files edited, a
+     2,000-line new file, a panorama and a full-page capture). What broke, and the fix:
+     - a wide table split its numbers and words mid-way ("1,204,1 / 18"): cells now break only
+       between words, and the table scrolls sideways in its box;
+     - at 200% text the toolbar capsule, the search field and the jump button ballooned around
+       symbols that stayed small: spacing is in pixels now (chrome holds its shape and text grows,
+       as the plan always said), the sidebar's counts and headings grow with their labels, and
+       the sidebar may be dragged wider as the text grows (420 px at the usual size, up to 840 at
+       200%; back at the usual size it narrows, and your wider choice waits for the bigger text);
+     - a title, folder name or menu item cut short had no way to be read: hovering one now shows
+       it whole (macOS's expansion tooltips), menus stop at 400 px instead of stretching across the
+       window (Move To with a 120-character folder), and ⓘ names the session in full above your
+       last prompt (the toolbar's title can't show a tooltip: it's the window's drag area);
+     - a missing working folder put its whole path inside a three-line sentence: the path has a
+       line of its own, cut in the middle so the folder's own name shows;
+     - a full-page screenshot showed as a 12 px sliver: thumbnails fill their frame and crop, as
+       Photos does, and the full picture still opens on a click;
+     - the diff pane listed `step-21` before `step-6`: files are in File Explorer's order.
+     - Held up: 500 sessions (five at a time with Show More), eight levels of folders, the
+       identical titles (their last prompts tell them apart), escaping, emoji, other scripts, the
+       future date, unbreakable paths and URLs in bubbles and replies, and the long transcript.
+     - **Your biggest transcript** (520 MB): readable in **320 ms** from the click (the bar is
+       1 s), an older page in 20 ms, with the end-to-end tests running beside it.
+   - **The keyboard:** a walk with Tab found that **no button showed where the keyboard was**:
+     Tailwind's `outline-none` also cancels the style its focus rings draw in, so every
+     `focus-visible` ring drew nothing (it had been so since Phase 1; the sidebar's rows, which ring
+     an inner row, were fine). One rule restores them all. The transcript's own ring (Phase 3) never
+     showed either: the list it's built on sets `outline: none` in its inline style, which is gone
+     now. A test walks the window with Tab and fails on any stop without a ring (40 of 40 ring now). **F6 and Shift+F6** (View › Next Pane, Previous Pane) move the
+     keyboard between the sidebar, the transcript, the composer, the diff and the terminal, as in
+     Windows' own apps; it's also the way out of a terminal, which keeps every other key.
+   - **Contrast:** Windows' contrast themes repaint every fill, so the open session, a menu's
+     highlighted item, the chosen segment and tab, a drop target and the edges of every card and
+     capsule disappeared. They take the theme's highlight and a hairline frame now, and buttons
+     with words get a border. Increase Contrast and reduced transparency already held (this PC runs
+     with transparency off, so every capture here shows the opaque glass).
+   - **Motion and performance:** springs trimmed to 0.3 s or less (the sidebar slide was 0.32, the
+     update arrow 0.45). Sidebar rows were measured for a spring on every update the library sent
+     (every half second while a session runs): now only when their place changes. A splitter drag
+     re-rendered the chat on every move; the chat now sits out a resize. The transcript read a
+     computed style on every scroll event, and the pointer's light restyled its whole capsule: both
+     go straight to what they change. The Edit and Rewind capsule beside each of your messages no
+     longer blurs while it's invisible.
+   - **Security:** fixed what could run things you didn't ask for:
+     - Resume in Terminal built a PowerShell command out of the working folder, and PowerShell also
+       ends a quoted string at curly quotes, so a folder named `x’;calc;#` (or just `O’Brien`)
+       broke out of it. The folder and claude's path now travel in environment variables.
+     - Gloom ran `git` by name in the session's folder, and Windows looks in that folder first: a
+       repository carrying its own `git.exe` would have had it run (New Session asks git about the
+       folder before the trust prompt). git, taskkill, PowerShell and gh now run by full path
+       (`src/main/exec.ts`).
+     - Reveal Working Folder opened whatever the transcript named; a file is now only shown in its
+       folder.
+     - Also: the page is granted the clipboard and nothing else (Electron granted any permission);
+       a release's `update.json` must name a plain version and plain file names; development's URL
+       check compares origins, not prefixes.
+   - **Departures**, deliberate:
+     - the running title's shimmer still paints each frame (its light is a moving background); a
+       compositor-only version means drawing the title twice, and the cost is one line of text;
+     - glass over the sky and the toolbar's paper blurs almost nothing; it's the look you picked,
+       and with transparency off (your PC) there's no blur at all;
+     - the Developer menu and the test variables (`GLOOM_UPDATE_FROM` and the rest) stay in
+       released builds: Reload is the way back from a blank window, packaged updates are tested
+       with them, and using them takes control of how Gloom is started, which is code already
+       running as you;
+     - folders on network shares (`\\server\…`) still open, since WSL's folders are paths like
+       that too;
+     - sessions nest deeper than Apple's two levels (Gloom's reason to exist); a deep title is
+       read on hover or by widening the sidebar.
+   - **For Phase 8** (packaging): Electron's fuses (no running as Node, no `--inspect`, the app
+     archive's integrity checked), code signing, and serving the page from Gloom's own protocol
+     instead of `file://`. They change how the packaged app starts, and Playwright needs `--inspect`
+     to check a packaged build, so they go with the installer work.
+   - **Not run:** `review-animations` only runs when you start it (`/review-animations`).
+   - **Tests:** the worst-case spec (the captures, plus no sideways overflow in the sidebar and the
+     transcript); `test/e2e/audit.spec.ts` (the composer and its cards in light and dark, contrast
+     themes, Increase Contrast, the keyboard walk, F6); an opt-in timing of your biggest
+     transcript (`GLOOM_BIG_TRANSCRIPT=<path>`; it hard-links the file into a throwaway Claude
+     folder and prints times, nothing of it is captured); and `test/e2e/packaged.spec.ts`, the
+     check every release now gets before it goes out (`GLOOM_PACKAGED_EXE=<its Gloom.exe>`: the
+     transcripts process, git, node-pty, the rings and F6, the clipboard, Resume in Terminal).
 8. **Package.** Installer polish (the app icon came in 0.3.0).
 
 ## Verification

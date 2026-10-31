@@ -10,7 +10,8 @@ export const ContextMenuRoot = BaseContext.Root
 export const ContextMenuTrigger = BaseContext.Trigger
 
 const popupClass = [
-  'glass-strong max-h-[var(--available-height)] min-w-64 overflow-y-auto rounded-[var(--radius-popover)] p-1.5 text-[13px] text-label outline-none',
+  // At most as wide as a long item needs to be read: longer ones end in an ellipsis and say the rest on hover.
+  'glass-strong max-h-[var(--available-height)] max-w-[min(400px,var(--available-width))] min-w-64 overflow-y-auto rounded-[var(--radius-popover)] p-1.5 text-[13px] text-label outline-none',
   'origin-[var(--transform-origin)] transition-[transform,opacity] duration-[var(--duration-menu)] ease-out',
   'data-[starting-style]:scale-[0.94] data-[starting-style]:opacity-0',
   'data-[ending-style]:scale-[0.96] data-[ending-style]:opacity-0 data-[ending-style]:duration-[120ms]',
@@ -49,7 +50,7 @@ export function MenuSubmenu({ label, icon, children }: { label: string; icon?: R
     <Base.SubmenuRoot>
       <Base.SubmenuTrigger className={`relative ${itemClass} data-[popup-open]:bg-fill-strong`}>
         <Leading icon={icon} />
-        <span className="flex-1 truncate">{label}</span>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
         <ChevronRight size={14} strokeWidth={2} className="-mr-1 text-label-secondary" aria-hidden />
       </Base.SubmenuTrigger>
       <Base.Portal>
@@ -133,7 +134,7 @@ export function MenuItem({
           <span className="text-[11.5px] leading-snug whitespace-normal text-label-secondary">{detail}</span>
         </span>
       ) : (
-        <span className="flex-1 truncate">{label}</span>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
       )}
       <Trailing shortcut={shortcut} note={note} disabled={disabled} />
     </Base.Item>
@@ -147,7 +148,7 @@ export function MenuCheckItem({ label, checked, onClick }: { label: string; chec
       <Base.CheckboxItemIndicator className="absolute left-2 flex items-center">
         <Check size={14} strokeWidth={2.25} />
       </Base.CheckboxItemIndicator>
-      <span className="flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
     </Base.CheckboxItem>
   )
 }
@@ -178,7 +179,7 @@ export function MenuRadioItem({ label, value, detail, destructive }: { label: st
           <span className="text-[11.5px] leading-snug whitespace-normal text-label-secondary">{detail}</span>
         </span>
       ) : (
-        <span className="flex-1 truncate">{label}</span>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
       )}
     </Base.RadioItem>
   )

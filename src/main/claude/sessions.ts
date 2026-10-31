@@ -109,7 +109,7 @@ export class Sessions {
     if (!findClaude()) return { ok: false, kind: 'not-installed', reason: 'Claude Code isn’t installed.' }
     const cwd = runner?.cwd ?? meta?.cwd
     if (!cwd) return { ok: false, kind: 'missing-folder', reason: 'Gloom doesn’t know where this session ran.' }
-    if (!existsSync(cwd)) return { ok: false, kind: 'missing-folder', reason: `Its working folder, ${cwd}, no longer exists.` }
+    if (!existsSync(cwd)) return { ok: false, kind: 'missing-folder', reason: 'Its working folder no longer exists.', path: cwd }
     return { ok: true }
   }
 

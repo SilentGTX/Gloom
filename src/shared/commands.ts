@@ -56,6 +56,10 @@ export const COMMANDS = [
   { id: 'view.diffTree', label: 'Working Tree', group: 'view', submenu: 'Show in Diff', runs: 'renderer' },
   // Reads the diff pane's changes again (they also refresh as the session works).
   { id: 'view.refreshDiff', label: 'Refresh Diff', group: 'view', accelerator: 'F5', runs: 'renderer' },
+  // The keyboard moves between the sidebar, the transcript, the composer and the panes, as F6 does in
+  // Windows' own apps (Control-F6 on the Mac). The way out of a terminal, which keeps every other key.
+  { id: 'view.nextPane', label: 'Next Pane', group: 'view', accelerator: 'F6', runs: 'renderer' },
+  { id: 'view.previousPane', label: 'Previous Pane', group: 'view', accelerator: 'Shift+F6', runs: 'renderer' },
   { id: 'view.textBigger', label: 'Bigger Text', group: 'view', accelerator: 'CmdOrCtrl+=', runs: 'renderer' },
   { id: 'view.textSmaller', label: 'Smaller Text', group: 'view', accelerator: 'CmdOrCtrl+-', runs: 'renderer' },
   { id: 'view.textReset', label: 'Default Text Size', group: 'view', accelerator: 'CmdOrCtrl+0', runs: 'renderer' },

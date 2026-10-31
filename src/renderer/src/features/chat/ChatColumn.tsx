@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { memo, useEffect } from 'react'
 import { FileDiff, MessagesSquare, SquarePen, SquareTerminal, TriangleAlert } from 'lucide-react'
 import { formatAccelerator } from '@shared/commands'
 import { displayTitle, type SessionMeta } from '@shared/library'
@@ -46,7 +46,8 @@ function status(summary: LiveSummary | undefined, updated: number, elsewhere: bo
  * terminal and diff panes, and the session's info. The composer floats over
  * the foot. With the sidebar away, its menu comes along to the leading edge.
  */
-export function ChatColumn({ session, sidebarShown, clearCaptionButtons }: { session: SessionMeta | undefined; sidebarShown: boolean; clearCaptionButtons: boolean }) {
+// Memo: a splitter drag re-renders the shell every frame, and nothing the chat takes changes with it.
+export const ChatColumn = memo(function ChatColumn({ session, sidebarShown, clearCaptionButtons }: { session: SessionMeta | undefined; sidebarShown: boolean; clearCaptionButtons: boolean }) {
   const selection = useUi((s) => s.selection)
   const entry = useLibrary((s) => (session ? s.library.sessions[session.id] : undefined))
   const summary = useLive((s) => (session ? s.sessions[session.id] : undefined))
@@ -106,7 +107,7 @@ export function ChatColumn({ session, sidebarShown, clearCaptionButtons }: { ses
       )}
     </main>
   )
-}
+})
 
 /** Nothing open: what to do next, or what's missing first. */
 function Welcome() {

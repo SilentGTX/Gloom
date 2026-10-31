@@ -269,7 +269,9 @@ export function PromptActions({ sessionId, entry }: { sessionId: string; entry: 
     <div
       className={cn(
         'glass-capsule no-drag flex h-7 shrink-0 items-center gap-0.5 px-0.5',
-        'opacity-0 transition-opacity duration-[var(--duration-tooltip)] ease-out group-hover/prompt:opacity-100 focus-within:opacity-100'
+        'opacity-0 transition-opacity duration-[var(--duration-tooltip)] ease-out group-hover/prompt:opacity-100 focus-within:opacity-100',
+        // Blurs only while it shows: one waits unseen beside every message you sent.
+        '[backdrop-filter:none] group-hover/prompt:[backdrop-filter:var(--capsule-blur)] focus-within:[backdrop-filter:var(--capsule-blur)]'
       )}
     >
       <Tooltip label="Edit">

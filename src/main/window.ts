@@ -96,6 +96,17 @@ export function rendererUrl(): string {
   return process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(join(__dirname, '../renderer/index.html')).href
 }
 
+/** Whether a URL is the renderer's own page: its file, or (in development) its server's origin, not just a prefix of it. */
+export function isRendererUrl(url: string): boolean {
+  try {
+    const page = new URL(url)
+    const own = new URL(rendererUrl())
+    return page.protocol === 'file:' ? own.protocol === 'file:' && page.pathname === own.pathname : page.origin === own.origin
+  } catch {
+    return false
+  }
+}
+
 /** How long Windows takes to zoom a new window in. */
 const OPENING_MS = 350
 /** A frame or so for the screen to show the window once it's opaque. */
@@ -167,12 +178,17 @@ export function createMainWindow({ handover = false, onShown }: { handover?: boo
   // Model output is untrusted: no in-app navigation, no new windows, and only
   // http(s) links leave for the browser.
   win.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(rendererUrl())) event.preventDefault()
+    if (!isRendererUrl(url)) event.preventDefault()
   })
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
+  // The page asks for nothing but the clipboard (Copy buttons, and the terminal's paste);
+  // Electron would otherwise grant whatever it asked for.
+  const allowed = (permission: string) => permission === 'clipboard-sanitized-write' || permission === 'clipboard-read'
+  win.webContents.session.setPermissionRequestHandler((_contents, permission, grant) => grant(allowed(permission)))
+  win.webContents.session.setPermissionCheckHandler((_contents, permission) => allowed(permission))
 
   const query = handover ? '?handover' : ''
   if (process.env.ELECTRON_RENDERER_URL) void win.loadURL(`${process.env.ELECTRON_RENDERER_URL}${query}`)

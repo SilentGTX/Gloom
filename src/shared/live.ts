@@ -395,7 +395,8 @@ export interface SendRequest {
 export type SetRequest = { model: string | null } | { mode: ModeId } | { effort: Effort | null }
 
 /** Whether a session can take a message here, and if not, why. */
-export type CanSend = { ok: true } | { ok: false; kind: 'remote' | 'missing-folder' | 'not-installed' | 'gone'; reason: string }
+/** `path`: the folder the reason is about, shown on a line of its own (paths run long). */
+export type CanSend = { ok: true } | { ok: false; kind: 'remote' | 'missing-folder' | 'not-installed' | 'gone'; reason: string; path?: string }
 
 export interface CommandInfo {
   name: string

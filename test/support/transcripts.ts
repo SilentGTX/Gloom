@@ -18,6 +18,8 @@ export interface FakeSession {
   padKb?: number
   /** What started it: 'cli' (a terminal, the default), 'claude-desktop' (the Claude app)… */
   entrypoint?: string
+  /** The newest prompt, when it isn't the first. */
+  lastPrompt?: string
 }
 
 /** How Claude Code names a project's folder: every separator and dot becomes a dash. */
@@ -50,7 +52,7 @@ export function transcriptLines(s: FakeSession): string[] {
   lines.push({ parentUuid: 'u1', isSidechain: false, type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Done.' }] }, uuid: 'a1', timestamp: updated, ...common } as never)
   if (s.title) lines.push({ type: 'ai-title', aiTitle: s.title, sessionId: s.id } as never)
   if (s.customTitle) lines.push({ type: 'custom-title', customTitle: s.customTitle, sessionId: s.id } as never)
-  lines.push({ type: 'last-prompt', lastPrompt: s.prompt, leafUuid: 'a1', sessionId: s.id } as never)
+  lines.push({ type: 'last-prompt', lastPrompt: s.lastPrompt ?? s.prompt, leafUuid: 'a1', sessionId: s.id } as never)
   return lines.map((l) => JSON.stringify(l))
 }
 

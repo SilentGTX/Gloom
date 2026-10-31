@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { GlassCapsule } from '../../components/ui/Glass'
 import { cn } from '../../lib/cn'
+import { composerSpace } from '../../lib/composer-space'
 import { useDelayed } from '../../lib/delayed'
 import { isBusy, useLive } from '../../stores/live'
 import { useTranscript } from '../../stores/transcript'
@@ -20,7 +21,7 @@ import { RowView } from './RowView'
 const BASE_INDEX = 1_000_000
 /** Space under the last row, past the composer floating over the transcript's foot. */
 const BOTTOM_SPACE = 32
-const bottomSpace = () => BOTTOM_SPACE + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--composer-space')) || 0)
+const bottomSpace = () => BOTTOM_SPACE + composerSpace()
 
 /**
  * A session's transcript, newest at the bottom, where it opens. Scrolling up
@@ -114,13 +115,17 @@ interface ListContext {
  * The scroller: focusable, so arrow keys, Page Up/Down, Home and End move
  * through the transcript, with a ring inside its edge while the keyboard is on it.
  */
-const Scroller = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(function Scroller({ className, ...props }, ref) {
+const Scroller = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(function Scroller({ className, style, ...props }, ref) {
   return (
     <div
       {...props}
+      // Virtuoso's own style says `outline: none`, which outranks the ring below: without it, the
+      // keyboard's ring shows.
+      style={{ ...style, outline: undefined }}
       ref={ref}
       tabIndex={0}
       aria-label="Transcript"
+      data-pane="transcript"
       className={cn(className, 'outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent-ring)]')}
     />
   )

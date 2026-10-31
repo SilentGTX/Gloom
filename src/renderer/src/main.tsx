@@ -4,7 +4,10 @@ import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { UpdateScreenAlone } from './features/update/UpdateScreen'
+import { installOverflowTitles } from './lib/overflow-title'
 import { loadUpdateScreen } from './lib/update'
+
+installOverflowTitles()
 
 // The update screen can be up as the window opens (the launch check), so the
 // first render waits to know: the window's first frame is then already the screen.

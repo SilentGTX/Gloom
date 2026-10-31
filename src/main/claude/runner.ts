@@ -47,6 +47,7 @@ import {
 } from '@shared/live'
 import { lineEntries, resolveRef, type LineAt, type ToolResult, type TranscriptEntry } from '@shared/transcript'
 import type { CodeRewind } from '@shared/live'
+import { systemExe } from '../exec'
 import { cliAtLeast, EXPECTED_VERSION, findClaude } from './binary'
 
 /** Streamed text reaches the window at most this often. */
@@ -143,8 +144,8 @@ export function killTree(pid: number | undefined, sync = false): void {
   if (!pid) return
   const args = ['/pid', String(pid), '/T', '/F']
   try {
-    if (sync) execFileSync('taskkill', args, { windowsHide: true, stdio: 'ignore', timeout: 3000 })
-    else execFile('taskkill', args, { windowsHide: true }, () => {})
+    if (sync) execFileSync(systemExe('taskkill.exe'), args, { windowsHide: true, stdio: 'ignore', timeout: 3000 })
+    else execFile(systemExe('taskkill.exe'), args, { windowsHide: true }, () => {})
   } catch {
     // Already gone.
   }

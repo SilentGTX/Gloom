@@ -82,7 +82,7 @@ export function TerminalPane({ session }: { session: SessionMeta | undefined }) 
   }
 
   return (
-    <section aria-label="Terminal" className="terminal-pane flex h-full min-h-0 flex-col">
+    <section aria-label="Terminal" data-pane="terminal" className="terminal-pane flex h-full min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center gap-1 pr-1.5 pl-2">
         <div role="tablist" aria-label="Terminals" onKeyDown={onTabKey} className="flex min-w-0 items-center gap-0.5 overflow-x-auto">
           {terminals.map((t, i) => {

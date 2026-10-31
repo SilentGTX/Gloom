@@ -382,7 +382,11 @@ export function displayPath(abs: string, base: string | null): string {
 
 const pathKey = (p: string) => (/^[a-z]:[\\/]/i.test(p) ? slashes(p).toLowerCase() : slashes(p))
 
-const byPath = (a: DiffFile, b: DiffFile) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
+const pathCollator = new Intl.Collator(undefined, { numeric: true })
+
+/** Path order as File Explorer sorts names: "step-6" before "step-21". */
+export const byPath = (a: { path: string }, b: { path: string }): number =>
+  pathCollator.compare(a.path, b.path) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
 
 /**
  * Every file the session's edits touched, from before its first edit to after

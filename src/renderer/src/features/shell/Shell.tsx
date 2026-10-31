@@ -29,7 +29,7 @@ function useWindowSize(): { width: number; height: number } {
 
 /** How a pane you showed or hid moves: slides (a spring with no bounce), fades under reduced motion, snaps from the keyboard. */
 function paneTransition(slides: boolean, reduce: boolean | null): Transition {
-  return !slides ? { duration: 0 } : reduce ? { duration: 0.2, ease: [0.23, 1, 0.32, 1] } : { type: 'spring', bounce: 0, duration: 0.32 }
+  return !slides ? { duration: 0 } : reduce ? { duration: 0.2, ease: [0.23, 1, 0.32, 1] } : { type: 'spring', bounce: 0, duration: 0.28 }
 }
 
 /**
@@ -45,7 +45,11 @@ export function Shell() {
   const ui = useUi()
   const reduce = useReducedMotion()
   const session = useOpenSession()
-  const { sidebarInline } = computeLayout(width, ui)
+  // Bigger text lets the sidebar go wider (deep folders and long titles stay readable); back at
+  // the usual size it narrows again, and the wider choice waits for the bigger text.
+  const widest = SIDEBAR.max * Math.max(1, ui.textScale)
+  const sidebarWidth = Math.min(ui.sidebarWidth, widest)
+  const { sidebarInline } = computeLayout(width, { sidebarWidth, sidebarHidden: ui.sidebarHidden })
 
   // A sidebar that fits inline again doesn't need its sheet.
   const { sheet, closeSheet } = ui
@@ -53,14 +57,14 @@ export function Shell() {
     if (sheet && sidebarInline) closeSheet(true)
   }, [sheet, sidebarInline, closeSheet])
 
-  const column = ui.sidebarWidth + FRAME * 2
+  const column = sidebarWidth + FRAME * 2
   const sidebarSpace = sidebarInline ? column : 0
   // Toasts centre over the chat, beside the sidebar.
   useEffect(() => {
     document.documentElement.style.setProperty('--content-shift', `${sidebarInline ? column / 2 : 0}px`)
   }, [sidebarInline, column])
   // The splitter may not push the chat under its minimum (which would fold the sidebar away mid-drag).
-  const sidebarMax = Math.max(SIDEBAR.min, Math.min(SIDEBAR.max, width - CHAT_MIN - FRAME * 2))
+  const sidebarMax = Math.max(SIDEBAR.min, Math.min(widest, width - CHAT_MIN - FRAME * 2))
 
   // The diff pane sits beside the chat while the chat keeps 560 px; narrower, it floats over it.
   const diffMax = Math.max(DIFF.min, Math.min(DIFF.max, width - sidebarSpace - CHAT_MIN_BESIDE_DIFF))
@@ -107,13 +111,13 @@ export function Shell() {
               exit="away"
             >
               <ErrorBoundary part="Sidebar">
-                <SidebarPanel width={ui.sidebarWidth} />
+                <SidebarPanel width={sidebarWidth} />
               </ErrorBoundary>
             </motion.div>
           )}
         </AnimatePresence>
         {sidebarInline && (
-          <Splitter variant="edge" label="Resize sidebar" value={ui.sidebarWidth} min={SIDEBAR.min} max={sidebarMax} initial={SIDEBAR.initial} onChange={ui.setSidebarWidth} />
+          <Splitter variant="edge" label="Resize sidebar" value={sidebarWidth} min={SIDEBAR.min} max={sidebarMax} initial={SIDEBAR.initial} onChange={ui.setSidebarWidth} />
         )}
 
         <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -179,9 +183,9 @@ export function Shell() {
           </div>
         </OverlaySheet>
 
-        <OverlaySheet open={sheet} instant={ui.instant} area={{ inset: 0 }} inset={FRAME} width={ui.sidebarWidth} label="Sidebar" onClose={closeSheet}>
+        <OverlaySheet open={sheet} instant={ui.instant} area={{ inset: 0 }} inset={FRAME} width={sidebarWidth} label="Sidebar" onClose={closeSheet}>
           <ErrorBoundary part="Sidebar">
-            <SidebarPanel width={ui.sidebarWidth} inSheet />
+            <SidebarPanel width={sidebarWidth} inSheet />
           </ErrorBoundary>
         </OverlaySheet>
       </div>

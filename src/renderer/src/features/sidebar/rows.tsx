@@ -40,13 +40,17 @@ export const RowMotion = createContext({ instant: false, layout: true })
  * clicked again mid-way. Reduced motion fades instead.
  * (A departure from transform-only motion: transforms let a heading or a
  * scrolled list run ahead of a closing group.)
+ * `place` is where the item stands among its siblings: it's measured for a
+ * spring only when that changes, not on every update the library sends while
+ * a session runs.
  */
-function useReveal() {
+function useReveal(place: number | string) {
   const { instant, layout } = useContext(RowMotion)
   const reduce = useReducedMotion()
   const animate = layout && !instant
   return {
     layout: layout ? ('position' as const) : false,
+    layoutDependency: place,
     // Clipped while it moves, not hidden: an overflow-hidden box can still be
     // scrolled, and pressing a row inside one (which focuses it) scrolled it
     // into view, sliding another row under the pointer before the press let go.
@@ -58,9 +62,9 @@ function useReveal() {
 }
 
 /** An open group's contents: its subfolders and sessions, opening and closing as one. */
-export function GroupContents({ ref, children }: { ref?: Ref<HTMLLIElement>; children: ReactNode }) {
+export function GroupContents({ ref, place, children }: { ref?: Ref<HTMLLIElement>; place: number; children: ReactNode }) {
   return (
-    <motion.li ref={ref} role="none" {...useReveal()} className="relative">
+    <motion.li ref={ref} role="none" {...useReveal(place)} className="relative">
       <ul role="none" className="relative flex flex-col">
         <AnimatePresence initial={false}>{children}</AnimatePresence>
       </ul>
@@ -99,7 +103,8 @@ function useLitGroup(): string | undefined {
 }
 
 function Count({ value }: { value: number }) {
-  return value > 0 ? <span className="shrink-0 pl-1 text-[12px] font-normal text-label-secondary tabular">{value}</span> : null
+  // In rem, like the label beside it: the two grow together with the text size.
+  return value > 0 ? <span className="shrink-0 pl-1 text-[0.75rem] font-normal text-label-secondary tabular">{value}</span> : null
 }
 
 /** One shape for the rows that hold things: a library group, a folder, Archived. */
@@ -133,7 +138,7 @@ export function GroupRow({
   onToggle(all: boolean): void
   onRenameEnd(name: string | null): void
 }) {
-  const motionProps = useReveal()
+  const motionProps = useReveal(row.posInSet)
   const folder = row.kind === 'folder' ? row.folder : undefined
   const label = folder ? folder.name : SMART_LABELS[(row as Extract<GroupRowData, { kind: 'smart' }>).smart]
   const Icon = folder ? FolderIcon : SMART_ICONS[(row as Extract<GroupRowData, { kind: 'smart' }>).smart]
@@ -240,7 +245,7 @@ export function SessionRow({
   onClick(e: MouseEvent): void
   onRenameEnd(title: string | null): void
 }) {
-  const motionProps = useReveal()
+  const motionProps = useReveal(row.posInSet)
   const { item, folderId } = row
   const { id, meta, entry, title } = item
   // The drag image names the row you grabbed; a badge counts the rest.
@@ -324,7 +329,7 @@ export function SessionRow({
  * Inside a folder it takes drops for the folder, like the sessions above it.
  */
 export function MoreRow({ row, tabbable, ref, onShow }: { row: MoreRowData; tabbable: boolean; ref?: Ref<HTMLLIElement>; onShow(): void }) {
-  const motionProps = useReveal()
+  const motionProps = useReveal(row.key)
   const drop: DropData | undefined = row.folderId ? { kind: 'folder', id: row.folderId, nested: true } : undefined
   const { setNodeRef: dropRef } = useDroppable({ id: `drop:${row.key}`, data: drop, disabled: !drop })
   const lit = useLitGroup()
@@ -452,8 +457,8 @@ export function SectionHeading({
   dropping?: boolean
 }) {
   return (
-    <div ref={dropRef} className={cn('flex h-7 items-center justify-between gap-2 rounded-[var(--radius-row)] pr-1 pl-2.5', first ? 'mt-0.5' : 'mt-4', dropping && 'drop-inside')}>
-      <h2 className="flex min-w-0 items-baseline gap-1.5 text-[12px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">
+    <div ref={dropRef} className={cn('flex min-h-7 items-center justify-between gap-2 rounded-[var(--radius-row)] pr-1 pl-2.5', first ? 'mt-0.5' : 'mt-4', dropping && 'drop-inside')}>
+      <h2 className="flex min-w-0 items-baseline gap-1.5 text-[0.75rem] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">
         <span className="truncate">{children}</span>
         {count !== undefined && <span className="font-normal tabular">{count}</span>}
       </h2>

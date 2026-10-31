@@ -445,7 +445,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
     nodes.flatMap(({ row, children }) =>
       row.kind === 'session' || row.kind === 'more' || !row.open || children.length === 0
         ? [renderRow(row)]
-        : [renderRow(row), <GroupContents key={`${row.key}/contents`}>{renderNodes(children)}</GroupContents>]
+        : [renderRow(row), <GroupContents key={`${row.key}/contents`} place={row.posInSet}>{renderNodes(children)}</GroupContents>]
     )
 
   const heading = (section: Section, first: boolean) => {
@@ -507,7 +507,7 @@ function Sidebar({ width, inSheet }: { width: number; inSheet?: boolean }) {
   const layout = tree.rows.length <= LAYOUT_LIMIT
 
   return (
-    <aside ref={root} aria-label="Sidebar" className="glass flex h-full shrink-0 flex-col rounded-[var(--radius-panel)]" style={{ width }}>
+    <aside ref={root} aria-label="Sidebar" data-pane="sidebar" className="glass flex h-full shrink-0 flex-col rounded-[var(--radius-panel)]" style={{ width }}>
       <div className="relative z-[2] flex min-h-0 flex-1 flex-col">
         {/* Inset by the frame top and bottom, so these centre on the title bar line. */}
         <div className="drag flex h-[calc(var(--titlebar-h)-2*var(--frame))] shrink-0 items-center gap-0.5 px-1.5">
