@@ -47,9 +47,9 @@ Kowalski's set supports them: `emil-design-eng`, `animate`, `review-animations`,
   of the app showing (no second window).
 
 **Not in v1:** command palette (planned next; out after v1 as Gloom 0.11.0, see "9. Command
-palette"), `@` file mentions (built after v1, see "10. `@` file mentions"), browser pane,
-artifacts, task lists, side sessions, PRs, cloud sessions, multiple accounts, split view, fast
-mode, full-text search across transcripts, dated library backups.
+palette"), `@` file mentions (out after v1 as Gloom 0.12.0, see "10. `@` file mentions"),
+browser pane, artifacts, task lists, side sessions, PRs, cloud sessions, multiple accounts, split
+view, fast mode, full-text search across transcripts, dated library backups.
 
 **Personal use.** If Gloom is ever shared with others, check Anthropic's rules for third-party apps
 that use a Claude.ai login first.
@@ -418,8 +418,7 @@ phases are done; next is the week as your daily driver (Decided with you). **The
 planned next, is out as Gloom 0.11.0** (2026-10-31; its notes below, "9. Command palette").
 **Clear glass**, your ask (View › Always Show Glass is Blissful's Apple glass), is out as Gloom
 0.11.1 (2026-10-31; its notes in "Design system", above). **`@` file mentions**, the next item,
-is built on branch `at-mentions` and waits for your OK to ship (2026-10-31; its notes below,
-"10. `@` file mentions").
+is out as Gloom 0.12.0 (2026-10-31; its notes below, "10. `@` file mentions").
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -1142,8 +1141,8 @@ disclosure pages; `apple-design` for motion).
      went out (`--smoke-pty` too). The published `update.json` checks out against the release
      key, and its hashes match the installer and zip that went out.
 10. **`@` file mentions** (after v1; next in Not in v1 after the palette).
-   **Built 2026-10-31** on branch `at-mentions` in its own worktree; it waits for your OK to ship.
-   You agreed the scope before it was built: the `@` list in the composer, and under your message
+   **Done 2026-10-31**, released as Gloom 0.12.0 at your "Ship 0.12.0" (the last note); built on
+   branch `at-mentions` in its own worktree. You agreed the scope before it was built: the `@` list in the composer, and under your message
    the files Claude Code read in. Built with both Apple skills loaded (`apple-hig`'s foundation
    pages plus its token fields, combo boxes, text fields, entering data, menus, lists and tables,
    focus and selection, searching, keyboards, motion and Liquid Glass pages; `apple-design` for
@@ -1215,6 +1214,12 @@ disclosure pages; `apple-design` for motion).
      word, the pointer, a deep path, the list going with the keyboard, the `/` list, the rows under
      a message opening, and captures in light, dark, contrast themes, Increase Contrast and 200%
      text (`test-screens/mentions/`).
+   - Released as **Gloom 0.12.0** at your "Ship 0.12.0". Main had moved on to clear glass (0.11.1)
+     meanwhile, so the branch went onto it first and every test ran again. The packaged check
+     passed on the build (it now lists a session's files with `@` and puts one in with Tab), and
+     again on the build that went out (`--smoke-pty` too). The published `update.json` checks out
+     against the release key, and its hashes match the installer and zip that went out (GitHub's
+     own digests of them as well).
 
 ## Verification
 
