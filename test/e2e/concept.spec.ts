@@ -3,10 +3,11 @@
 // inspector beside the chat, Claude's requests at the end of the conversation.
 // Captures go to test-screens/concept/ (page screenshots, never the screen).
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { mkdirSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { demoSession, DEMO_TITLE } from '../support/demo'
-import { fakeClaude, launch, minutesAgo, openGroup, sessionRow, setWindowSize, tempDir } from './app'
+import { fakeClaude, launch, minutesAgo, openGroup, sessionRow, setWindowSize, sidebar, tempDir } from './app'
 
 const dir = join(__dirname, '..', '..', 'test-screens', 'concept')
 const FAKE = join(__dirname, '..', '..', 'tools', 'fake-claude', 'fake-claude.mjs')
@@ -30,6 +31,15 @@ async function openDemo(theme: 'light' | 'dark') {
     { id: 'cccccccc-0000-4000-8000-000000000002', cwd, prompt: 'Bigger player controls', title: 'Player controls', updated: minutesAgo(60 * 26) }
   ])
   demoSession(cwd, minutesAgo(50)).write(join(claudeDir, 'projects'))
+  // Claude Code's own config, as it keeps the account and the usage it last fetched: made up.
+  const resets = new Date(Date.now() + 3 * 86_400_000).toISOString()
+  writeFileSync(
+    join(claudeDir, '.claude.json'),
+    JSON.stringify({
+      oauthAccount: { emailAddress: 'sam@example.com', displayName: 'Sam', organizationName: 'Synergy', organizationType: 'claude_max' },
+      cachedUsageUtilization: { fetchedAtMs: Date.now() - 60_000, utilization: { seven_day: { utilization: 38, resets_at: resets } } }
+    })
+  )
   ;({ app, page } = await launch({ claudeDir, design: 'concept' }))
   await setWindowSize(app, 1440, 900)
   await app.evaluate(({ nativeTheme }, t) => (nativeTheme.themeSource = t), theme)
@@ -38,6 +48,9 @@ async function openDemo(theme: 'light' | 'dark') {
   await expect(page.getByLabel('Transcript')).toBeVisible()
   return { cwd }
 }
+
+/** The inspector's sections, top to bottom. */
+const sectionOrder = () => page.getByRole('complementary', { name: 'Inspector' }).locator('section').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))
 
 for (const theme of ['light', 'dark'] as const) {
   test(`the concept window: conversation, changes, terminal and the inspector, ${theme}`, async () => {
@@ -49,6 +62,9 @@ for (const theme of ['light', 'dark'] as const) {
     const inspector = page.getByRole('complementary', { name: 'Inspector' })
     await expect(inspector).toBeVisible()
     await expect(inspector.getByRole('region', { name: 'Changes' })).toContainText('server.ts')
+    // Your account and the week's use, from Claude Code's config before any session has run.
+    await expect(sidebar(page)).toContainText('Synergy')
+    await expect(sidebar(page)).toContainText('Max plan · 38% of weekly limit')
     await capture(`conversation-${theme}`)
 
     await views.getByRole('tab', { name: 'Changes' }).click()
@@ -78,6 +94,55 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.getByRole('tablist', { name: 'Show' })).toBeVisible()
   })
 }
+
+test('the inspector: sections fold, move by drag and by keyboard, and a long list shows six', async () => {
+  const { cwd } = await openDemo('light')
+  // Eight new files in a git repository: Working Tree lists them.
+  execFileSync('git', ['init', '-q'], { cwd })
+  for (let i = 1; i <= 8; i++) writeFileSync(join(cwd, `note-${i}.md`), `note ${i}\n`)
+  await page.evaluate(() => window.gloom!.runCommand('view.diffTree'))
+  const inspector = page.getByRole('complementary', { name: 'Inspector' })
+  const tree = inspector.getByRole('region', { name: 'Working Tree' })
+  const notes = tree.getByRole('button', { name: /note-\d\.md/ })
+  await expect(notes).toHaveCount(6, { timeout: 15_000 })
+  await expect(tree.getByRole('button', { name: /^Working Tree/ })).toContainText('8 files')
+  await tree.getByRole('button', { name: 'Show 2 More' }).click()
+  await expect(notes).toHaveCount(8)
+  await capture('inspector-show-more')
+  await tree.getByRole('button', { name: 'Show Less' }).click()
+  await expect(notes).toHaveCount(6)
+
+  // Context starts folded, saying its share; a click opens it, and folds Environment.
+  const contextHead = inspector.getByRole('button', { name: /^Context/ })
+  await expect(contextHead).toHaveAttribute('aria-expanded', 'false')
+  await contextHead.click()
+  await expect(contextHead).toHaveAttribute('aria-expanded', 'true')
+  const environmentHead = inspector.getByRole('button', { name: /^Environment/ })
+  await environmentHead.click()
+  await expect(environmentHead).toHaveAttribute('aria-expanded', 'false')
+  await expect(inspector.getByRole('region', { name: 'Environment' })).not.toContainText('This computer')
+
+  // Alt+Up moves the section whose header has the keyboard.
+  expect(await sectionOrder()).toEqual(['Working Tree', 'Tasks', 'Context', 'Environment', 'Connectors', 'Session'])
+  await contextHead.focus()
+  await page.keyboard.press('Alt+ArrowUp')
+  expect(await sectionOrder()).toEqual(['Working Tree', 'Context', 'Tasks', 'Environment', 'Connectors', 'Session'])
+  await expect(contextHead).toBeFocused()
+
+  // Dragged by its header, Session goes to the top; letting go isn't a click (it stays folded).
+  const sessionHead = inspector.getByRole('button', { name: /^Session/ })
+  const from = (await sessionHead.boundingBox())!
+  const to = (await inspector.getByRole('button', { name: /^Working Tree/ }).boundingBox())!
+  await page.mouse.move(from.x + 40, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(from.x + 40, from.y + from.height / 2 - 8, { steps: 3 })
+  await page.mouse.move(to.x + 40, to.y - 10, { steps: 20 })
+  await page.waitForTimeout(150)
+  await page.mouse.up()
+  await expect.poll(sectionOrder).toEqual(['Session', 'Working Tree', 'Context', 'Tasks', 'Environment', 'Connectors'])
+  await expect(sessionHead).toHaveAttribute('aria-expanded', 'false')
+  await capture('inspector-reordered')
+})
 
 test('narrow windows: the inspector floats over the chat, then the sidebar folds away', async () => {
   await openDemo('light')

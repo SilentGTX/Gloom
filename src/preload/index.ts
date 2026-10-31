@@ -54,6 +54,7 @@ const api: GloomApi = {
     files: (id) => ipcRenderer.invoke(IPC.liveFiles, id),
     models: () => ipcRenderer.invoke(IPC.liveModels),
     usage: () => ipcRenderer.invoke(IPC.liveUsage),
+    account: () => ipcRenderer.invoke(IPC.liveAccount),
     rewindPreview: (id, messageId) => ipcRenderer.invoke(IPC.liveRewindPreview, id, messageId),
     rewind: (id, request) => ipcRenderer.invoke(IPC.liveRewind, id, request),
     undoRewind: (id) => ipcRenderer.invoke(IPC.liveRewindUndo, id),

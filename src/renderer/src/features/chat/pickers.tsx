@@ -36,7 +36,7 @@ function PopUp({ look, label, value, spoken = value, icon, tooltip, tone, disabl
         tone === 'warning' && 'text-[var(--destructive)] enabled:hover:text-[var(--destructive)]'
       )}
     >
-      <span className={cn('flex shrink-0 [&>svg]:size-[14px]', look === 'chip' && 'chip-icon')} aria-hidden>
+      <span className="flex shrink-0 [&>svg]:size-[14px]" aria-hidden>
         {icon}
       </span>
       <span className={cn('truncate', look === 'field' && 'flex-1 text-left')}>{value}</span>

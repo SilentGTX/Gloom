@@ -21,6 +21,9 @@ export type DiffTab = 'session' | 'tree'
 export type Design = 'concept' | 'classic'
 /** What the chat shows in the concept design: the conversation, the session's changes, or its terminal. */
 export type ChatView = 'conversation' | 'changes' | 'terminal'
+/** The inspector's sections, which fold and which you put in your own order. */
+export type InspectorPart = 'changes' | 'tasks' | 'context' | 'environment' | 'connectors' | 'session'
+export const INSPECTOR_PARTS: InspectorPart[] = ['changes', 'tasks', 'context', 'environment', 'connectors', 'session']
 
 /** What's being renamed in place. */
 export type Renaming = { kind: 'folder' | 'session'; id: string } | null
@@ -67,6 +70,9 @@ interface UiState extends ColumnPrefs {
   inspectorOpen: boolean
   /** The inspector slid in as a sheet over the chat, in a window too narrow for it. Not kept. */
   inspectorSheet: boolean
+  /** The inspector's sections in the order you dragged them into, and the ones you folded. */
+  inspectorOrder: InspectorPart[]
+  inspectorFolded: InspectorPart[]
 
   setSidebarWidth(width: number): void
   toggleDiff(viaKeyboard: boolean, open?: boolean): void
@@ -101,6 +107,9 @@ interface UiState extends ColumnPrefs {
   toggleInspector(viaKeyboard: boolean, open?: boolean): void
   /** The window grew wide enough: an inspector sheet becomes the column. */
   settleInspector(): void
+  setInspectorOrder(order: InspectorPart[]): void
+  /** Folds or unfolds a section; with no `open`, flips it. */
+  foldInspectorPart(part: InspectorPart, open?: boolean): void
 }
 
 export const useUi = create<UiState>()(
@@ -137,6 +146,9 @@ export const useUi = create<UiState>()(
         view: 'conversation',
         inspectorOpen: true,
         inspectorSheet: false,
+        inspectorOrder: INSPECTOR_PARTS,
+        // As Claude Code's panel starts: the context as its share alone, the details folded.
+        inspectorFolded: ['context', 'session'],
 
         setSidebarWidth: (width) => set({ sidebarWidth: width }),
         toggleDiff: (viaKeyboard, open) => {
@@ -207,6 +219,12 @@ export const useUi = create<UiState>()(
         },
         settleInspector: () => {
           if (get().inspectorSheet) set({ inspectorSheet: false, inspectorOpen: true, paneInstant: true })
+        },
+        setInspectorOrder: (order) => set({ inspectorOrder: order }),
+        foldInspectorPart: (part, open) => {
+          const folded = get().inspectorFolded
+          const fold = open === undefined ? !folded.includes(part) : !open
+          if (fold !== folded.includes(part)) set({ inspectorFolded: fold ? [...folded, part] : folded.filter((p) => p !== part) })
         }
       }
     },
@@ -225,6 +243,8 @@ export const useUi = create<UiState>()(
         glassAlways: s.glassAlways,
         design: s.design,
         inspectorOpen: s.inspectorOpen,
+        inspectorOrder: s.inspectorOrder,
+        inspectorFolded: s.inspectorFolded,
         sort: s.sort,
         openSmart: s.openSmart,
         // The open session comes back after a restart (an update, say).

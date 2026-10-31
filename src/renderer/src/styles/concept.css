@@ -523,10 +523,6 @@
 :root[data-design='concept'] .composer-edge {
   height: 110px;
 }
-/* Its chips say their choice in words, as the handoff draws them. */
-:root[data-design='concept'] .chip-icon {
-  display: none;
-}
 :root[data-design='concept'] .prose-gloom {
   text-wrap: pretty;
 }
@@ -547,41 +543,108 @@
 .concept-sheet .concept-inspector {
   box-shadow: none;
 }
-.concept-list {
-  overflow: hidden;
+/* A section: a card, as Claude Code's panel draws them. Its header folds it
+   and drags it; lifted while it moves. */
+.concept-panel {
+  position: relative;
   border-radius: 12px;
   background: var(--card);
   box-shadow: inset 0 0 0 0.5px var(--separator-strong);
 }
-.concept-list > li + li {
-  box-shadow: inset 0 0.5px 0 var(--separator);
+.concept-panel.is-lifted {
+  box-shadow:
+    inset 0 0 0 0.5px var(--separator-strong),
+    0 10px 30px rgb(0 0 0 / 0.16);
 }
-.concept-list-row {
+.concept-panel-head {
   display: flex;
   width: 100%;
+  min-height: 40px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  text-align: left;
+  outline: none;
+  touch-action: none;
+}
+.concept-panel-head:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+.concept-panel-summary {
+  flex: none;
+  color: var(--label-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+/* A share as a short bar: the context, the plan's limits. */
+.concept-minibar {
+  display: inline-block;
+  width: 40px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--fill-strong);
+}
+.concept-minibar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.concept-minibar.is-wide {
+  display: block;
+  width: 100%;
+}
+.concept-panel-row {
+  display: flex;
+  width: 100%;
+  min-height: 30px;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
-  font-size: 12.5px;
+  padding: 0 6px;
+  border-radius: 7px;
+  font-size: 13px;
   outline: none;
 }
-.concept-list-row:focus-visible {
+button.concept-panel-row:focus-visible {
   outline: 2px solid var(--accent-ring);
   outline-offset: -2px;
 }
 @media (hover: hover) {
-  .concept-list-row:hover {
+  button.concept-panel-row:enabled:hover {
     background: var(--fill);
   }
 }
-.concept-ring-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--card);
-  box-shadow: inset 0 0 0 0.5px var(--separator-strong);
+/* Show 12 More / Show Less, under a long list. */
+.concept-more {
+  margin-top: 2px;
+  padding: 3px 0;
+  color: var(--accent-text);
+  font-size: 12.5px;
+  font-weight: 500;
+  outline: none;
+}
+.concept-more:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  border-radius: 4px;
+}
+.concept-check.is-small {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border-width: 1.25px;
+}
+.concept-check.is-small.is-done::after {
+  width: 5px;
+  height: 2.5px;
+  border-width: 0 0 1.4px 1.4px;
+}
+.concept-check.is-small.is-now::after {
+  width: 6px;
+  height: 6px;
 }
 .concept-ring {
   display: grid;
@@ -615,37 +678,6 @@
   text-align: right;
   overflow-wrap: anywhere;
   user-select: text;
-}
-
-/* A file's change: M, A, U, D, R on its mark's colour. The letter is dark in
-   both appearances: 5:1 or better on every mark (the window's own light
-   colour, as drawn, gives 2.2:1 on the amber). */
-.concept-badge {
-  display: grid;
-  flex: none;
-  width: 16px;
-  height: 16px;
-  place-items: center;
-  border-radius: 4px;
-  color: #1d1d1f;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
-}
-.concept-badge.is-modified {
-  background: var(--warning-mark);
-}
-.concept-badge.is-added,
-.concept-badge.is-untracked {
-  background: var(--added-mark);
-}
-.concept-badge.is-deleted {
-  background: oklch(0.66 0.18 25);
-}
-/* The violet is too deep for a dark letter (3.9:1): white, on the deeper one (5.6:1). */
-.concept-badge.is-renamed {
-  background: var(--accent-strong);
-  color: #ffffff;
 }
 
 /* "Tell Claude What to Do…": a text button in the accent's ink. */

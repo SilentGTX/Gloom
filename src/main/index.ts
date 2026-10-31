@@ -271,6 +271,9 @@ if (smokeArg) {
     })
     handle(IPC.liveModels, () => knownModels())
     handle(IPC.liveUsage, () => sessions.usage())
+    handle(IPC.liveAccount, () => sessions.account())
+    // Claude Code may have fetched your usage meanwhile (in a terminal, in the Claude app).
+    app.on('browser-window-focus', () => sessions.readConfig())
     handle(IPC.claudeInfo, (_event, fresh) => claudeInfo({ fresh: fresh === true }))
     handle(IPC.claudeTerminal, (_event, what) => (what === 'login' || what === 'update' ? claudeInTerminal(what) : false))
     handle(IPC.claudeLocate, async (event) => {

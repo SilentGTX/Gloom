@@ -20,6 +20,7 @@ import type { ShellInfo, TerminalAttach, TerminalData, TerminalExit, TerminalInf
 import type { LibraryOp } from '../shared/library'
 import type { MergeResult, RemoveResult, RepoInfo, WorktreeInfo } from '../shared/git'
 import type {
+  AccountSummary,
   CanSend,
   CardAnswer,
   ClaudeInfo,
@@ -63,6 +64,8 @@ export interface LiveApi {
   files(id: string): Promise<FileListing>
   models(): Promise<ModelChoice[]>
   usage(): Promise<UsageInfo | null>
+  /** Who Claude Code is signed in as, from its config (or a session's process). */
+  account(): Promise<AccountSummary | null>
   /** What rewinding to before one of your messages can restore. */
   rewindPreview(id: string, messageId: string): Promise<RewindPreview>
   /** Rewinds; resolves to what the code part restored. Rejects with the reason when it can't. */

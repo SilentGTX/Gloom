@@ -89,6 +89,8 @@ export const IPC = {
   liveModels: 'live:models',
   /** invoke → UsageInfo | null */
   liveUsage: 'live:usage',
+  /** invoke → AccountSummary | null: who Claude Code is signed in as */
+  liveAccount: 'live:account',
   /** invoke → ClaudeInfo */
   claudeInfo: 'claude:info',
   /** invoke('login' | 'update') → boolean: runs it in a terminal window */

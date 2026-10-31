@@ -176,6 +176,14 @@ export interface LiveSummary {
    * it don't show, and the next message carries on from before it.
    */
   rewoundTo: string | null
+  /** Its MCP servers and how each started, once its process has said (the inspector's Connectors). */
+  mcp?: McpServer[] | null
+}
+
+/** An MCP server a session's process loaded: "connected", "failed", "needs-auth", "pending"… */
+export interface McpServer {
+  name: string
+  status: string
 }
 
 /** What restoring code to before a message would do, or did. */
@@ -312,12 +320,29 @@ export interface UsageWindow {
   resetsAt: number | null
 }
 
-/** Who Claude Code is signed in as, as the CLI says once a session starts. */
+/** Who Claude Code is signed in as, and on what plan, for the foot of the concept's sidebar. */
 export interface AccountSummary {
-  email: string | null
-  organization: string | null
-  /** Your plan ("max", "pro"…), as the CLI names it. */
+  /** Your organisation's name, or yours when the organisation is only you. */
+  name: string | null
+  /** "Max", "Team", "Pro"… */
   plan: string | null
+}
+
+/** The organisation's name, unless it's only "<you>'s Organization"; then your name, or your email's. */
+export function accountName(organization: string | null | undefined, displayName: string | null | undefined, email: string | null | undefined): string | null {
+  const org = organization?.trim()
+  if (org && !/'s organi[sz]ation$/i.test(org)) return org
+  return displayName?.trim() || email?.split('@')[0] || org || null
+}
+
+/** "claude_team", "Claude Team", "max" → "Team", "Team", "Max". */
+export function planName(raw: string | null | undefined): string | null {
+  const plan = raw
+    ?.trim()
+    .replace(/^claude[\s_-]*/i, '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+  return plan ? plan.replace(/\b\w/g, (c) => c.toUpperCase()) : null
 }
 
 /** Your plan's limits, as the CLI reports them. */

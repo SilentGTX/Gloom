@@ -1,8 +1,7 @@
-// Small pieces the concept design shares: its segmented track, the change
-// badges (M, A, D…), and the spinner that marks work under way.
+// Small pieces the concept design shares: its segmented track, and the
+// spinner that marks work under way.
 import { useRef, type KeyboardEvent } from 'react'
 import { useReducedMotion } from 'motion/react'
-import type { FileStatus } from '@shared/diff'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
 import { useUi } from '../../stores/ui'
@@ -88,25 +87,6 @@ export function Track<T extends string>({
         )
       })}
     </div>
-  )
-}
-
-const LETTERS: Record<FileStatus, { letter: string; label: string }> = {
-  modified: { letter: 'M', label: 'Modified' },
-  added: { letter: 'A', label: 'Added' },
-  untracked: { letter: 'U', label: 'Untracked' },
-  deleted: { letter: 'D', label: 'Deleted' },
-  renamed: { letter: 'R', label: 'Renamed' }
-}
-
-/** A file's change as a lettered badge (the letter and its colour say the same thing; the label says it aloud). */
-export function ChangeBadge({ status }: { status: FileStatus }) {
-  const { letter, label } = LETTERS[status]
-  return (
-    <span className={cn('concept-badge', `is-${status}`)} title={label}>
-      <span aria-hidden>{letter}</span>
-      <span className="sr-only">{label}</span>
-    </span>
   )
 }
 

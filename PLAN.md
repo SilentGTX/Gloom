@@ -1267,9 +1267,7 @@ disclosure pages; `apple-design` for motion).
      - text colours are a shade darker where the handoff's fall under 4.5:1: secondary ink
        `#69696e` (4.8:1 on the sidebar's glass, the handoff's 4.4:1), and in light the greens,
        reds and amber used for text (+6, −3, Waiting) are darker versions of the handoff's
-       marks; white text sits on a deeper violet (5.6:1; the accent gives 4.3:1); badge
-       letters are dark on the bright marks (5:1 or better; the window colour gives 2.2:1 on the
-       amber), white on the deep violet for a rename;
+       marks; white text sits on a deeper violet (5.6:1; the accent gives 4.3:1);
      - the dark segmented thumb is one step lighter than the card colour, which vanished on its
        track;
      - the idle session mark is a hollow ring, so idle and finished differ in shape as well as
@@ -1293,6 +1291,30 @@ disclosure pages; `apple-design` for motion).
      and again on the build that went out; the published `update.json` checks out against the
      release key, and its hashes match the installer and zip that went out (GitHub's own
      digests of them as well).
+   - **After 0.13.0**, your asks:
+     - **The account at the sidebar's foot was missing:** it waited for a session's process to
+       say who's signed in. Main now reads it from Claude Code's own config (`.claude.json`, in
+       CLAUDE_CONFIG_DIR when set): the organisation (or your name, when the organisation is only
+       you), the plan as the organisation has it, and the usage Claude Code last fetched, while
+       its week is still running (a week that has reset since shows no figure until it's known
+       again). Read at launch, as each turn ends, and when Gloom comes to the front
+       (`src/main/claude/account.ts`); nothing else in the file is read.
+     - **The classic's icons** in the concept: outline folders in the sidebar, the composer's
+       Mode, Model and Effort chips with their symbols, and the diff pane's file symbols in the
+       Changes cards and the inspector, in place of the M and A badges.
+     - **The inspector, as Claude Code's panel:** each section is a card whose header folds it
+       (folded, it says what matters: a count, a share with a short bar, the model) and drags it
+       to another place, kept; Alt+Up and Alt+Down move the section whose header has the
+       keyboard. A list longer than six shows six and Show N More / Show Less. Sections:
+       Changes, Tasks (the newest to-do list, "1 of 3"), Context (the ring, the tokens, your
+       5-hour and weekly use, Compact Now), Environment (this computer or another, the folder,
+       the branch or worktree, Resume in Terminal), Connectors (the session's MCP servers and
+       how each started, from its process's first message), Session (model, mode, effort,
+       started, the ID with Copy). Context and Session start folded.
+     - **Only older models in the list** (Opus 4.8, Sonnet 4.6): Gloom asks the CLI for its
+       models on the first session of a launch and keeps the answer; yours was kept from the CLI
+       you had before updating to 2.1.316, which lists the 5.5 models. It asks again now whenever
+       a session's process is another CLI version.
 
 ## Verification
 

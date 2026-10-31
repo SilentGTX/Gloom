@@ -17,7 +17,7 @@ import { useTranscript } from '../../stores/transcript'
 import { useUi, type DiffTab } from '../../stores/ui'
 import { useHighlight } from '../chat/highlight'
 import { resolveLanguage } from '../chat/languages'
-import { ChangeBadge, Track } from '../concept/parts'
+import { Track } from '../concept/parts'
 import { PaneToolbar } from '../shell/Toolbar'
 
 /** Lines per row of the list: a long hunk is several rows, so only what's on screen is drawn. */
@@ -414,6 +414,12 @@ const STATUS: Record<FileStatus, { label: string; icon: typeof FilePen; tone: st
   renamed: { label: 'Renamed', icon: FilePen, tone: 'text-accent-text' }
 }
 
+/** A file's change as the diff pane draws it: its symbol in the change's colour, and the change said aloud. */
+export function FileStatusIcon({ status }: { status: FileStatus }) {
+  const { label, icon: Icon, tone } = STATUS[status]
+  return <Icon size={14} strokeWidth={1.75} role="img" aria-label={label} className={cn('shrink-0', tone)} />
+}
+
 /**
  * A file's header, held at the top while its lines scroll under it: a click
  * folds or unfolds it (Alt-click does every file), right-click for more. The
@@ -465,7 +471,7 @@ function FileCardHeader({ file, index, open, onToggle }: { file: DiffFile; index
         className={cn('concept-file-head no-drag', open && 'is-open')}
       >
         <ChevronRight size={12} strokeWidth={2.25} aria-hidden className="concept-chevron" />
-        <ChangeBadge status={file.status} />
+        <FileStatusIcon status={file.status} />
         <span className="flex min-w-0 flex-1 items-baseline font-mono text-[12.5px]" title={file.from ? `${file.from} → ${file.path}` : file.path}>
           {dir && <span className="min-w-0 truncate text-label-secondary">{dir}</span>}
           <span className="shrink-0 text-label">{name}</span>

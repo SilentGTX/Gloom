@@ -66,7 +66,7 @@ interface LiveState {
   /** Messages being reworded, by session. */
   editing: Record<string, Editing>
   usage: UsageInfo | null
-  /** Who Claude Code is signed in as: told once a session starts, kept for the next launch. */
+  /** Who Claude Code is signed in as: from its config at launch (a session's process says too). */
   account: AccountSummary | null
   models: ModelChoice[]
   settings: Settings
@@ -100,15 +100,11 @@ interface LiveState {
   updateSettings(patch: Partial<Settings>): Promise<void>
 }
 
-const ACCOUNT_KEY = 'gloom.account'
-
-function loadAccount(): AccountSummary | null {
-  try {
-    const raw = JSON.parse(localStorage.getItem(ACCOUNT_KEY) ?? 'null') as AccountSummary | null
-    return raw && typeof raw === 'object' ? raw : null
-  } catch {
-    return null
-  }
+// 0.13.0 kept the account here, in an older shape; main reads it from Claude Code's config now.
+try {
+  localStorage.removeItem('gloom.account')
+} catch {
+  // Nothing to tidy.
 }
 
 function failure(error: unknown): string {
@@ -125,7 +121,7 @@ export const useLive = create<LiveState>()((set, get) => ({
   drafts: {},
   editing: {},
   usage: null,
-  account: loadAccount(),
+  account: null,
   models: DEFAULT_MODELS,
   settings: DEFAULT_SETTINGS,
   claude: null,
@@ -372,11 +368,6 @@ function onEvent(event: LiveEvent): void {
       return
     case 'account':
       useLive.setState({ account: event.account })
-      try {
-        localStorage.setItem(ACCOUNT_KEY, JSON.stringify(event.account))
-      } catch {
-        // Shown again once the next session starts.
-      }
       return
     case 'models':
       useLive.setState({ models: event.models })
@@ -396,7 +387,7 @@ export function useLiveBridge(): void {
     useLive.setState({ ranAt: { ...loadRanAt(), ...useLive.getState().ranAt } })
     const offEvent = api.live.onEvent(onEvent)
     const offSettings = api.onSettings((settings) => useLive.setState({ settings }))
-    void Promise.all([api.live.list(), api.getSettings(), api.live.models(), api.live.usage(), api.claude.info()]).then(([list, settings, models, usage, claude]) => {
+    void Promise.all([api.live.list(), api.getSettings(), api.live.models(), api.live.usage(), api.live.account(), api.claude.info()]).then(([list, settings, models, usage, account, claude]) => {
       if (!alive) return
       const s = useLive.getState()
       useLive.setState({
@@ -404,6 +395,7 @@ export function useLiveBridge(): void {
         settings,
         models,
         usage: s.usage ?? usage,
+        account: s.account ?? account,
         claude
       })
     })

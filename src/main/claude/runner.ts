@@ -25,11 +25,13 @@ import {
   type SpawnOptions
 } from '@anthropic-ai/claude-agent-sdk'
 import {
+  accountName,
   applyStreamEvent,
   EFFORTS,
   finishStreamBlock,
   isEffort,
   isMode,
+  planName,
   type AccountSummary,
   type Activity,
   type CardAnswer,
@@ -39,6 +41,7 @@ import {
   type ImageAttachment,
   type LiveError,
   type LiveSummary,
+  type McpServer,
   type ModeId,
   type ModelChoice,
   type PromptCard,
@@ -277,11 +280,13 @@ export class Runner {
   commands: CommandInfo[] | null = null
   private askedForModels = false
   private askedForAccount = false
+  private mcp: McpServer[] | null = null
 
   constructor(
     options: RunnerOptions,
     private readonly events: RunnerEvents,
-    private readonly wantModels: () => boolean
+    /** Whether to ask this process for the models, given its CLI's version. */
+    private readonly wantModels: (version: string | null) => boolean
   ) {
     this.id = options.id
     this.cwd = options.cwd
@@ -323,7 +328,8 @@ export class Runner {
       error: this.error,
       lastActive: this.lastActive,
       version: this.version,
-      rewoundTo: this.rewound
+      rewoundTo: this.rewound,
+      mcp: this.mcp
     }
   }
 
@@ -669,6 +675,9 @@ export class Runner {
       this.forkAt = null
       if (typeof m.claude_code_version === 'string') this.version = m.claude_code_version
       if (isMode(m.permissionMode)) this.mode = m.permissionMode
+      // Its MCP servers and how each one started, for the inspector's Connectors.
+      if (Array.isArray(m.mcp_servers))
+        this.mcp = m.mcp_servers.flatMap((s: unknown) => (isObj(s) && typeof s.name === 'string' ? [{ name: s.name, status: typeof s.status === 'string' ? s.status : 'unknown' }] : []))
       if (this.state === 'starting') this.state = 'working'
       this.emit()
       this.learn()
@@ -690,7 +699,7 @@ export class Runner {
     if (!this.askedForAccount) {
       this.askedForAccount = true
       q.accountInfo().then(
-        (info) => this.events.account({ email: info.email ?? null, organization: info.organization ?? null, plan: info.subscriptionType ?? null }),
+        (info) => this.events.account({ name: accountName(info.organization, null, info.email), plan: planName(info.subscriptionType) }),
         () => {}
       )
     }
@@ -700,7 +709,7 @@ export class Runner {
         () => (this.commands = [])
       )
     }
-    if (!this.askedForModels && this.wantModels()) {
+    if (!this.askedForModels && this.wantModels(this.version)) {
       this.askedForModels = true
       q.supportedModels().then(
         (list: ModelInfo[]) =>

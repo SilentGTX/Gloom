@@ -29,6 +29,7 @@ import {
   type UsageWindow
 } from '@shared/live'
 import { parseRef } from '@shared/transcript'
+import { readAccount } from './account'
 import { findClaude } from './binary'
 import { Runner, type RunnerEvents } from './runner'
 import { knownModels, rememberModels, settings } from './settings'
@@ -61,6 +62,8 @@ export class Sessions {
   /** The last session's commands, for the `/` list before a process has started. */
   private commandsKnown: CommandInfo[] = []
   private modelsAsked = false
+  /** The CLI version the models were last asked of. */
+  private modelsFrom: string | null = null
   private usageInfo: UsageInfo | null = null
   private accountInfo: AccountSummary | null = null
   private usageAt = 0
@@ -71,7 +74,30 @@ export class Sessions {
     private readonly lookup: (id: string) => SessionMeta | undefined,
     /** The entry before a line on a session's chain (null for its first line). */
     private readonly chainParent: (id: string, uuid: string) => Promise<string | null>
-  ) {}
+  ) {
+    this.readConfig()
+  }
+
+  /**
+   * The account and the plan's use as Claude Code's config has them (account.ts):
+   * at launch, as each turn ends, and when you come back to Gloom. The usage
+   * replaces Gloom's own only when Claude Code fetched it later.
+   */
+  readConfig(): void {
+    const { account, usage } = readAccount()
+    if (account && JSON.stringify(account) !== JSON.stringify(this.accountInfo)) {
+      this.accountInfo = account
+      this.events.event({ type: 'account', account })
+    }
+    if (usage && usage.updated > (this.usageInfo?.updated ?? 0)) {
+      this.usageInfo = { ...usage, status: this.usageInfo?.status ?? null }
+      this.events.event({ type: 'usage', usage: this.usageInfo })
+    }
+  }
+
+  account(): AccountSummary | null {
+    return this.accountInfo
+  }
 
   list(): LiveSummary[] {
     return [...this.runners.values()].map((r) => r.summary())
@@ -243,15 +269,19 @@ export class Sessions {
         rememberModels(models)
         this.events.event({ type: 'models', models: knownModels() })
       },
+      // Claude Code's config says more (your name, the plan as the organisation has it); the SDK fills in without it.
       account: (account) => {
-        if (JSON.stringify(account) === JSON.stringify(this.accountInfo)) return
+        if (this.accountInfo) return
         this.accountInfo = account
         this.events.event({ type: 'account', account })
       }
     }
-    return new Runner(options, events, () => {
-      if (this.modelsAsked) return false
+    // Once a launch, and again whenever the CLI is another version (Update Claude Code…
+    // brings new models: an updated CLI's list would otherwise wait for Gloom's next launch).
+    return new Runner(options, events, (version) => {
+      if (this.modelsAsked && this.modelsFrom === version) return false
       this.modelsAsked = true
+      this.modelsFrom = version
       return true
     })
   }
@@ -296,6 +326,7 @@ export class Sessions {
         void runner.usage().then((raw) => this.readUsage(raw))
       }
     }
+    this.readConfig()
     if (!this.busy()) this.events.quiet()
   }
 

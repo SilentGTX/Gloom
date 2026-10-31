@@ -203,12 +203,8 @@ export function GroupRow({
             />
           )}
         </span>
-        {concept && folder ? (
-          // A filled folder in the accent, as the concept draws them.
-          <FolderIcon size={16} fill="currentColor" fillOpacity={0.85} stroke="none" aria-hidden className="shrink-0 text-accent" />
-        ) : (
-          <Icon size={16} strokeWidth={1.75} aria-hidden className={cn('shrink-0', concept ? 'text-accent' : 'text-accent-text')} />
-        )}
+        {/* The classic's symbols in both designs (your pick over the handoff's filled folders). */}
+        <Icon size={16} strokeWidth={1.75} aria-hidden className="shrink-0 text-accent-text" />
         {renaming ? (
           <RenameField initial={label} label="Folder name" onDone={onRenameEnd} />
         ) : (
