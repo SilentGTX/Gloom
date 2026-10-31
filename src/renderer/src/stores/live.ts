@@ -24,6 +24,7 @@ import {
 } from '@shared/live'
 import { ELSEWHERE_MS, type SessionMeta } from '@shared/library'
 import { notify } from '../lib/toast'
+import { useFinished } from '../features/concept/finished'
 import { useLibrary } from './library'
 import { useUi } from './ui'
 
@@ -374,6 +375,24 @@ function onEvent(event: LiveEvent): void {
       return
     case 'reveal':
       useUi.getState().select([event.id])
+      return
+    case 'completed': {
+      // Claude saw to these sessions' finished marks (Gloom's mark_completed tool).
+      const ids = useFinished.getState().ids
+      if (event.ids.some((id) => ids.has(id))) useFinished.setState({ ids: new Set([...ids].filter((id) => !event.ids.includes(id))) })
+      return
+    }
+    case 'view':
+      useUi.getState().setTranscriptView(event.id, event.view)
+      return
+    case 'linked': {
+      // A session Claude started beside this one: it shows in the sidebar; the toast takes you there.
+      const open = useUi.getState().selection
+      if (!open.includes(event.id)) notify(`Claude started “${event.name}”`, { action: { label: 'Show', onClick: () => useUi.getState().select([event.id]) } })
+      return
+    }
+    case 'proposal':
+    case 'proposal-gone':
       return
   }
 }

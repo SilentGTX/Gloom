@@ -160,7 +160,17 @@ export const IPC = {
   /** main → renderer: TerminalData */
   terminalData: 'terminal:data',
   /** main → renderer: TerminalExit */
-  terminalExit: 'terminal:exit'
+  terminalExit: 'terminal:exit',
+  /** main → renderer: TerminalInfo, a terminal Claude opened (Gloom's terminal tools) */
+  terminalOpened: 'terminal:opened',
+  /** invoke(id, code, title, WidgetTheme) → string: the URL an inline widget's frame loads */
+  widgetServe: 'widget:serve',
+  /** invoke(taskId) → string: starts a session Claude proposed; its ID */
+  sideStart: 'side:start',
+  /** invoke(sessionId, taskId): withdraws a proposal */
+  sideDismiss: 'side:dismiss',
+  /** invoke(taskId) → boolean: whether a proposal still waits */
+  sidePending: 'side:pending'
 } as const
 
 /** A new terminal: in the session's working folder (your home folder without one), sized to the pane. */

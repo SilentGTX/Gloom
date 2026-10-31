@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import { IPC, type CommandDispatch, type LibraryChange, type SessionsChange, type TranscriptChange, type UpdateScreen, type UpdateState, type WindowState } from '@shared/ipc'
 import type { LiveEvent, Settings } from '@shared/live'
-import type { TerminalData, TerminalExit } from '@shared/terminal'
+import type { TerminalData, TerminalExit, TerminalInfo } from '@shared/terminal'
 import type { GloomApi } from './api'
 
 function subscribe<T>(channel: string, listener: (payload: T) => void): () => void {
@@ -96,7 +96,14 @@ const api: GloomApi = {
     resize: (id, cols, rows) => ipcRenderer.send(IPC.terminalResize, id, cols, rows),
     ack: (id, chars) => ipcRenderer.send(IPC.terminalAck, id, chars),
     onData: (listener) => subscribe<TerminalData>(IPC.terminalData, listener),
-    onExit: (listener) => subscribe<TerminalExit>(IPC.terminalExit, listener)
+    onExit: (listener) => subscribe<TerminalExit>(IPC.terminalExit, listener),
+    onOpened: (listener) => subscribe<TerminalInfo>(IPC.terminalOpened, listener)
+  },
+  widget: (id, code, title, theme) => ipcRenderer.invoke(IPC.widgetServe, id, code, title, theme),
+  side: {
+    start: (taskId) => ipcRenderer.invoke(IPC.sideStart, taskId),
+    dismiss: (sessionId, taskId) => ipcRenderer.invoke(IPC.sideDismiss, sessionId, taskId),
+    pending: (taskId) => ipcRenderer.invoke(IPC.sidePending, taskId)
   }
 }
 

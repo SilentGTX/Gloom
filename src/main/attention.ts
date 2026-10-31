@@ -19,6 +19,7 @@ function body(kind: AttentionKind, card?: PromptCard): string {
   // Never the command or the file itself: a notification can be read over your shoulder.
   if (card?.kind === 'plan') return 'Claude has a plan for you to review.'
   if (card?.kind === 'question') return 'Claude has a question for you.'
+  if (card?.kind === 'offer') return 'Claude asks whether to start a session of its own.'
   return 'Claude needs your permission to continue.'
 }
 

@@ -9,7 +9,7 @@ import { Markdown } from './Markdown'
 import { ImageStrip, ShowAll, useFullText } from './media'
 import { PromptActions, RewindAllowed } from './Rewind'
 import type { Row } from './rows'
-import { formatDuration, OpenByDefault, TextCard, ToolRow } from './ToolRow'
+import { formatDuration, TextCard, ToolRow, useOpen } from './ToolRow'
 import { describeMention, modelName } from './tools'
 
 /** One row of the transcript. Rows only ever fade; Virtuoso measures them, so nothing animates their size. */
@@ -131,8 +131,8 @@ function PromptRow({ sessionId, entry }: { sessionId: string; entry: PromptEntry
  * Code read in: the file's lines, or the folder's listing.
  */
 function MentionRow({ sessionId, rowKey, entry }: { sessionId: string; rowKey: string; entry: MentionEntry }) {
-  const open = useTranscript((s) => s.expanded.has(rowKey))
-  const setExpanded = useTranscript((s) => s.setExpanded)
+  const [open, flip] = useOpen(rowKey, 'tools')
+  const setExpanded = (_key: string, _open: boolean) => flip()
   const panel = useId()
   const view = describeMention(entry)
   const Icon = view.icon
@@ -238,9 +238,8 @@ function TextRow({ sessionId, entry }: { sessionId: string; entry: TextEntry }) 
 
 /** Thinking, named for how long it took when that's known: folded, unless the Transcript View opens it. */
 function ThinkingRow({ rowKey, entry }: { rowKey: string; entry: ThinkingEntry }) {
-  const toggled = useTranscript((s) => s.expanded.has(rowKey))
-  const open = useContext(OpenByDefault).thinking !== toggled
-  const setExpanded = (_key: string, _open: boolean) => useTranscript.getState().setExpanded(rowKey, !toggled)
+  const [open, flip] = useOpen(rowKey, 'thinking')
+  const setExpanded = (_key: string, _open: boolean) => flip()
   const label = entry.ms ? `Thought for ${formatDuration(entry.ms)}` : 'Thinking'
   return (
     <div>
@@ -276,8 +275,8 @@ const NOTICE_ICONS: Record<NoticeIcon, typeof Info> = {
  * read opens beneath.
  */
 function NoticeRow({ rowKey, entry, repeats }: { rowKey: string; entry: NoticeEntry; repeats: number }) {
-  const open = useTranscript((s) => s.expanded.has(rowKey))
-  const setExpanded = useTranscript((s) => s.setExpanded)
+  const [open, flip] = useOpen(rowKey, 'tools')
+  const setExpanded = (_key: string, _open: boolean) => flip()
   const Icon = NOTICE_ICONS[entry.icon]
   // A request retried in a row reads as one notice: "The request failed (529) · retried 3 times".
   const text = repeats > 1 ? `${entry.text.split(' · ')[0]} · retried ${repeats} times` : entry.text
@@ -335,8 +334,8 @@ function OutputRow({ entry }: { entry: OutputEntry }) {
 function CompactRow({ rowKey, entry, summary }: { rowKey: string; entry: CompactEntry; summary: SummaryEntry | null }) {
   const earlier = useTranscript((s) => s.earlier[rowKey])
   const showEarlier = useTranscript((s) => s.showEarlier)
-  const open = useTranscript((s) => s.expanded.has(rowKey))
-  const setExpanded = useTranscript((s) => s.setExpanded)
+  const [open, flip] = useOpen(rowKey, 'tools')
+  const setExpanded = (_key: string, _open: boolean) => flip()
   const tokens = entry.preTokens ? ` · ${Math.round(entry.preTokens / 1000).toLocaleString()}K tokens` : ''
   return (
     <div className="flex flex-col items-center gap-1.5">

@@ -163,6 +163,15 @@ export interface GloomApi {
   diff: DiffApi
   terminal: TerminalApi
   git: GitApi
+  /** An inline widget's page (show_widget): the URL its sandboxed frame loads. */
+  widget(id: string, code: string, title: string, theme: { dark: boolean; accent: string }): Promise<string>
+  /** Sessions Claude proposed or offered (side sessions). */
+  side: {
+    /** Starts a proposal; resolves to the new session's ID. Rejects with the reason when it can't. */
+    start(taskId: string): Promise<string>
+    dismiss(sessionId: string, taskId: string): Promise<string>
+    pending(taskId: string): Promise<boolean>
+  }
 }
 
 /** The diff pane's two sources. */
@@ -190,6 +199,8 @@ export interface TerminalApi {
   ack(id: string, chars: number): void
   onData(listener: (data: TerminalData) => void): () => void
   onExit(listener: (exit: TerminalExit) => void): () => void
+  /** A terminal Claude opened, for the pane to list. */
+  onOpened(listener: (info: TerminalInfo) => void): () => void
 }
 
 declare global {

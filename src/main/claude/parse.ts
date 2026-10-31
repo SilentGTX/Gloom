@@ -101,6 +101,9 @@ export function parseAnswer(raw: unknown): CardAnswer {
         return { kind: 'plan', requestId, approve: true, mode: raw.mode }
       }
       return { kind: 'plan', requestId, approve: false, note: note ?? '' }
+    case 'offer':
+      if (raw.choice !== 'new' && raw.choice !== 'here') throw new Error('bad choice')
+      return { kind: 'offer', requestId, choice: raw.choice }
     case 'question': {
       if (raw.declined === true) return { kind: 'question', requestId, declined: true }
       if (!isRecord(raw.answers)) throw new Error('bad answers')

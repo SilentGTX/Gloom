@@ -8,6 +8,7 @@ import { Spinner, useConcept } from '../concept/parts'
 import { Markdown } from './Markdown'
 import { ImageStrip, ShowAll, useBlob, useFullText } from './media'
 import { describeTool, type ToolView } from './tools'
+import { FurnitureRow, isFurniture, ProposalCard } from './Furniture'
 
 /**
  * A tool call as one line, "Edited foo.ts +12 −3", with a disclosure triangle
@@ -15,11 +16,18 @@ import { describeTool, type ToolView } from './tools'
  * diff, the file, the agent's report. While a session runs elsewhere, a call
  * still waiting for its result spins in place of its icon.
  */
-export function ToolRow({ sessionId, rowKey, call, result, running }: { sessionId: string; rowKey: string; call: ToolEntry; result: ToolResult | undefined; running: boolean }) {
-  // A row you clicked is the other way round from how the view opens them (Verbose: all open).
-  const toggled = useTranscript((s) => s.expanded.has(rowKey))
-  const open = useContext(OpenByDefault).tools !== toggled
-  const setExpanded = (_key: string, _open: boolean) => useTranscript.getState().setExpanded(rowKey, !toggled)
+export function ToolRow(props: { sessionId: string; rowKey: string; call: ToolEntry; result: ToolResult | undefined; running: boolean }) {
+  const { call } = props
+  // Gloom's (and the Claude app's) conversation furniture draws as itself; Verbose shows the calls too.
+  const verbose = useContext(OpenByDefault).tools
+  if (!verbose && isFurniture(call.name)) return <FurnitureRow sessionId={props.sessionId} call={call} result={props.result} />
+  if (!verbose && call.name === 'mcp__gloom__start_session' && call.input.initiation === 'own_initiative' && !props.running) return <ProposalCard sessionId={props.sessionId} call={call} result={props.result} />
+  return <ToolStep {...props} />
+}
+
+function ToolStep({ sessionId, rowKey, call, result, running }: { sessionId: string; rowKey: string; call: ToolEntry; result: ToolResult | undefined; running: boolean }) {
+  const [open, flip] = useOpen(rowKey, 'tools')
+  const setExpanded = (_key: string, _open: boolean) => flip()
   const view = describeTool(call, result, running)
   const panel = useId()
   const failed = result?.isError === true
@@ -98,6 +106,17 @@ export const LatestTodos = createContext<string | null>(null)
 
 /** What the conversation's Transcript View opens without a click: Claude's thinking (Thinking, Verbose), every tool call (Verbose). */
 export const OpenByDefault = createContext<{ thinking: boolean; tools: boolean }>({ thinking: false, tools: false })
+
+/**
+ * Whether a folding row is open, and its toggle. A row you clicked is the
+ * other way round from how the Transcript View opens rows of its kind
+ * (Verbose: every tool call and event; Thinking and Verbose: thinking).
+ */
+export function useOpen(rowKey: string, kind: 'tools' | 'thinking'): [boolean, () => void] {
+  const toggled = useTranscript((s) => s.expanded.has(rowKey))
+  const open = useContext(OpenByDefault)[kind] !== toggled
+  return [open, () => useTranscript.getState().setExpanded(rowKey, !toggled)]
+}
 
 type Todo = { content?: unknown; status?: unknown }
 

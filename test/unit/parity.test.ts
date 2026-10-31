@@ -178,3 +178,62 @@ describe('export names', () => {
     expect(exportName('...', new Date('2026-10-31T10:00:00Z'))).toBe('Session 2026-10-31.zip')
   })
 })
+
+describe('the task list, the next-step box and chapters (part B)', async () => {
+  const { applyPlan, planOf, planAnswer, wrapUpOf, chapterOf, widgetOf } = await import('../../src/shared/plan')
+
+  it('replaces the list, advances it, and marks steps out of order', () => {
+    let steps = applyPlan([], { items: [{ content: 'A', status: 'in_progress' }, { content: 'B', status: 'pending' }, { content: 'C', status: 'pending' }] })
+    expect(planAnswer(steps, true)).toBe('Plan shown (3 steps).')
+    steps = applyPlan(steps, { advance: true })
+    expect(steps.map((s) => s.status)).toEqual(['completed', 'in_progress', 'pending'])
+    expect(planAnswer(steps, false)).toBe('Plan updated: step 2 of 3 is in progress.')
+    steps = applyPlan(steps, { done: [2, 3] })
+    expect(planAnswer(steps, false)).toBe('Plan updated: every step is done.')
+    steps = applyPlan(steps, { start: 1 })
+    expect(steps[0].status).toBe('in_progress')
+  })
+
+  it('reads the list from Gloom’s calls and the Claude app’s alike, ignoring the rest', () => {
+    const steps = planOf([
+      { name: 'mcp__ccd_turn__update_plan', input: { items: [{ content: 'A', status: 'in_progress' }, { content: 'B', status: 'pending' }] } },
+      { name: 'Read', input: { items: [] } },
+      { name: 'mcp__gloom__update_plan', input: { advance: true } }
+    ])
+    expect(steps).toEqual([
+      { content: 'A', status: 'completed' },
+      { content: 'B', status: 'in_progress' }
+    ])
+  })
+
+  it('keeps a box’s buttons only with its question, two at most', () => {
+    expect(wrapUpOf({ recap: 'Done.', actions: [{ label: 'X' }] })).toEqual({ recap: 'Done.', ask: null, actions: [], blocked: false })
+    expect(wrapUpOf({ recap: 'Done.', ask: 'Ship?', actions: [{ label: 'Ship' }, { label: 'Wait' }, { label: 'Three' }] })?.actions).toEqual([{ label: 'Ship' }, { label: 'Wait' }])
+    expect(wrapUpOf({ ask: 'no recap' })).toBeNull()
+  })
+
+  it('reads chapters and widgets', () => {
+    expect(chapterOf({ title: ' Fix ', summary: '' })).toEqual({ title: 'Fix', summary: null })
+    expect(widgetOf({ title: 'chart', widget_code: '<svg viewBox="0 0 1 1"></svg>' })?.svg).toBe(true)
+    expect(widgetOf({ title: 'x', widget_code: '<div>hi</div>' })?.svg).toBe(false)
+    expect(widgetOf({ title: 'x' })).toBeNull()
+  })
+})
+
+describe('side sessions and the terminal (part B)', async () => {
+  const { handleFor } = await import('../../src/main/claude/side-sessions')
+  const { screenText } = await import('../../src/main/pty/terminals')
+
+  it('names a side session by its title, uniquely, in 24 characters', () => {
+    expect(handleFor('Build Gloom’s command palette!', () => false)).toBe('build-gloom-s-command-pa')
+    const taken = new Set(['fix-it'])
+    expect(handleFor('Fix it', (n) => taken.has(n))).toBe('fix-it-2')
+    expect(handleFor('???', () => false)).toBe('session')
+  })
+
+  it('reads a terminal’s screen as text', () => {
+    const out = '\u001b[32mPS C:\work>\u001b[0m npm run dev\r\n\u001b]0;title\u0007Starting\rReady on 5173\r\n\r\n'
+    expect(screenText(out, 10)).toBe('PS C:\work> npm run dev\nReady on 5173')
+    expect(screenText('a\nb\nc\n', 2)).toBe('b\nc')
+  })
+})

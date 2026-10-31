@@ -108,7 +108,8 @@ export interface Question {
   question: string
   /** A short tag for the question ("Auth method"). */
   header: string
-  options: { label: string; description: string }[]
+  /** `preview`: what the option would look like (markdown), shown beside the options as one is focused. */
+  options: { label: string; description: string; preview?: string }[]
   multiSelect: boolean
 }
 
@@ -118,7 +119,14 @@ export interface QuestionCard {
   questions: Question[]
 }
 
-export type PromptCard = PermissionCard | PlanCard | QuestionCard
+/** Claude offers a separate session for a task you named: start it, or keep the work here. */
+export interface OfferCard {
+  kind: 'offer'
+  requestId: string
+  title: string
+}
+
+export type PromptCard = PermissionCard | PlanCard | QuestionCard | OfferCard
 
 /** Your answer to a prompt card. */
 export type CardAnswer =
@@ -127,6 +135,7 @@ export type CardAnswer =
   | { kind: 'plan'; requestId: string; approve: false; note: string }
   | { kind: 'question'; requestId: string; answers: Record<string, string> }
   | { kind: 'question'; requestId: string; declined: true }
+  | { kind: 'offer'; requestId: string; choice: 'new' | 'here' }
 
 /** A message sent while Claude works: it goes once the turn ends. */
 export interface Queued {
@@ -488,7 +497,7 @@ export const DEFAULT_SETTINGS: Settings = {
 /** The level a card or a turn's end notifies at. */
 export function noticeLevel(settings: Settings, kind: 'waiting' | 'finished' | 'failed', card?: { kind: string }): NoticeLevel {
   if (kind !== 'waiting') return settings.notifyFinished
-  return card?.kind === 'question' ? settings.notifyQuestion : settings.notifyPermission
+  return card?.kind === 'question' || card?.kind === 'offer' ? settings.notifyQuestion : settings.notifyPermission
 }
 
 export interface ClaudeInfo {
@@ -521,6 +530,8 @@ export interface NewSessionRequest {
   effort: Effort | null
   /** In a git repository: work in a worktree of its own, on a claude/<name> branch. */
   worktree?: boolean
+  /** A side session forked from this one (main only; the window never sends it). */
+  forkFrom?: string
 }
 
 export interface ImageAttachment {

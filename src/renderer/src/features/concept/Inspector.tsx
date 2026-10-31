@@ -3,7 +3,7 @@ import { AnimatePresence, motion, MotionConfig, Reorder, useDragControls, useRed
 import { ChevronDown, ChevronRight, Copy, Folder, FolderPlus, GitBranch, GitMerge, Globe, Laptop, PanelRight, Plug, RotateCw, SquareChevronRight, X } from 'lucide-react'
 import { totals, type DiffFile, type SessionDiff, type TreeDiff } from '@shared/diff'
 import { EFFORT_LABELS, modeInfo, modelLabel, type McpServer, type UsageWindow } from '@shared/live'
-import type { SessionMeta } from '@shared/library'
+import { displayTitle, type SessionMeta } from '@shared/library'
 import type { TranscriptEntry } from '@shared/transcript'
 import { Button } from '../../components/ui/Button'
 import { MenuPopup, MenuRadioGroup, MenuRadioItem, MenuRoot, MenuTrigger } from '../../components/ui/Menu'
@@ -13,6 +13,7 @@ import { runCommand } from '../../lib/commands'
 import { fullDate } from '../../lib/time'
 import { notify } from '../../lib/toast'
 import { useDiff, type Loaded } from '../../stores/diff'
+import { useLibrary } from '../../stores/library'
 import { useLive } from '../../stores/live'
 import { useTranscript } from '../../stores/transcript'
 import { INSPECTOR_PARTS, useUi, type InspectorPart } from '../../stores/ui'
@@ -596,6 +597,11 @@ function SessionPart({ session, onMove }: PartProps) {
   const mode = summary?.mode ?? settings.mode
   const effort = summary ? summary.effort : settings.effort
   const fast = summary?.fast ? (summary.fastUnavailable ? 'On, but unavailable' : summary.fastState === 'cooldown' ? 'On, cooling down' : 'On') : 'Off'
+  const entries = useLibrary((s) => s.library.sessions)
+  const metas = useLibrary((s) => s.sessions)
+  const startedBy = entries[session.id]?.startedBy
+  const parent = startedBy ? metas[startedBy] : undefined
+  const children = useMemo(() => Object.entries(entries).flatMap(([id, e]) => (e.startedBy === session.id && metas[id] ? [metas[id]] : [])), [entries, metas, session.id])
   const facts: [string, ReactNode][] = [
     ['Model', model],
     ['Permissions', modeInfo(mode).label],
@@ -603,6 +609,20 @@ function SessionPart({ session, onMove }: PartProps) {
     ['Output style', <StylePicker key="style" sessionId={session.id} />],
     ['Fast mode', <span title={summary?.fastUnavailable ?? undefined}>{fast}</span>],
     ...(summary?.remoteControl ? [['Remote Control', 'Connected at start'] as [string, ReactNode]] : []),
+    // Side sessions: the one that started this, and the ones this started.
+    ...(parent ? [['Started by', <SessionLink key="parent" id={parent.id} title={displayTitle(parent, entries[parent.id])} />] as [string, ReactNode]] : []),
+    ...(children.length
+      ? [
+          [
+            'Started',
+            <span key="children" className="flex flex-col items-end">
+              {children.map((c) => (
+                <SessionLink key={c.id} id={c.id} title={entries[c.id]?.name ?? displayTitle(c, entries[c.id])} />
+              ))}
+            </span>
+          ] as [string, ReactNode]
+        ]
+      : []),
     ['Started', fullDate(session.created)],
     [
       'Session ID',
@@ -629,6 +649,15 @@ function SessionPart({ session, onMove }: PartProps) {
         ))}
       </dl>
     </Section>
+  )
+}
+
+/** Another session, by name: a click opens it. */
+function SessionLink({ id, title }: { id: string; title: string }) {
+  return (
+    <button type="button" onClick={() => useUi.getState().select([id])} className="no-drag max-w-full truncate rounded-[5px] px-1 text-accent-text outline-none hover:bg-fill focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)]">
+      {title}
+    </button>
   )
 }
 

@@ -310,7 +310,8 @@ function questionsOf(input: Record<string, unknown>) {
     header: typeof q.header === 'string' ? q.header : '',
     options: (Array.isArray(q.options) ? q.options : []).filter(isObj).map((o) => ({
       label: typeof o.label === 'string' ? o.label : String(o.label ?? ''),
-      description: typeof o.description === 'string' ? o.description : ''
+      description: typeof o.description === 'string' ? o.description : '',
+      ...(typeof o.preview === 'string' && o.preview.trim() ? { preview: o.preview.slice(0, CARD_STRING) } : {})
     })),
     multiSelect: q.multiSelect === true
   }))
@@ -1056,6 +1057,39 @@ export class Runner {
     })
   }
 
+  /**
+   * start_session's offer: a card asking whether the task Claude named gets a
+   * session of its own or stays here. Resolves to your choice; a turn that
+   * stops withdraws it ("here").
+   */
+  offer(title: string): Promise<'new' | 'here'> {
+    const requestId = randomUUID()
+    const card: PromptCard = { kind: 'offer', requestId, title: title.slice(0, 120) }
+    return new Promise((resolve) => {
+      const settle = (result: PermissionResult) => {
+        if (!this.cards.delete(requestId)) return
+        resolve(result.behavior === 'allow' ? 'new' : 'here')
+        if (this.state === 'waiting' && this.cards.size === 0) this.state = 'working'
+        this.emit()
+      }
+      this.cards.set(requestId, { card, input: {}, updates: [], resolve: settle })
+      this.state = 'waiting'
+      this.activity = null
+      this.emit()
+      this.events.attention('waiting', card)
+    })
+  }
+
+  /** The latest reply text the stream showed (a side session's report). */
+  lastReply(): string | null {
+    const entries = this.turns.flatMap((t) => t.entries)
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const e = entries[i]
+      if (e.kind === 'text' && e.text.trim()) return e.text
+    }
+    return null
+  }
+
   /** Your answer to a card goes back to the CLI as the tool's permission. */
   answer(answer: CardAnswer): void {
     const pending = this.cards.get(answer.requestId)
@@ -1091,6 +1125,9 @@ export class Runner {
       case 'question':
         if ('declined' in answer) pending.resolve({ behavior: 'deny', message: 'The user declined to answer.' })
         else pending.resolve({ behavior: 'allow', updatedInput: { ...input, answers: answer.answers } })
+        return
+      case 'offer':
+        pending.resolve(answer.choice === 'new' ? { behavior: 'allow', updatedInput: {} } : { behavior: 'deny', message: 'here' })
         return
     }
   }

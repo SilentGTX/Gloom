@@ -7,7 +7,7 @@ import type { TreeDiff } from '@shared/diff'
 import type { RemoveResult } from '@shared/git'
 import { IPC, type AppInfo, type ResumeResult, type TerminalCreate } from '@shared/ipc'
 import { displayTitle, inactiveSessions } from '@shared/library'
-import type { FileListing } from '@shared/live'
+import type { FileListing, LiveEvent } from '@shared/live'
 import { parseRef, type Cursor } from '@shared/transcript'
 import { attend, setBadge } from './attention'
 import { claudeInfo } from './claude/binary'
@@ -20,7 +20,12 @@ import { listFiles } from './files'
 import { parseTakeover, takeOver } from './handover'
 import { LibraryService } from './library/service'
 import { KeepAwake } from './power'
-import { registerAppScheme, serveApp } from './protocol'
+import { registerAppScheme, serveApp, serveWidget } from './protocol'
+import { widgetPage } from './widget-page'
+import { gloomServer, type SessionRow, type ToolHost } from './claude/gloom-tools'
+import { SideSessions } from './claude/side-sessions'
+import type { PlanStep } from '@shared/plan'
+import { folderKey } from '@shared/terminal'
 import { runPtySmoke } from './smoke'
 import { storageToMove } from './storage'
 import { workingTreeDiff } from './git/diff'
@@ -215,6 +220,10 @@ if (smokeArg) {
     // The computer stays awake while a session works (Settings › Sessions).
     const awake = new KeepAwake()
     let anyBusy = (): boolean => false
+    // Set once the terminals exist (below): Gloom's tools for each process, and side sessions' reports.
+    const plans = new Map<string, PlanStep[]>()
+    let toolsFor: ((id: string) => Record<string, ReturnType<typeof gloomServer>>) | null = null
+    let turnEndedHook: ((id: string, ok: boolean) => void) | null = null
     const sessions = new Sessions(
       {
         event: (event) => {
@@ -222,7 +231,9 @@ if (smokeArg) {
           if (event.type === 'summary' || event.type === 'closed') awake.update(anyBusy())
         },
         attention: (id, kind, card) => attend(mainWindow, id, titleOf(id), kind, card),
-        quiet: () => sessionsQuiet()
+        quiet: () => sessionsQuiet(),
+        tools: (id) => toolsFor?.(id),
+        turnEnded: (id, ok) => turnEndedHook?.(id, ok)
       },
       (id) => library.session(id),
       (id, uuid) => library.chainParent(id, uuid),
@@ -376,7 +387,132 @@ if (smokeArg) {
     // ─── The terminal pane ─────────────────────────────────────────────────
     const terminals = new Terminals({
       data: (data) => mainWindow?.webContents.send(IPC.terminalData, data),
-      exit: (exit) => mainWindow?.webContents.send(IPC.terminalExit, exit)
+      exit: (exit) => mainWindow?.webContents.send(IPC.terminalExit, exit),
+      opened: (info) => mainWindow?.webContents.send(IPC.terminalOpened, info)
+    })
+
+    // ─── Gloom's tools for Claude, and side sessions ───────────────────────
+    const send = (event: LiveEvent) => mainWindow?.webContents.send(IPC.liveEvent, event)
+    const side = new SideSessions({
+      meta: (id) => library.session(id),
+      entry: (id) => library.entry(id),
+      summary: (id) => sessions.list().find((s) => s.id === id),
+      create: async (r) => {
+        let cwd = r.cwd
+        if (r.worktree && (await repoInfo(cwd))) cwd = (await createWorktree(cwd)).cwd
+        return sessions.create({ cwd, model: r.model, mode: r.mode, effort: null, ...(r.forkFrom ? { forkFrom: r.forkFrom } : {}) })
+      },
+      send: (id, text) => sessions.send(id, text, []),
+      lastReply: (id) => sessions.lastReply(id),
+      applyLibrary: (op) => void library.apply(op),
+      offer: (from, title) => sessions.offer(from, title),
+      event: send
+    })
+    /** Tabs Claude opened, which it may type into again. */
+    const toolTabs = new Set<string>()
+    const sessionCwd = (id: string) => sessions.cwdOf(id) ?? homedir()
+    const host: ToolHost = {
+      listSessions: ({ limit, includeArchived, folder, linkedTo }) => {
+        const snap = library.snapshot()
+        const folders = new Map(snap.library.folders.map((f) => [f.id, f]))
+        const family = linkedTo ? new Set([linkedTo, snap.library.sessions[linkedTo]?.startedBy, ...Object.entries(snap.library.sessions).filter(([, e]) => e.startedBy === linkedTo).map(([sid]) => sid)].filter(Boolean) as string[]) : null
+        return snap.sessions
+          .filter((m) => {
+            const e = snap.library.sessions[m.id]
+            return (includeArchived || !e?.archived) && (!folder || e?.folderId === folder || folders.get(e?.folderId ?? '')?.name === folder) && (!family || family.has(m.id))
+          })
+          .sort((a, b) => b.updated - a.updated)
+          .slice(0, limit)
+          .map((m): SessionRow => {
+            const e = snap.library.sessions[m.id]
+            const f = e?.folderId ? folders.get(e.folderId) : undefined
+            return {
+              sessionId: m.id,
+              title: displayTitle(m, e),
+              cwd: m.cwd,
+              folder: f ? { id: f.id, name: f.name } : null,
+              pinned: !!e?.pinned,
+              archived: !!e?.archived,
+              unread: !!e?.unread,
+              running: sessions.running(m.id),
+              lastActivityAt: new Date(m.updated).toISOString(),
+              ...(e?.name || e?.startedBy ? { linked: { name: e?.name ?? '', startedBy: e?.startedBy ?? null } } : {})
+            }
+          })
+      },
+      folders: () => {
+        const snap = library.snapshot()
+        return snap.library.folders.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId, sessions: Object.values(snap.library.sessions).filter((e) => e.folderId === f.id && !e.archived).length }))
+      },
+      applyLibrary: (op) => {
+        const result = library.apply(op)
+        return { folderId: result.folderId }
+      },
+      searchTranscripts: (query, includeArchived, limit) => library.searchTranscripts(query, includeArchived, limit),
+      exportSession: (id) => {
+        const meta = library.session(id)
+        if (!meta) throw new Error('That session’s transcript is gone.')
+        return exportSession(meta, library.entry(id))
+      },
+      markCompleted: (ids) => {
+        library.apply({ type: 'setUnread', ids, unread: false })
+        send({ type: 'completed', ids })
+      },
+      setTranscriptView: (id, view) => send({ type: 'view', id, view }),
+      terminalTabs: (id) => {
+        const key = folderKey(sessionCwd(id))
+        return terminals
+          .list()
+          .filter((t) => folderKey(t.cwd) === key)
+          .map((t) => ({ tab_id: t.id, title: t.title ?? t.short, cwd: t.cwd, running: null, reusable: toolTabs.has(t.id) && t.exitCode === null }))
+      },
+      readTerminal: async (tab, lines, waitMs) => {
+        if (!terminals.has(tab)) throw new Error('That terminal has closed.')
+        if (waitMs > 0) await terminals.waitForOutput(tab, waitMs)
+        return terminals.screen(tab, lines) || '(nothing on screen yet)'
+      },
+      runInTerminal: async (id, command, { tabId, cwd, title }) => {
+        let tab = tabId
+        if (tab) {
+          if (!terminals.has(tab)) throw new Error('That terminal has closed: run without tab_id to open a new one.')
+        } else {
+          const folder = cwd ? (isAbsolute(cwd) ? cwd : join(sessionCwd(id), cwd)) : sessionCwd(id)
+          tab = terminals.openFor(folder, settings().shell, title ?? 'Claude').id
+          toolTabs.add(tab)
+          // The shell's first prompt, before the command goes in.
+          await terminals.waitForOutput(tab, 4000)
+          await new Promise((r) => setTimeout(r, 300))
+        }
+        terminals.input(tab, command + '\r')
+        return tab
+      },
+      openTerminal: (id, { cwd, title }) => {
+        const folder = cwd ? (isAbsolute(cwd) ? cwd : join(sessionCwd(id), cwd)) : sessionCwd(id)
+        const tab = terminals.openFor(folder, settings().shell, title ?? 'Claude').id
+        toolTabs.add(tab)
+        return tab
+      },
+      stopTerminal: (tab) => {
+        terminals.close(tab)
+        toolTabs.delete(tab)
+        mainWindow?.webContents.send(IPC.terminalExit, { id: tab, code: 0 })
+      },
+      settings: () => settings(),
+      setSetting: (key, value) => updateSettings({ [key]: value }),
+      startSession: (from, request) => side.start(from, request),
+      dismissTask: (from, taskId) => side.dismiss(from, taskId),
+      handOff: (from, title, plan) => side.handOff(from, title, plan),
+      sendMessage: (from, to, text) => side.send(from, to, text)
+    }
+    toolsFor = (id) => ({ gloom: gloomServer(id, host, plans) })
+    turnEndedHook = (id, ok) => side.turnEnded(id, ok, false)
+    handle(IPC.sideStart, (_event, taskId) => side.startProposal(String(taskId)))
+    handle(IPC.sideDismiss, (_event, id, taskId) => side.dismiss(sessionId(id), String(taskId)))
+    handle(IPC.sidePending, (_event, taskId) => side.pending(String(taskId)))
+    handle(IPC.widgetServe, (_event, id, code, title, theme) => {
+      if (typeof id !== 'string' || id.length > 200 || typeof code !== 'string' || code.length > 500_000) throw new Error('bad widget')
+      const t = (theme ?? {}) as { dark?: unknown; accent?: unknown }
+      return serveWidget(id, widgetPage(code, typeof title === 'string' ? title.slice(0, 80) : 'widget', { dark: t.dark === true, accent: typeof t.accent === 'string' ? t.accent : '' }))
     })
     app.on('before-quit', () => terminals.closeAll())
     const size = (v: unknown, max: number) => (typeof v === 'number' && Number.isInteger(v) && v > 0 ? Math.min(v, max) : 80)

@@ -30,6 +30,7 @@ import {
 import { parseRef } from '@shared/transcript'
 import { readAccount, usageFromRateLimits } from './account'
 import { claudeInfo, findClaude } from './binary'
+import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import { askModels, askUsage, Runner, type RunnerEvents } from './runner'
 import { knownModels, learnedModels, modelsFrom, rememberModels, settings } from './settings'
 
@@ -46,6 +47,10 @@ export interface SessionsEvents {
   attention(id: string, kind: AttentionKind, card?: PromptCard): void
   /** No session is mid-turn or waiting. */
   quiet(): void
+  /** A session's turn ended (not one you stopped): side sessions report to the session that started them. */
+  turnEnded?(id: string, ok: boolean): void
+  /** Gloom's tools for a session's next process (gloom-tools.ts). */
+  tools?(id: string): Options['mcpServers']
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -139,7 +144,16 @@ export class Sessions {
     const id = randomUUID()
     this.runners.set(
       id,
-      this.makeRunner({ id, cwd: request.cwd, model: request.model, mode: request.mode, effort: request.effort, resume: false, remoteControl: settings().remoteControl })
+      this.makeRunner({
+        id,
+        cwd: request.cwd,
+        model: request.model,
+        mode: request.mode,
+        effort: request.effort,
+        resume: false,
+        remoteControl: settings().remoteControl,
+        ...(request.forkFrom ? { forkFrom: request.forkFrom } : {})
+      })
     )
     this.emitSummary(id)
     return id
@@ -196,6 +210,18 @@ export class Sessions {
     else if ('fast' in request) await runner.setFast(request.fast)
     else if ('outputStyle' in request) await runner.setOutputStyle(request.outputStyle)
     else await runner.setFolders(request.folders)
+  }
+
+  /** start_session's offer, asked in the session's chat. */
+  offer(id: string, title: string): Promise<'new' | 'here'> {
+    const runner = this.runners.get(id)
+    if (!runner?.alive) return Promise.resolve('here')
+    return runner.offer(title)
+  }
+
+  /** The latest reply text a session's process showed. */
+  lastReply(id: string): string | null {
+    return this.runners.get(id)?.lastReply() ?? null
   }
 
   /** Turns one of a running session's MCP servers off or on. */
@@ -319,7 +345,11 @@ export class Sessions {
       stream: (stream) => this.events.event({ type: 'stream', id, stream }),
       closed: () => this.events.event({ type: 'closed', id, lastActive: this.runners.get(id)?.lastActive ?? Date.now() }),
       settled: () => this.settled(id),
-      attention: (kind, card) => this.events.attention(id, kind, card),
+      attention: (kind, card) => {
+        this.events.attention(id, kind, card)
+        if (kind !== 'waiting') this.events.turnEnded?.(id, kind === 'finished')
+      },
+      tools: () => this.events.tools?.(id),
       rateLimit: (info) => this.rateLimit(info),
       models: (models) => {
         rememberModels(models, this.modelsFrom)

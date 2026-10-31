@@ -105,7 +105,14 @@ export function useTerminalsBridge(): void {
       for (const t of terminals) active[folderKey(t.cwd)] ??= t.id
       useTerminals.setState({ terminals, active })
     })
-    return api.terminal.onExit(({ id, code }) => {
+    // A terminal Claude opened (Gloom's terminal tools): listed with the folder's others, shown if it's the first.
+    const offOpened = api.terminal.onOpened((info) => {
+      const s = useTerminals.getState()
+      if (s.terminals.some((t) => t.id === info.id)) return
+      const key = folderKey(info.cwd)
+      useTerminals.setState({ terminals: [...s.terminals, info], active: s.active[key] ? s.active : { ...s.active, [key]: info.id } })
+    })
+    const offExit = api.terminal.onExit(({ id, code }) => {
       const s = useTerminals.getState()
       if (!s.terminals.some((t) => t.id === id)) return
       if (code === 0) {
@@ -115,6 +122,10 @@ export function useTerminalsBridge(): void {
       useTerminals.setState({ terminals: s.terminals.map((t) => (t.id === id ? { ...t, exitCode: code } : t)) })
       terminalHooks.exited(id, code)
     })
+    return () => {
+      offOpened()
+      offExit()
+    }
   }, [])
 }
 

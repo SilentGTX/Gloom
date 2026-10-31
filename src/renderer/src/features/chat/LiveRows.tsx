@@ -2,9 +2,9 @@ import { ChevronRight, LoaderCircle } from 'lucide-react'
 import type { Activity, StreamBlock } from '@shared/live'
 import { cn } from '../../lib/cn'
 import { useNow } from '../../lib/now'
-import { useTranscript } from '../../stores/transcript'
+
 import { Markdown } from './Markdown'
-import { formatDuration } from './ToolRow'
+import { formatDuration, useOpen } from './ToolRow'
 
 /** What a tool's call is about to do, while its input still streams in. */
 function toolVerb(name: string | undefined): string {
@@ -41,8 +41,8 @@ function toolVerb(name: string | undefined): string {
  * isn't animated. Thinking folds, as finished thinking does.
  */
 export function StreamRow({ rowKey, block }: { rowKey: string; block: StreamBlock }) {
-  const open = useTranscript((s) => s.expanded.has(rowKey))
-  const setExpanded = useTranscript((s) => s.setExpanded)
+  const [open, flip] = useOpen(rowKey, 'thinking')
+  const setExpanded = (_key: string, _open: boolean) => flip()
   if (block.kind === 'text') return <Markdown text={block.text} />
   if (block.kind === 'tool') {
     return (

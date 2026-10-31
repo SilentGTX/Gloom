@@ -14,6 +14,7 @@ import { useConcept } from '../concept/parts'
 import { ContextMeter } from './ContextMeter'
 import { insertMention, mentionAt, prepareFiles, rankFiles, type PreparedFiles } from './mentions'
 import { EffortPicker, effortsFor, ModelPicker, ModePicker } from './pickers'
+import { TurnFurniture } from './Furniture'
 import { PromptCards } from './PromptCards'
 import { EditBanner } from './Rewind'
 import { CommandRow, FileRow, Suggestions } from './Suggestions'
@@ -129,6 +130,8 @@ export function Composer({ sessionId, meta }: { sessionId: string; meta: Session
     <div ref={stack} data-pane="composer" className={cn('pointer-events-none absolute inset-x-0 bottom-0 z-[4] px-4 @[560px]:px-6', concept ? 'pb-5' : 'pb-4')}>
       <div className="composer-edge" aria-hidden />
       <div className="pointer-events-auto relative mx-auto flex w-full max-w-[720px] flex-col gap-2">
+        {/* Under the latest message: the task list Claude keeps, and its next-step box once a turn ends. */}
+        <TurnFurniture sessionId={sessionId} />
         {/* The concept puts Claude's requests at the end of the conversation instead. */}
         {summary && !concept && <PromptCards sessionId={sessionId} summary={summary} />}
         {can && !can.ok ? (

@@ -19,6 +19,8 @@ import { cutAt, RewindAllowed } from './Rewind'
 import { buildRows, liveRows, type Row } from './rows'
 import { RowView } from './RowView'
 import { useTranscriptView } from '../sessions/actions'
+import { PLAN_TOOLS } from '@shared/plan'
+import { Contents, furnitureOf, useFurniture } from './Furniture'
 import { LatestTodos, OpenByDefault } from './ToolRow'
 
 /** Virtuoso counts rows from here, so older pages can be put above without the view jumping. */
@@ -61,7 +63,16 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
   const latestTodos = useMemo(() => rows.findLast((r) => r.kind === 'tool' && r.entry.name === 'TodoWrite')?.key ?? null, [rows])
   // View › Transcript View, as the Claude app's: Normal leaves Claude's thinking out, Thinking shows it, Verbose opens everything.
   const view = useTranscriptView(sessionId)
-  const shown = useMemo(() => (view === 'normal' ? rows.filter((r) => r.kind !== 'thinking') : rows), [rows, view])
+  // Normal leaves thinking out; the task list's own calls show only in Verbose (the list itself is pinned at the foot).
+  const shown = useMemo(
+    () => (view === 'verbose' ? rows : rows.filter((r) => (view === 'normal' ? r.kind !== 'thinking' : true) && !(r.kind === 'tool' && PLAN_TOOLS.has(r.entry.name)))),
+    [rows, view]
+  )
+  // The task list, the latest next-step box and the chapters, for the composer and the contents.
+  useEffect(() => {
+    const merged = mergeProvisional(cutAt(entries, rewoundTo), results, provisional)
+    useFurniture.setState({ id: sessionId, ...furnitureOf(merged.entries) })
+  }, [entries, results, provisional, rewoundTo, sessionId])
   const openByDefault = useMemo(() => ({ thinking: view !== 'normal', tools: view === 'verbose' }), [view])
   // Switching views starts every row from how the new view opens them.
   useEffect(() => useTranscript.setState({ expanded: new Set() }), [view])
@@ -308,8 +319,15 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
     repaint.current = requestAnimationFrame(() => paint(false))
   }
 
+  // The table of contents takes you to a chapter's divider, through the list (it draws only rows near the screen).
+  const goToChapter = (key: string) => {
+    const index = rows.findIndex((r) => r.key === key)
+    if (index >= 0) virtuoso.current?.scrollIntoView({ index, align: 'start', behavior: 'auto' })
+  }
+
   return (
     <div className="relative min-h-0 flex-1">
+      <Contents onGo={goToChapter} />
       <Virtuoso
         ref={virtuoso}
         scrollerRef={(el) => {

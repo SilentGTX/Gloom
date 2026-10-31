@@ -14,13 +14,14 @@ import { fitScreen, focusScreen, mountScreen } from './registry'
 /** A session you switch to with the pane open gets a terminal once you've stayed this long, so clicking through sessions doesn't start shells. */
 const SETTLE_MS = 350
 
-/** "PowerShell", then "PowerShell 2" when there are two. */
+/** "PowerShell", then "PowerShell 2" when there are two; a tab Claude opened goes by the name it gave it ("dev server"). */
 function tabLabels(terminals: TerminalInfo[]): string[] {
   const seen = new Map<string, number>()
   return terminals.map((t) => {
-    const n = (seen.get(t.short) ?? 0) + 1
-    seen.set(t.short, n)
-    return n === 1 ? t.short : `${t.short} ${n}`
+    const base = t.title ?? t.short
+    const n = (seen.get(base) ?? 0) + 1
+    seen.set(base, n)
+    return n === 1 ? base : `${base} ${n}`
   })
 }
 

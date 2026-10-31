@@ -1,7 +1,7 @@
 import { createContext, forwardRef, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'motion/react'
-import { Check, ChevronDown, ClipboardList, FilePen, FileText, Globe, MessageCircleQuestion, Search, SquareTerminal, Wrench } from 'lucide-react'
-import { MODES, modeInfo, type CardAnswer, type LiveSummary, type ModeId, type PermissionCard, type PlanCard, type PromptCard, type QuestionCard } from '@shared/live'
+import { Check, ChevronDown, ClipboardList, FilePen, FileText, Globe, MessageCircleQuestion, Search, SplitSquareHorizontal, SquareTerminal, Wrench } from 'lucide-react'
+import { MODES, modeInfo, type CardAnswer, type LiveSummary, type ModeId, type OfferCard, type PermissionCard, type PlanCard, type PromptCard, type QuestionCard } from '@shared/live'
 import { Button } from '../../components/ui/Button'
 import { MenuPopup, MenuRadioGroup, MenuRadioItem, MenuRoot, MenuTrigger, MenuItem } from '../../components/ui/Menu'
 import { cn } from '../../lib/cn'
@@ -40,10 +40,16 @@ export function PromptCards({ sessionId, summary, inline = false }: { sessionId:
     <CardLook.Provider value={look}>
       <AnimatePresence initial={false} mode="popLayout">
         {card && (
-          <CardShell key={card.requestId} label={card.kind === 'permission' ? 'Permission request' : card.kind === 'plan' ? 'Plan for review' : 'Question from Claude'} reduce={!!reduce} inline={inline}>
+          <CardShell
+            key={card.requestId}
+            label={card.kind === 'permission' ? 'Permission request' : card.kind === 'plan' ? 'Plan for review' : card.kind === 'offer' ? 'A session of its own?' : 'Question from Claude'}
+            reduce={!!reduce}
+            inline={inline}
+          >
             {card.kind === 'permission' && <Permission card={card} onAnswer={answer} />}
             {card.kind === 'plan' && <Plan card={card} onAnswer={answer} />}
             {card.kind === 'question' && <Questions card={card} onAnswer={answer} />}
+            {card.kind === 'offer' && <Offer card={card} onAnswer={answer} />}
             {more > 0 && <p className="px-4 pb-3 text-[11.5px] text-label-secondary">{more === 1 ? 'One more request waits after this one.' : `${more} more requests wait after this one.`}</p>}
           </CardShell>
         )}
@@ -425,6 +431,9 @@ function Questions({ card, onAnswer }: { card: QuestionCard; onAnswer: Answer })
   const [picked, setPicked] = useState<Record<number, string[]>>({})
   const [other, setOther] = useState<Record<number, string>>({})
   const single = card.questions.length === 1 && !card.questions[0].multiSelect
+  /** The option the pointer or keyboard is on, for its preview. */
+  const [focused, setFocused] = useState<{ q: number; o: number } | null>(null)
+  const preview = focused ? card.questions[focused.q]?.options[focused.o]?.preview : undefined
   useCardKeys(first)
 
   const answers = useMemo(() => {
@@ -478,6 +487,8 @@ function Questions({ card, onAnswer }: { card: QuestionCard; onAnswer: Answer })
                   role={q.multiSelect ? 'checkbox' : 'radio'}
                   aria-checked={on}
                   onClick={(e) => pick(i, o.label, q.multiSelect, e.detail === 0)}
+                  onFocus={() => setFocused({ q: i, o: j })}
+                  onPointerEnter={() => setFocused({ q: i, o: j })}
                   className={cn(
                     'no-drag flex items-start gap-2.5 rounded-[10px] px-2.5 py-2 text-left outline-none transition-[background-color,transform] duration-[var(--duration-press)] ease-out',
                     'hover:bg-fill-strong active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent-ring)] motion-reduce:active:scale-100',
@@ -519,6 +530,12 @@ function Questions({ card, onAnswer }: { card: QuestionCard; onAnswer: Answer })
             />
           </fieldset>
         ))}
+        {/* What the option you're on would look like, as Claude drew it. */}
+        {preview && (
+          <div aria-live="polite" className="mt-3 max-h-[220px] overflow-auto rounded-[10px] bg-fill px-3 py-2 font-mono text-[12px] whitespace-pre-wrap text-label">
+            {preview}
+          </div>
+        )}
       </div>
       <Actions
         start={
@@ -532,6 +549,40 @@ function Questions({ card, onAnswer }: { card: QuestionCard; onAnswer: Answer })
             Answer
           </Button>
         )}
+      </Actions>
+    </div>
+  )
+}
+
+// ─── Offer ───────────────────────────────────────────────────────────────────
+
+/**
+ * Claude offers a task you named a session of its own (start_session's
+ * "offer"): New Session starts it beside this one; Do It Here keeps the work in
+ * this conversation. Enter takes New Session, Esc keeps it here.
+ */
+function Offer({ card, onAnswer }: { card: OfferCard; onAnswer: Answer }) {
+  const primary = useRef<HTMLButtonElement>(null)
+  useCardKeys(primary)
+  const choose = (choice: 'new' | 'here', viaKeyboard: boolean) => onAnswer({ kind: 'offer', requestId: card.requestId, choice }, viaKeyboard)
+  return (
+    <div
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          e.stopPropagation()
+          choose('here', true)
+        }
+      }}
+    >
+      <Header icon={<SplitSquareHorizontal strokeWidth={2} />} title={card.title} subtitle="Claude can start this as a session of its own, beside this one, and tell you here when it finishes a turn." />
+      <Actions>
+        <Button size="text" tone="secondary" onClick={(e) => choose('here', e.detail === 0)}>
+          Do It Here <KeyHint>Esc</KeyHint>
+        </Button>
+        <Button ref={primary} size="text" tone="primary" onClick={(e) => choose('new', e.detail === 0)}>
+          New Session <KeyHint>↩</KeyHint>
+        </Button>
       </Actions>
     </div>
   )

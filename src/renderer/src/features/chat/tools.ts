@@ -20,6 +20,10 @@ import {
   Sparkles,
   Terminal,
   Wrench,
+  Bookmark,
+  Shapes,
+  SplitSquareHorizontal,
+  SquareTerminal,
   type LucideIcon
 } from 'lucide-react'
 import type { MentionEntry, ToolEntry, ToolResult } from '@shared/transcript'
@@ -188,9 +192,26 @@ function describeDone(call: ToolEntry, result: ToolResult | undefined): ToolView
       return view(Paperclip, files.length > 1 ? `Sent ${files.length} files:` : 'Sent', files[0] ? baseName(files[0]) : null, { mono: true })
     }
     case 'mcp__ccd_turn__update_plan':
+    case 'mcp__gloom__update_plan':
       return view(ListChecks, 'Updated the plan', null)
     case 'mcp__ccd_turn__wrap_up':
+    case 'mcp__gloom__wrap_up':
       return view(Flag, 'Wrapped up:', firstLine(s('recap'), 120), { details: 'generic' })
+    case 'mcp__ccd_session__mark_chapter':
+    case 'mcp__gloom__mark_chapter':
+      return view(Bookmark, 'Marked a chapter:', s('title'))
+    case 'mcp__gloom__show_widget':
+    case 'mcp__visualize__show_widget':
+      return view(Shapes, 'Showed', s('title'))
+    case 'mcp__gloom__start_session':
+    case 'mcp__ccd_session__start_session':
+      return view(SplitSquareHorizontal, input.initiation === 'own_initiative' ? 'Proposed a session:' : input.initiation === 'offer' ? 'Offered a session:' : 'Started a session:', s('title'))
+    case 'mcp__gloom__run_in_terminal':
+    case 'mcp__terminal__run_in_terminal':
+      return view(SquareTerminal, 'Ran in the terminal', firstLine(s('command')), { mono: true, details: 'output' })
+    case 'mcp__gloom__read_terminal':
+    case 'mcp__terminal__read_terminal':
+      return view(SquareTerminal, 'Read the terminal', null, { details: 'output' })
   }
   if (call.name.startsWith('mcp__')) {
     const [, server = '', tool = call.name] = call.name.split('__')
