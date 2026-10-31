@@ -1344,6 +1344,11 @@ disclosure pages; `apple-design` for motion).
        session's "New" pill went too: its title says it.
      - The tests never start your real CLI at launch (`GLOOM_NO_CLAUDE_ASKS`, set by
        `launch()`); `launch({ askClaude: true })` lets them.
+     - The newer models at launch, the usage panel, your limits at the foot and the worktree
+       toolbar were released as **Gloom 0.13.2** at your "Ship 0.13.2", after the whole suite
+       passed (78). The packaged check and `--smoke-pty` passed on the local build and again on
+       the build that went out; the published `update.json` checks out against the release key,
+       and its hashes match the installer and zip that went out (GitHub's own digests as well).
      - Released as **Gloom 0.13.1** at your "Ship 0.13.1". The packaged check and `--smoke-pty`
        passed on the local build and again on the build that went out; the published
        `update.json` checks out against the release key, and its hashes match the installer and
