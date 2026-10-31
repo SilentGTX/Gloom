@@ -46,9 +46,10 @@ Kowalski's set supports them: `emil-design-eng`, `animate`, `review-animations`,
   title bar installs it. Gloom's own window becomes the update window while it does, with nothing
   of the app showing (no second window).
 
-**Not in v1:** command palette (planned next; built after v1, see "9. Command palette"), `@` file
-mentions, browser pane, artifacts, task lists, side sessions, PRs, cloud sessions, multiple
-accounts, split view, fast mode, full-text search across transcripts, dated library backups.
+**Not in v1:** command palette (planned next; out after v1 as Gloom 0.11.0, see "9. Command
+palette"), `@` file mentions, browser pane, artifacts, task lists, side sessions, PRs, cloud
+sessions, multiple accounts, split view, fast mode, full-text search across transcripts, dated
+library backups.
 
 **Personal use.** If Gloom is ever shared with others, check Anthropic's rules for third-party apps
 that use a Claude.ai login first.
@@ -398,9 +399,8 @@ then rewind, edit and worktrees, were built the same night at your request and a
 as **Gloom 0.8.0** (2026-10-31), and a fix for the blank window the Effort menu left as Gloom 0.8.1
 (Phase 4's notes). **Phase 7, the polish pass, is out as Gloom 0.9.0** (2026-10-31; its notes
 below). **Phase 8, packaging, is out as Gloom 0.10.0** (2026-10-31; its notes below). All eight
-phases are done; next is the week as your daily driver (Decided with you). **The command palette**,
-planned next, is built on its own branch and waits for your OK (its notes below, "9. Command
-palette").
+phases are done; next is the week as your daily driver (Decided with you). **The command palette,
+planned next, is out as Gloom 0.11.0** (2026-10-31; its notes below, "9. Command palette").
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -1045,12 +1045,12 @@ disclosure pages; `apple-design` for motion).
      the version your PC runs, updated a throwaway copy of itself to that build, settings and
      all. The published `update.json` checks out against the release key.
 9. **Command palette** (after v1; "planned next" in Not in v1).
-   **Built 2026-10-31** on branch `command-palette` (worktree `D:\JS\Gloom-palette`); not released
-   yet, waiting for your OK. You chose the shortcut, what it finds and the order before it was
-   built (Ctrl+K; commands, sessions and folders; best match first, in groups). Built with both
-   Apple skills loaded (`apple-hig`'s foundation pages plus its searching, search field, menus,
-   panels, keyboards, focus and selection, Liquid Glass and modality pages; `apple-design` for
-   motion).
+   **Done 2026-10-31**, released as Gloom 0.11.0 at your "Ship 0.11.0" (the last note); built on
+   branch `command-palette` in its own worktree. You chose the shortcut, what it finds and the
+   order before it was built (Ctrl+K; commands, sessions and folders; best match first, in
+   groups). Built with both Apple skills loaded (`apple-hig`'s foundation pages plus its
+   searching, search field, menus, panels, keyboards, focus and selection, Liquid Glass and
+   modality pages; `apple-design` for motion).
    - **Ctrl+K** (View › Command Palette…) opens it from anywhere, the terminal pane included (Git
      Bash's own Ctrl+K gives way there), and puts it away again. A glass panel near the top of the
      window: the field, then the results. The window under it can't be reached while it's up; a
@@ -1118,6 +1118,10 @@ disclosure pages; `apple-design` for motion).
      revealed, the menu item, a click outside, waiting for a sheet, and captures in light, dark,
      contrast themes and Increase Contrast (`test-screens/palette/`); the worst-case library
      (500 sessions, folders eight deep, 200% text) in `worst-case.spec.ts`.
+   - Released as **Gloom 0.11.0** at your "Ship 0.11.0", after the packaged check passed on the
+     build (it now opens the palette and runs a command with it), and again on the build that
+     went out (`--smoke-pty` too). The published `update.json` checks out against the release
+     key, and its hashes match the installer and zip that went out.
 
 ## Verification
 
