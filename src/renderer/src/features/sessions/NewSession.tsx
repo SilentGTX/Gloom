@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { ChevronDown, Folder as FolderGlyph, FolderOpen, Inbox, ShieldAlert } from 'lucide-react'
+import { ChevronDown, Cloud, Folder as FolderGlyph, FolderOpen, Inbox, Laptop, Server, ShieldAlert } from 'lucide-react'
 import type { RepoInfo } from '@shared/git'
 import { flattenTree, folderDefaults, folderTrusted, normalizePath } from '@shared/library'
 import { isEffort, isMode, type Effort, type ModeId } from '@shared/live'
@@ -211,6 +211,13 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
         <Row label="Runs on">
           <MenuRoot>
             <MenuTrigger className={fieldTrigger} aria-label={`Runs on: ${host ? host.name : where === 'cloud' ? 'Claude in the cloud' : 'This computer'}`}>
+              {host ? (
+                <Server size={14} strokeWidth={1.75} aria-hidden className="shrink-0 text-label-secondary" />
+              ) : where === 'cloud' ? (
+                <Cloud size={14} strokeWidth={1.75} aria-hidden className="shrink-0 text-label-secondary" />
+              ) : (
+                <Laptop size={14} strokeWidth={1.75} aria-hidden className="shrink-0 text-label-secondary" />
+              )}
               <span className="flex-1 truncate">{host ? `${host.name} (ssh)` : where === 'cloud' ? 'Claude in the Cloud' : 'This Computer'}</span>
               <ChevronDown size={12} strokeWidth={2.25} aria-hidden className="shrink-0 opacity-60" />
             </MenuTrigger>

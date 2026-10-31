@@ -74,10 +74,14 @@ export class Browsers {
     private readonly changed: (state: BrowserState) => void
   ) {}
 
-  /** The session's view, made on first use. */
+  /** The session's view, made on first use (and again if a window it was in took it down when it closed). */
   private get(sessionId: string): View {
     const existing = this.views.get(sessionId)
-    if (existing) return existing
+    if (existing && !existing.view.webContents.isDestroyed()) return existing
+    if (existing) {
+      this.views.delete(sessionId)
+      if (this.shown?.sessionId === sessionId) this.shown = null
+    }
     const view = new WebContentsView({
       webPreferences: { session: browserSession(this.views), sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: false }
     })
@@ -114,7 +118,7 @@ export class Browsers {
 
   state(sessionId: string): BrowserState {
     const v = this.views.get(sessionId)
-    const wc = v?.view.webContents
+    const wc = v && !v.view.webContents.isDestroyed() ? v.view.webContents : undefined
     return {
       sessionId,
       url: wc?.getURL() ?? '',
@@ -162,16 +166,22 @@ export class Browsers {
     return this.state(sessionId)
   }
 
+  /** The session's page, if it has a live one. */
+  private page(sessionId: string): Electron.WebContents | undefined {
+    const wc = this.views.get(sessionId)?.view.webContents
+    return wc && !wc.isDestroyed() ? wc : undefined
+  }
+
   back(sessionId: string): void {
-    this.views.get(sessionId)?.view.webContents.navigationHistory.goBack()
+    this.page(sessionId)?.navigationHistory.goBack()
   }
 
   forward(sessionId: string): void {
-    this.views.get(sessionId)?.view.webContents.navigationHistory.goForward()
+    this.page(sessionId)?.navigationHistory.goForward()
   }
 
   reload(sessionId: string): void {
-    this.views.get(sessionId)?.view.webContents.reload()
+    this.page(sessionId)?.reload()
   }
 
   // ─── What Claude's browser tools do ──────────────────────────────────────
@@ -287,7 +297,7 @@ export class Browsers {
     const v = this.views.get(sessionId)
     if (!v) return
     this.detach(sessionId)
-    v.view.webContents.close()
+    if (!v.view.webContents.isDestroyed()) v.view.webContents.close()
     this.views.delete(sessionId)
   }
 

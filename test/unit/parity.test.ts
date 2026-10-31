@@ -3,7 +3,7 @@
 // prefixes, notification levels, archiving inactive sessions, worktrees in a
 // folder of your own, unread marks and a session's folders, search inside
 // conversations, and export names.
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -326,5 +326,38 @@ describe('pull requests, routines, SSH and the cloud (part D)', async () => {
   it('finds the cloud session’s link in what claude --cloud printed', () => {
     expect(cloudUrl('Started a cloud session: https://claude.ai/code/session_01ABC?x=1 \n')).toBe('https://claude.ai/code/session_01ABC?x=1')
     expect(cloudUrl('nothing')).toBeNull()
+  })
+})
+
+describe('the Browser pane and dev servers (part C)', async () => {
+  const { addressToUrl } = await import('../../src/main/browser')
+  const { readLaunch } = await import('../../src/main/preview')
+
+  it('turns what you type in the address field into a page', () => {
+    expect(addressToUrl('localhost:5173')).toBe('http://localhost:5173')
+    expect(addressToUrl('127.0.0.1:3000/api')).toBe('http://127.0.0.1:3000/api')
+    expect(addressToUrl('example.com/docs')).toBe('https://example.com/docs')
+    expect(addressToUrl('https://x.test')).toBe('https://x.test')
+    expect(addressToUrl('how to center a div')).toBe('https://duckduckgo.com/?q=how%20to%20center%20a%20div')
+    expect(addressToUrl('')).toBe('about:blank')
+  })
+
+  it('reads .claude/launch.json as the Claude app does, skipping what isn’t a configuration', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gloom-launch-'))
+    mkdirSync(join(cwd, '.claude'))
+    writeFileSync(
+      join(cwd, '.claude', 'launch.json'),
+      JSON.stringify({ version: '0.0.1', configurations: [{ name: 'dev', runtimeExecutable: 'npm', runtimeArgs: ['run', 'dev'], port: 5173 }, { name: 'docs', url: 'http://localhost:4000' }, { runtimeExecutable: 'x' }, { name: 'bad port', runtimeExecutable: 'npm', port: 99999 }] })
+    )
+    const { configs, problem } = readLaunch(cwd)
+    expect(problem).toBeNull()
+    expect(configs.map((c) => [c.name, c.port, c.url])).toEqual([
+      ['dev', 5173, null],
+      ['docs', null, 'http://localhost:4000'],
+      ['bad port', null, null]
+    ])
+    writeFileSync(join(cwd, '.claude', 'launch.json'), '{ not json')
+    expect(readLaunch(cwd).problem).toMatch(/couldn’t be read/)
+    rmSync(cwd, { recursive: true, force: true })
   })
 })

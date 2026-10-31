@@ -29,8 +29,8 @@ export function PopOut({ pane, sessionId }: { pane: string; sessionId: string })
   const design = useUi((s) => s.design)
   useLayoutEffect(() => {
     document.documentElement.dataset.design = design
-    // This window shows the one session: its transcript feeds the Plan, Tasks and Artifacts tabs.
-    useUi.setState({ selection: [sessionId], ...(SIDE_TABS.includes(pane as SideTab) ? { side: pane as SideTab } : {}) })
+    // The tab this window shows (its session comes from the address; the main window's selection, which is kept, stays its own).
+    if (SIDE_TABS.includes(pane as SideTab)) useUi.setState({ side: pane as SideTab })
   }, [design, pane, sessionId])
   useEffect(() => {
     if (session) useTranscript.getState().open(sessionId, !!session.file)

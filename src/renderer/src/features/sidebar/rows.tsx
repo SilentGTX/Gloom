@@ -14,6 +14,7 @@ import { useFinished } from '../concept/finished'
 import { Spinner, useConcept } from '../concept/parts'
 import { useDrag, type DragData, type DropData } from '../library/drag'
 import { SMART_LABELS, type GroupRow as GroupRowData, type MoreRow as MoreRowData, type SessionRow as SessionRowData } from './tree'
+import { useUi } from '../../stores/ui'
 
 export const SMART_ICONS: Record<SmartFolder, LucideIcon> = {
   all: MessagesSquare,
@@ -273,6 +274,8 @@ export function SessionRow({
   const preview = meta.lastPrompt && meta.lastPrompt !== title ? meta.lastPrompt : meta.firstPrompt !== title ? meta.firstPrompt : null
   const concept = useConcept()
   const finished = useFinished((s) => s.ids.has(id))
+  // Split view's second session: outlined, so both open sessions read as chosen (Apple's split views mark each pane's).
+  const inSplit = useUi((s) => s.split === id) && !selected
 
   if (concept) {
     // One line, 30 px: what it's doing as a mark, its title, then when or "Waiting".
@@ -304,6 +307,7 @@ export function SessionRow({
             'session-row concept-press relative my-px flex h-[30px] items-center gap-2 rounded-[var(--radius-row)] pr-2 pl-2',
             !selected && 'group-focus-visible/row:outline-2 group-focus-visible/row:-outline-offset-2 group-focus-visible/row:outline-[var(--accent-ring)]',
             selected ? 'is-selected' : 'hover:bg-fill',
+            inSplit && 'shadow-[inset_0_0_0_1.5px_var(--accent-ring)]',
             ringed && 'outline-2 -outline-offset-2 outline-[var(--accent-ring)]',
             dragging && 'opacity-50'
           )}
@@ -319,6 +323,7 @@ export function SessionRow({
           {working && <span className="sr-only">Claude is working</span>}
           {finished && !selected && <span className="sr-only">Claude finished</span>}
           {entry?.unread && !selected && <span className="sr-only">Unread</span>}
+          {inSplit && <span className="sr-only">Open in split view</span>}
           {waiting ? (
             <span className="row-waiting shrink-0 pl-1 text-[0.75rem] font-medium">Waiting</span>
           ) : (
@@ -364,6 +369,7 @@ export function SessionRow({
           // The keyboard's ring; on the selected row the selection itself shows where you are, as on the Mac.
           !selected && 'group-focus-visible/row:outline-2 group-focus-visible/row:-outline-offset-2 group-focus-visible/row:outline-[var(--accent-ring)]',
           selected ? 'is-selected' : 'hover:bg-fill active:bg-fill-pressed',
+          inSplit && 'shadow-[inset_0_0_0_1.5px_var(--accent-ring)]',
           ringed && 'outline-2 -outline-offset-2 outline-[var(--accent-ring)]',
           dragging && 'opacity-50'
         )}

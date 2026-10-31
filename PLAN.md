@@ -48,8 +48,9 @@ Kowalski's set supports them: `emil-design-eng`, `animate`, `review-animations`,
 
 **Not in v1:** command palette (planned next; out after v1 as Gloom 0.11.0, see "9. Command
 palette"), `@` file mentions (out after v1 as Gloom 0.12.0, see "10. `@` file mentions"),
-browser pane, artifacts, task lists, side sessions, PRs, cloud sessions, multiple accounts, split
-view, fast mode, full-text search across transcripts, dated library backups.
+browser pane, artifacts, task lists, side sessions, PRs, cloud sessions, split view, fast mode
+and full-text search across transcripts (all built after v1 with the rest of the Claude app's
+Code tab, see "12. Parity with the Claude app"), multiple accounts, dated library backups.
 
 **Personal use.** If Gloom is ever shared with others, check Anthropic's rules for third-party apps
 that use a Claude.ai login first.

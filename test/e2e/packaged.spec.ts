@@ -183,6 +183,25 @@ test('a packaged build opens a session, its panes and its keyboard', async () =>
     await command(page, 'view.designConcept')
     await expect(page.getByRole('tablist', { name: 'Show' })).toBeVisible()
     await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('server.ts', { timeout: 15_000 })
+
+    // Parity (PLAN.md › 12): the side pane opens, and an inline widget's frame loads from Gloom's widget scheme.
+    await command(page, 'view.panePlan')
+    await expect(page.getByRole('complementary', { name: 'Pane' })).toBeVisible()
+    const loaded = await page.evaluate(async () => {
+      const url = await window.gloom!.widget('packaged-check', '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>', 'check', { dark: false, accent: '#8860ea' })
+      const frame = document.createElement('iframe')
+      frame.setAttribute('sandbox', 'allow-scripts')
+      const done = new Promise<boolean>((resolve) => {
+        frame.addEventListener('load', () => resolve(true))
+        setTimeout(() => resolve(false), 10_000)
+      })
+      frame.src = url
+      document.body.appendChild(frame)
+      const ok = (await done) && url.startsWith('gloom-widget://')
+      frame.remove()
+      return ok
+    })
+    expect(loaded).toBe(true)
     expect(errors).toEqual([])
   } finally {
     await quit(gloom)
