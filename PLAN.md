@@ -1461,3 +1461,7 @@ disclosure pages; `apple-design` for motion).
      service (each needs a real turn), and the PR monitor on a real pull request with CI.
    - **Tests:** `test/unit/parity.test.ts`; end-to-end `parity.spec.ts`, `furniture.spec.ts`,
      `side.spec.ts`, `remote.spec.ts`.
+   - Released as **Gloom 0.14.0** at your "Ship 0.14.0", after the whole suite passed (100, 8
+     skipped). The packaged check and `--smoke-pty` passed on the local build and again on the
+     build that went out; the published `update.json` checks out against the release key, and
+     its hashes match the installer and zip that went out (GitHub's own digests as well).
