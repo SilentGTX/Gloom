@@ -1,10 +1,12 @@
-import { Archive, ArchiveRestore, Copy, FolderInput, FolderOpen, Pencil, Pin, PinOff, SquareChevronRight } from 'lucide-react'
+import { Archive, ArchiveRestore, CircleCheck, CircleDot, Copy, FileArchive, FolderInput, FolderOpen, FolderPlus, MailOpen, Pencil, Pin, PinOff, SquareChevronRight } from 'lucide-react'
 import { ContextMenuPopup, MenuGroup, MenuGroupLabel, MenuItem, MenuSeparator, MenuSubmenu } from '../../components/ui/Menu'
 import { notify } from '../../lib/toast'
 import { applyWithUndo, useLibrary } from '../../stores/library'
 import { useUi } from '../../stores/ui'
 import { removeArchivedWorktrees } from '../chat/Worktree'
+import { useFinished } from '../concept/finished'
 import { MoveTargets } from '../folders/FolderMenu'
+import { addFolder, exportSession, markCompleted, setUnread } from './actions'
 
 const sessionsLabel = (n: number) => (n === 1 ? '1 session' : `${n} sessions`)
 
@@ -53,6 +55,8 @@ export function SessionMenu({ ids }: { ids: string[] }) {
   const entries = ids.map((id) => library.sessions[id])
   const pinned = entries.every((e) => e?.pinned)
   const archived = entries.every((e) => e?.archived)
+  const unread = entries.every((e) => e?.unread)
+  const finished = useFinished((s) => ids.some((id) => s.ids.has(id)))
   const folderIds = new Set(entries.map((e) => (e?.folderId && library.folders.some((f) => f.id === e.folderId) ? e.folderId : null)))
   const current = folderIds.size === 1 ? [...folderIds][0] : undefined
   const single = ids.length === 1 ? sessions[ids[0]] : undefined
@@ -71,12 +75,16 @@ export function SessionMenu({ ids }: { ids: string[] }) {
         ) : (
           <MenuItem label="Archive" icon={<Archive />} onClick={() => archiveSessions(ids)} />
         )}
+        <MenuItem label={unread ? 'Mark as Read' : 'Mark as Unread'} icon={unread ? <MailOpen /> : <CircleDot />} onClick={() => setUnread(ids, !unread)} />
+        {(finished || unread) && <MenuItem label="Mark as Completed" icon={<CircleCheck />} onClick={() => markCompleted(ids)} />}
         {single && (
           <>
             <MenuSeparator />
             {!single.remote && <MenuItem label="Resume in Terminal" icon={<SquareChevronRight />} onClick={() => void resumeSession(single.id)} />}
             {!single.remote && <MenuItem label="Reveal Working Folder" icon={<FolderOpen />} onClick={() => void revealSession(single.id)} />}
+            {!single.remote && <MenuItem label="Add Folder to Session…" icon={<FolderPlus />} onClick={() => void addFolder(single.id)} />}
             <MenuItem label="Copy Session ID" icon={<Copy />} onClick={() => void copySessionId(single.id)} />
+            {single.file && <MenuItem label="Export…" icon={<FileArchive />} onClick={() => void exportSession(single.id)} />}
           </>
         )}
       </MenuGroup>

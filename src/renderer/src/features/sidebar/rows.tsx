@@ -307,7 +307,7 @@ export function SessionRow({
             dragging && 'opacity-50'
           )}
         >
-          <StatusMark working={working || elsewhere} waiting={waiting} finished={finished && !selected} />
+          <StatusMark working={working || elsewhere} waiting={waiting} unread={!!entry?.unread && !selected} finished={finished && !selected} />
           {entry?.pinned && <Pin size={11} strokeWidth={2} className="row-secondary shrink-0 rotate-45" aria-label="Pinned" />}
           {renaming ? (
             <RenameField initial={title} label="Session name" onDone={onRenameEnd} className="text-[0.8125rem]" />
@@ -317,6 +317,7 @@ export function SessionRow({
           {elsewhere && <span className="sr-only">Running in another app</span>}
           {working && <span className="sr-only">Claude is working</span>}
           {finished && !selected && <span className="sr-only">Claude finished</span>}
+          {entry?.unread && !selected && <span className="sr-only">Unread</span>}
           {waiting ? (
             <span className="row-waiting shrink-0 pl-1 text-[0.75rem] font-medium">Waiting</span>
           ) : (
@@ -367,6 +368,8 @@ export function SessionRow({
         )}
       >
         <div className="flex min-w-0 items-center gap-1.5">
+          {/* Mail's unread dot, before the title; opening the session reads it. */}
+          {entry?.unread && <span className="unread-dot shrink-0" role="img" aria-label="Unread" />}
           {entry?.pinned && <Pin size={11} strokeWidth={2} className="row-secondary shrink-0 rotate-45" aria-label="Pinned" />}
           {renaming ? (
             <RenameField initial={title} label="Session name" onDone={onRenameEnd} className="text-[0.875rem] font-semibold" />
@@ -393,14 +396,15 @@ export function SessionRow({
 
 /**
  * The concept's mark before a session's title: a spinner while it works, an
- * amber dot while Claude waits for you, a green one when it finished while you
- * were elsewhere, and a hollow ring at rest. Shape and colour differ, so
- * neither carries the meaning alone; the row also says it in words.
+ * amber dot while Claude waits for you, the accent's dot when it's marked
+ * unread, a green one when it finished while you were elsewhere, and a hollow
+ * ring at rest. Shape and colour differ, so neither carries the meaning alone;
+ * the row also says it in words.
  */
-function StatusMark({ working, waiting, finished }: { working: boolean; waiting: boolean; finished: boolean }) {
+function StatusMark({ working, waiting, unread, finished }: { working: boolean; waiting: boolean; unread: boolean; finished: boolean }) {
   return (
     <span aria-hidden className="flex size-[11px] shrink-0 items-center justify-center">
-      {working ? <Spinner /> : <span className={cn('concept-dot', waiting ? 'is-waiting' : finished ? 'is-finished' : 'is-idle')} />}
+      {working ? <Spinner /> : <span className={cn('concept-dot', waiting ? 'is-waiting' : unread ? 'is-unread' : finished ? 'is-finished' : 'is-idle')} />}
     </span>
   )
 }

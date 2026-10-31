@@ -6,7 +6,7 @@
 // time; the next send resumes them.
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import type { SessionMeta } from '@shared/library'
+import type { SessionEntry, SessionMeta } from '@shared/library'
 import {
   isEffort,
   isMode,
@@ -70,7 +70,9 @@ export class Sessions {
     /** The index's entry for a session. */
     private readonly lookup: (id: string) => SessionMeta | undefined,
     /** The entry before a line on a session's chain (null for its first line). */
-    private readonly chainParent: (id: string, uuid: string) => Promise<string | null>
+    private readonly chainParent: (id: string, uuid: string) => Promise<string | null>,
+    /** The library's entry for a session: its extra folders. */
+    private readonly entryOf: (id: string) => SessionEntry | undefined = () => undefined
   ) {
     this.readConfig()
   }
@@ -135,7 +137,10 @@ export class Sessions {
   /** A session made in Gloom: nothing runs until its first message. */
   create(request: NewSessionRequest): string {
     const id = randomUUID()
-    this.runners.set(id, this.makeRunner({ id, cwd: request.cwd, model: request.model, mode: request.mode, effort: request.effort, resume: false }))
+    this.runners.set(
+      id,
+      this.makeRunner({ id, cwd: request.cwd, model: request.model, mode: request.mode, effort: request.effort, resume: false, remoteControl: settings().remoteControl })
+    )
     this.emitSummary(id)
     return id
   }
@@ -182,12 +187,35 @@ export class Sessions {
     this.runners.get(id)?.answer(answer)
   }
 
-  /** Model, mode or effort: live on a running process, else for its next start. */
+  /** Model, mode, effort, fast mode, output style or folders: live on a running process, else for its next start. */
   async set(id: string, request: SetRequest): Promise<void> {
     const runner = this.runnerFor(id)
     if ('model' in request) await runner.setModel(request.model)
     else if ('mode' in request) await runner.setMode(request.mode)
-    else await runner.setEffort(request.effort)
+    else if ('effort' in request) await runner.setEffort(request.effort)
+    else if ('fast' in request) await runner.setFast(request.fast)
+    else if ('outputStyle' in request) await runner.setOutputStyle(request.outputStyle)
+    else await runner.setFolders(request.folders)
+  }
+
+  /** Turns one of a running session's MCP servers off or on. */
+  toggleMcp(id: string, name: string, enabled: boolean): Promise<void> {
+    const runner = this.runners.get(id)
+    if (!runner?.alive) throw new Error('Start the session to change its connectors.')
+    return runner.toggleMcp(name, enabled)
+  }
+
+  /** Connects one of a running session's MCP servers again. */
+  reconnectMcp(id: string, name: string): Promise<void> {
+    const runner = this.runners.get(id)
+    if (!runner?.alive) throw new Error('Start the session to reconnect its connectors.')
+    return runner.reconnectMcp(name)
+  }
+
+  /** Whether Gloom runs the session now: a process alive, or a turn or card under way. */
+  running(id: string): boolean {
+    const runner = this.runners.get(id)
+    return !!runner && (runner.alive || runner.busy)
   }
 
   commands(id: string): CommandInfo[] {
@@ -270,7 +298,15 @@ export class Sessions {
     const meta = this.lookup(id)
     if (!meta?.cwd) throw new Error('That session’s transcript is gone.')
     const s = settings()
-    const runner = this.makeRunner({ id, cwd: meta.cwd, model: s.model, mode: isMode(s.mode) ? s.mode : 'default', effort: isEffort(s.effort) ? s.effort : null, resume: true })
+    const runner = this.makeRunner({
+      id,
+      cwd: meta.cwd,
+      model: s.model,
+      mode: isMode(s.mode) ? s.mode : 'default',
+      effort: isEffort(s.effort) ? s.effort : null,
+      resume: true,
+      folders: this.entryOf(id)?.folders ?? []
+    })
     this.runners.set(id, runner)
     return runner
   }

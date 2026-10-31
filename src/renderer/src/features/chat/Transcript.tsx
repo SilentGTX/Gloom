@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type HTMLAttributes } from 'react'
+import { forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState, type HTMLAttributes } from 'react'
 import { Virtuoso, type ListRange, type VirtuosoHandle } from 'react-virtuoso'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowDown, FileWarning, LoaderCircle, MessagesSquare } from 'lucide-react'
@@ -18,7 +18,8 @@ import { PromptCards } from './PromptCards'
 import { cutAt, RewindAllowed } from './Rewind'
 import { buildRows, liveRows, type Row } from './rows'
 import { RowView } from './RowView'
-import { LatestTodos } from './ToolRow'
+import { useTranscriptView } from '../sessions/actions'
+import { LatestTodos, OpenByDefault } from './ToolRow'
 
 /** Virtuoso counts rows from here, so older pages can be put above without the view jumping. */
 const BASE_INDEX = 1_000_000
@@ -58,6 +59,12 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
   }, [base, busy, stream, since, activity])
   const slow = useDelayed(status === 'loading', 300)
   const latestTodos = useMemo(() => rows.findLast((r) => r.kind === 'tool' && r.entry.name === 'TodoWrite')?.key ?? null, [rows])
+  // View › Transcript View, as the Claude app's: Normal leaves Claude's thinking out, Thinking shows it, Verbose opens everything.
+  const view = useTranscriptView(sessionId)
+  const shown = useMemo(() => (view === 'normal' ? rows.filter((r) => r.kind !== 'thinking') : rows), [rows, view])
+  const openByDefault = useMemo(() => ({ thinking: view !== 'normal', tools: view === 'verbose' }), [view])
+  // Switching views starts every row from how the new view opens them.
+  useEffect(() => useTranscript.setState({ expanded: new Set() }), [view])
 
   if (status === 'loading' || status === 'idle') {
     return <div className="flex flex-1 items-center justify-center">{slow && <LoaderCircle size={20} strokeWidth={1.75} aria-label="Loading the transcript" className="animate-spin text-label-secondary motion-reduce:animate-none" />}</div>
@@ -90,7 +97,9 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
   return (
     <RewindAllowed.Provider value={!live && !running}>
       <LatestTodos.Provider value={latestTodos}>
-        <TranscriptList key={`${sessionId}:${epoch}`} sessionId={sessionId} rows={rows} />
+        <OpenByDefault.Provider value={openByDefault}>
+          <TranscriptList key={`${sessionId}:${epoch}`} sessionId={sessionId} rows={shown} />
+        </OpenByDefault.Provider>
       </LatestTodos.Provider>
     </RewindAllowed.Provider>
   )
@@ -172,6 +181,7 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
   const loadingOlder = useTranscript((s) => s.loadingOlder)
   const loadOlder = useTranscript((s) => s.loadOlder)
   const setExpanded = useTranscript((s) => s.setExpanded)
+  const openByDefault = useContext(OpenByDefault)
   const firstItemIndex = useFirstItemIndex(rows)
   const [scrolled, setScrolled] = useState(false)
   const [atBottom, setAtBottom] = useState(true)
@@ -269,7 +279,12 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
   // Moving to a match: open what hides it, scroll to its row, then mark it.
   useEffect(() => {
     if (!match) return
-    if (match.hidden) setExpanded(match.key, true)
+    // A row is open when it's the other way round from the view's default (a thinking or tool row Verbose opens is already).
+    if (match.hidden) {
+      const kind = rows[match.rowIndex]?.kind
+      const opens = kind === 'thinking' ? openByDefault.thinking : kind === 'tool' ? openByDefault.tools : false
+      setExpanded(match.key, !opens)
+    }
     virtuoso.current?.scrollIntoView({
       index: match.rowIndex,
       align: 'center',

@@ -16,8 +16,10 @@ import { describeTool, type ToolView } from './tools'
  * still waiting for its result spins in place of its icon.
  */
 export function ToolRow({ sessionId, rowKey, call, result, running }: { sessionId: string; rowKey: string; call: ToolEntry; result: ToolResult | undefined; running: boolean }) {
-  const open = useTranscript((s) => s.expanded.has(rowKey))
-  const setExpanded = useTranscript((s) => s.setExpanded)
+  // A row you clicked is the other way round from how the view opens them (Verbose: all open).
+  const toggled = useTranscript((s) => s.expanded.has(rowKey))
+  const open = useContext(OpenByDefault).tools !== toggled
+  const setExpanded = (_key: string, _open: boolean) => useTranscript.getState().setExpanded(rowKey, !toggled)
   const view = describeTool(call, result, running)
   const panel = useId()
   const failed = result?.isError === true
@@ -93,6 +95,9 @@ export function ToolRow({ sessionId, rowKey, call, result, running }: { sessionI
 
 /** The key of the transcript's newest to-do list, which the concept shows as an open checklist. */
 export const LatestTodos = createContext<string | null>(null)
+
+/** What the conversation's Transcript View opens without a click: Claude's thinking (Thinking, Verbose), every tool call (Verbose). */
+export const OpenByDefault = createContext<{ thinking: boolean; tools: boolean }>({ thinking: false, tools: false })
 
 type Todo = { content?: unknown; status?: unknown }
 

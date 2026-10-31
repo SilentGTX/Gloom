@@ -1,5 +1,6 @@
 // Checks what the window sends about live sessions before it reaches a
 // process. The window is our own page, but nothing malformed goes to the CLI.
+import { isAbsolute } from 'node:path'
 import { isEffort, isMode, type CardAnswer, type ImageAttachment, type NewSessionRequest, type RewindRequest, type SendRequest, type SetRequest } from '@shared/live'
 
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -63,7 +64,24 @@ export function parseSet(raw: unknown): SetRequest {
   if ('model' in raw) return { model: model(raw.model) }
   if ('mode' in raw && isMode(raw.mode)) return { mode: raw.mode }
   if ('effort' in raw && (raw.effort === null || isEffort(raw.effort))) return { effort: raw.effort }
+  if ('fast' in raw && typeof raw.fast === 'boolean') return { fast: raw.fast }
+  if ('outputStyle' in raw) return { outputStyle: raw.outputStyle === null ? null : str(raw.outputStyle, 'output style', 200) }
+  if ('folders' in raw && Array.isArray(raw.folders) && raw.folders.length <= 100)
+    return {
+      folders: raw.folders.map((f) => {
+        const folder = str(f, 'folder', 1024)
+        if (!isAbsolute(folder)) throw new Error('bad folder')
+        return folder
+      })
+    }
   throw new Error('bad request')
+}
+
+/** An MCP server's name, as its process listed it. */
+export function serverName(v: unknown): string {
+  const name = str(v, 'server', 200)
+  if (!name.trim()) throw new Error('bad server')
+  return name
 }
 
 export function parseAnswer(raw: unknown): CardAnswer {

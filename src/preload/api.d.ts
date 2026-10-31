@@ -4,6 +4,8 @@ import type {
   AppInfo,
   ApplyResult,
   CommandDispatch,
+  ExportResult,
+  TranscriptSearch,
   LibraryChange,
   LibrarySnapshot,
   ResumeResult,
@@ -59,6 +61,10 @@ export interface LiveApi {
   unqueue(id: string, queuedId: string): Promise<void>
   answer(id: string, answer: CardAnswer): Promise<void>
   set(id: string, request: SetRequest): Promise<void>
+  /** Turns one of a running session's MCP servers off or on; rejects with the reason when it can't. */
+  toggleMcp(id: string, name: string, enabled: boolean): Promise<void>
+  /** Connects one of a running session's MCP servers again. */
+  reconnectMcp(id: string, name: string): Promise<void>
   commands(id: string): Promise<CommandInfo[]>
   /** The files and folders `@` offers, from the session's working folder. */
   files(id: string): Promise<FileListing>
@@ -133,6 +139,10 @@ export interface GloomApi {
   onTranscript(listener: (change: TranscriptChange) => void): () => void
   /** Opens `claude --resume` in a terminal window; with `check`, only says whether it can. */
   resumeSession(id: string, options?: { check?: boolean }): Promise<ResumeResult>
+  /** Writes a zip of the session's transcripts to Downloads; rejects with the reason when it can't. */
+  exportSession(id: string): Promise<ExportResult>
+  /** Sessions whose conversations say `query` (2 characters or more), newest first. */
+  searchTranscripts(query: string, includeArchived: boolean): Promise<TranscriptSearch>
   live: LiveApi
   claude: {
     /** Where claude.exe is and its version; `fresh` asks it again (after an update). */

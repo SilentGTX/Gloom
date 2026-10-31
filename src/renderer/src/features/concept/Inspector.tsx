@@ -1,11 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { AnimatePresence, motion, MotionConfig, Reorder, useDragControls, useReducedMotion } from 'motion/react'
-import { ChevronRight, Copy, Folder, GitBranch, GitMerge, Globe, Laptop, PanelRight, Plug, SquareChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Copy, Folder, FolderPlus, GitBranch, GitMerge, Globe, Laptop, PanelRight, Plug, RotateCw, SquareChevronRight, X } from 'lucide-react'
 import { totals, type DiffFile, type SessionDiff, type TreeDiff } from '@shared/diff'
 import { EFFORT_LABELS, modeInfo, modelLabel, type McpServer, type UsageWindow } from '@shared/live'
 import type { SessionMeta } from '@shared/library'
 import type { TranscriptEntry } from '@shared/transcript'
 import { Button } from '../../components/ui/Button'
+import { MenuPopup, MenuRadioGroup, MenuRadioItem, MenuRoot, MenuTrigger } from '../../components/ui/Menu'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
 import { runCommand } from '../../lib/commands'
@@ -17,6 +18,7 @@ import { useTranscript } from '../../stores/transcript'
 import { INSPECTOR_PARTS, useUi, type InspectorPart } from '../../stores/ui'
 import { useWorktrees } from '../chat/Worktree'
 import { FileStatusIcon } from '../diff/DiffPane'
+import { addFolder, removeFolder, sessionFolders } from '../sessions/actions'
 import { copySessionId, resumeSession, revealSession } from '../sessions/SessionMenu'
 import { PaneToolbar } from '../shell/Toolbar'
 
@@ -424,6 +426,9 @@ function EnvironmentPart({ session, onMove }: PartProps) {
   const folder = cut >= 0 ? cwd.slice(cut + 1) : cwd
   const parent = cut > 0 ? cwd.slice(0, cut + 1) : ''
   const branch = worktree?.branch ?? (session.gitBranch && session.gitBranch !== 'HEAD' ? session.gitBranch : null)
+  // Its running process's, else the library's (kept for its next process).
+  useLive((s) => s.sessions[session.id]?.folders)
+  const folders = sessionFolders(session.id)
   return (
     <Section part="environment" title="Environment" onMove={onMove}>
       <ul className="-mx-1.5 flex flex-col">
@@ -460,6 +465,31 @@ function EnvironmentPart({ session, onMove }: PartProps) {
             </button>
           </li>
         )}
+        {/* Folders besides the working folder Claude may use (Claude Code's --add-dir). */}
+        {folders.map((f) => (
+          <li key={f} className="group/folder relative">
+            <Tooltip label="Show in File Explorer" detail={f}>
+              <button type="button" onClick={() => void window.gloom?.diff.reveal(f)} className="concept-panel-row no-drag pr-8">
+                <Folder size={15} strokeWidth={1.75} aria-hidden className="shrink-0 text-label-secondary" />
+                <span className="min-w-0 truncate text-left text-label">{f.replace(/[\\/]+$/, '').split(/[\\/]/).pop()}</span>
+                <span className="shrink-0 text-[12px] text-label-secondary">also</span>
+              </button>
+            </Tooltip>
+            <Tooltip label="Remove Folder" detail="Claude can’t use it from its next request">
+              <Button size="small" aria-label={`Remove ${f}`} onClick={() => void removeFolder(session.id, f)} className="absolute top-1/2 right-1 -translate-y-1/2 opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100">
+                <X size={12} strokeWidth={2} aria-hidden />
+              </Button>
+            </Tooltip>
+          </li>
+        ))}
+        {!session.remote && (
+          <li>
+            <button type="button" onClick={() => void addFolder(session.id)} className="concept-panel-row no-drag">
+              <FolderPlus size={15} strokeWidth={1.75} aria-hidden className="shrink-0 text-label-secondary" />
+              <span className="text-label">Add Folder…</span>
+            </button>
+          </li>
+        )}
         {!session.remote && session.file && (
           <li>
             <button type="button" onClick={() => void resumeSession(session.id)} className="concept-panel-row no-drag">
@@ -482,11 +512,44 @@ const MCP_STATUS: Record<string, { text: string; tone: string } | undefined> = {
   disabled: { text: 'Off', tone: 'text-label-secondary' }
 }
 
-/** The session's MCP servers, as its process reported them when it started. */
+/**
+ * An on/off switch in a list row (Apple keeps switches for rows like these):
+ * the knob slides, and the track fills with the accent when it's on.
+ */
+function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange(on: boolean): void; label: string; disabled?: boolean }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} disabled={disabled} onClick={() => onChange(!checked)} className="concept-switch no-drag shrink-0">
+      <span aria-hidden className="concept-switch-knob" />
+    </button>
+  )
+}
+
+/** Turns a server off or on, or reconnects it, saying why when it can't. */
+async function connector(id: string, name: string, act: 'on' | 'off' | 'reconnect'): Promise<void> {
+  try {
+    if (act === 'reconnect') await window.gloom?.live.reconnectMcp(id, name)
+    else await window.gloom?.live.toggleMcp(id, name, act === 'on')
+  } catch (error) {
+    notify(String((error as Error)?.message ?? error).replace(/^.*?Error: /, ''))
+  }
+}
+
+/**
+ * The session's MCP servers, as its process reports them: each with a switch
+ * (Claude Code keeps the choice for the project) and Reconnect for one that
+ * failed. Switches wait for the session's process to run.
+ */
 function ConnectorsPart({ session, onMove }: PartProps) {
   const servers = useLive((s) => s.sessions[session.id]?.mcp ?? null)
+  const alive = useLive((s) => s.sessions[session.id]?.alive === true)
+  const [busy, setBusy] = useState<string | null>(null)
   const list: McpServer[] = servers ?? []
   const { shown, toggle } = useFirstFew(list, session.id)
+  const act = async (name: string, what: 'on' | 'off' | 'reconnect') => {
+    setBusy(name)
+    await connector(session.id, name, what)
+    setBusy(null)
+  }
   return (
     <Section part="connectors" title="Connectors" summary={servers?.length ? <span className="concept-panel-summary">{servers.length}</span> : undefined} onMove={onMove}>
       {servers === null ? (
@@ -497,16 +560,26 @@ function ConnectorsPart({ session, onMove }: PartProps) {
         <ul className="-mx-1.5 flex flex-col">
           {shown.map((s) => {
             const status = MCP_STATUS[s.status]
+            const failed = s.status === 'failed' || s.status === 'needs-auth'
             return (
-              <li key={s.name} className="concept-panel-row">
+              <li key={s.name} className="concept-panel-row" title={s.error ?? (s.scope ? `From ${s.scope}` : undefined)}>
                 <Plug size={15} strokeWidth={1.75} aria-hidden className="shrink-0 text-label-secondary" />
-                <span className="min-w-0 flex-1 truncate text-label">{s.name}</span>
+                <span className={cn('min-w-0 flex-1 truncate', s.status === 'disabled' ? 'text-label-secondary' : 'text-label')}>{s.name}</span>
                 {status ? <span className={cn('shrink-0 text-[12px]', status.tone)}>{status.text}</span> : <span className="sr-only">Connected</span>}
+                {failed && alive && (
+                  <Tooltip label="Reconnect">
+                    <Button size="small" aria-label={`Reconnect ${s.name}`} disabled={busy === s.name} onClick={() => void act(s.name, 'reconnect')}>
+                      <RotateCw size={12} strokeWidth={2} aria-hidden className={cn(busy === s.name && 'animate-spin motion-reduce:animate-none')} />
+                    </Button>
+                  </Tooltip>
+                )}
+                <Switch label={`${s.name} on`} checked={s.status !== 'disabled'} disabled={!alive || busy === s.name} onChange={(on) => void act(s.name, on ? 'on' : 'off')} />
               </li>
             )
           })}
         </ul>
       )}
+      {servers !== null && !alive && servers.length > 0 && <Note>Their switches work while the session runs.</Note>}
       {toggle}
     </Section>
   )
@@ -522,10 +595,14 @@ function SessionPart({ session, onMove }: PartProps) {
   const model = modelLabel(summary ? (summary.activeModel ?? summary.model) : settings.model, models)
   const mode = summary?.mode ?? settings.mode
   const effort = summary ? summary.effort : settings.effort
+  const fast = summary?.fast ? (summary.fastUnavailable ? 'On, but unavailable' : summary.fastState === 'cooldown' ? 'On, cooling down' : 'On') : 'Off'
   const facts: [string, ReactNode][] = [
     ['Model', model],
     ['Permissions', modeInfo(mode).label],
     ['Effort', effort ? EFFORT_LABELS[effort] : 'Default'],
+    ['Output style', <StylePicker key="style" sessionId={session.id} />],
+    ['Fast mode', <span title={summary?.fastUnavailable ?? undefined}>{fast}</span>],
+    ...(summary?.remoteControl ? [['Remote Control', 'Connected at start'] as [string, ReactNode]] : []),
     ['Started', fullDate(session.created)],
     [
       'Session ID',
@@ -552,6 +629,34 @@ function SessionPart({ session, onMove }: PartProps) {
         ))}
       </dl>
     </Section>
+  )
+}
+
+/** The output styles Claude Code comes with, until the session's process lists yours too. */
+const BUILT_IN_STYLES = ['Concise', 'Explanatory', 'Learning', 'Proactive']
+
+/** The session's own output style: Claude Code takes it from the next turn. */
+function StylePicker({ sessionId }: { sessionId: string }) {
+  const summary = useLive((s) => s.sessions[sessionId])
+  const fallback = useLive((s) => s.settings.outputStyle)
+  const current = summary?.outputStyle ?? fallback ?? 'default'
+  const styles = [...new Set([...(summary?.outputStyles?.length ? summary.outputStyles : BUILT_IN_STYLES)].filter((x) => x.toLowerCase() !== 'default'))]
+  const label = current.toLowerCase() === 'default' ? 'Default' : current
+  return (
+    <MenuRoot>
+      <MenuTrigger aria-label={`Output style: ${label}`} className="no-drag inline-flex max-w-full items-center gap-1 rounded-[6px] px-1 text-label outline-none hover:bg-fill focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)] data-[popup-open]:bg-fill">
+        <span className="min-w-0 truncate">{label}</span>
+        <ChevronDown size={11} strokeWidth={2.25} aria-hidden className="shrink-0 opacity-60" />
+      </MenuTrigger>
+      <MenuPopup align="end">
+        <MenuRadioGroup value={current.toLowerCase() === 'default' ? '' : current} onChange={(v) => void useLive.getState().set(sessionId, { outputStyle: v || null })}>
+          <MenuRadioItem value="" label="Default" detail="Settings’, else your Claude Code setting" />
+          {styles.map((s) => (
+            <MenuRadioItem key={s} value={s} label={s} />
+          ))}
+        </MenuRadioGroup>
+      </MenuPopup>
+    </MenuRoot>
   )
 }
 

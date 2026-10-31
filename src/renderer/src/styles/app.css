@@ -835,6 +835,23 @@
     color: var(--on-row-selected);
   }
 
+  /* A session marked unread: Mail's dot before its title, in Gloom's indigo
+     (white on the selected row's indigo). */
+  .unread-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--signal);
+  }
+  .session-row.is-selected .unread-dot {
+    background: var(--on-row-selected);
+  }
+  @media (forced-colors: active) {
+    .unread-dot {
+      background: Highlight;
+    }
+  }
+
   /* The context meter: a small capacity ring by Send, and its bars. Quiet
      until it's three quarters full, amber then, red near the end. */
   .context-ring-track,

@@ -43,6 +43,8 @@ export interface ModelChoice {
   description: string
   /** Effort levels it takes; empty when it has none. */
   efforts: Effort[]
+  /** It can run in fast mode (faster output, billed at fast-mode rates). */
+  fast?: boolean
 }
 
 /** Claude Code's aliases, until a session reports the models your plan has. */
@@ -178,12 +180,33 @@ export interface LiveSummary {
   rewoundTo: string | null
   /** Its MCP servers and how each started, once its process has said (the inspector's Connectors). */
   mcp?: McpServer[] | null
+  /** Fast mode as you set it for this session; it holds for its process and the next. */
+  fast?: boolean
+  /** What its process says of fast mode: on, cooling down after a limit, or off. */
+  fastState?: 'off' | 'cooldown' | 'on' | null
+  /** Why fast mode can't serve, when its process says so. */
+  fastUnavailable?: string | null
+  /** The output style in force, and the ones its Claude Code offers. */
+  outputStyle?: string | null
+  outputStyles?: string[]
+  /** A suggested next prompt, after a reply (prompt suggestions on). Gone once you send. */
+  suggestion?: string | null
+  /** It connected to Remote Control as it started. */
+  remoteControl?: boolean
+  /** Folders besides its working folder that it may use. */
+  folders?: string[]
+  /** Its process is running now (connectors can be switched only then). */
+  alive?: boolean
 }
 
-/** An MCP server a session's process loaded: "connected", "failed", "needs-auth", "pending"… */
+/** An MCP server a session's process loaded: "connected", "failed", "needs-auth", "pending", "disabled"… */
 export interface McpServer {
   name: string
   status: string
+  /** What went wrong, when it failed. */
+  error?: string
+  /** Where it's configured: user, project, local, a plugin, claude.ai… */
+  scope?: string
 }
 
 /** What restoring code to before a message would do, or did. */
@@ -366,6 +389,36 @@ export interface UsageInfo {
   updated: number
 }
 
+/** How a kind of notification reaches you while Gloom is in the background: a banner (and the badge), the badge only, or nothing. */
+export type NoticeLevel = 'banner' | 'badge' | 'off'
+
+/** How a conversation shows: tool calls folded (normal), with Claude's thinking too, or everything open. */
+export type TranscriptView = 'normal' | 'thinking' | 'verbose'
+
+export const TRANSCRIPT_VIEWS: { id: TranscriptView; label: string; detail: string }[] = [
+  { id: 'normal', label: 'Normal', detail: 'Tool calls folded' },
+  { id: 'thinking', label: 'Thinking', detail: 'Claude’s thinking shown too' },
+  { id: 'verbose', label: 'Verbose', detail: 'Every tool call and its output open' }
+]
+
+export function isTranscriptView(v: unknown): v is TranscriptView {
+  return v === 'normal' || v === 'thinking' || v === 'verbose'
+}
+
+/** Branch names the Claude app refuses as a prefix, so a session's branch can't be mistaken for one of these. */
+const PROTECTED_PREFIX = /^(main|master|staging|warm|prod-.*|release.*)$/i
+
+/** Why a branch prefix can't be used, or null when it can: 1–40 letters, digits, ".", "_" or "-", as the Claude app takes it. */
+export function branchPrefixProblem(prefix: string): string | null {
+  if (!prefix) return 'Type a prefix.'
+  if (prefix.length > 40) return 'Use 40 characters or fewer.'
+  if (!/^[A-Za-z0-9]/.test(prefix)) return 'Start with a letter or a digit.'
+  if (!/^[A-Za-z0-9._-]+$/.test(prefix)) return 'Use only letters, digits, “.”, “_” and “-”.'
+  if (/\.\.|\.$|\.lock$/i.test(prefix)) return 'Git can’t take that as a branch name.'
+  if (PROTECTED_PREFIX.test(prefix)) return 'That name is kept for main branches.'
+  return null
+}
+
 export interface Settings {
   /** Your claude.exe, when it isn't where Gloom looks. */
   claudePath: string | null
@@ -373,10 +426,36 @@ export interface Settings {
   model: string | null
   mode: ModeId
   effort: Effort | null
+  /** New sessions' output style; null leaves it to your Claude Code settings. */
+  outputStyle: string | null
+  /** A suggested next prompt in the message box after each reply (one more request each). */
+  promptSuggestions: boolean
+  /** New sessions connect to Remote Control, so you can carry on from claude.ai or your phone. */
+  remoteControl: boolean
+  /** How a conversation shows when you open it. */
+  transcriptView: TranscriptView
   /** A session's process closes after this long idle; 0 keeps it. */
   idleMinutes: number
-  /** A Windows notification when a session needs you or finishes while Gloom is in the background. */
-  notifications: boolean
+  /** Sessions with no activity for this many days are archived; 0 never. */
+  archiveAfterDays: number
+  /** The computer doesn't idle-sleep while a session works. */
+  keepAwake: boolean
+  /** …on battery power too. */
+  keepAwakeOnBattery: boolean
+  /** New worktrees' branches are `<prefix>/<name>`. */
+  branchPrefix: string
+  /** Where new worktrees go: null is inside the project (`<repo>/.claude/worktrees`), else this folder. */
+  worktreeFolder: string | null
+  /** Claude asking to use a tool, or presenting a plan, while Gloom is in the background. */
+  notifyPermission: NoticeLevel
+  /** Claude asking you to choose between options. */
+  notifyQuestion: NoticeLevel
+  /** A turn finishing (or failing): a banner or nothing. */
+  notifyFinished: 'banner' | 'off'
+  /** Banners play the system's sound. */
+  notifySound: boolean
+  /** The taskbar button flashes when a session needs you. */
+  flashTaskbar: boolean
   theme: 'system' | 'light' | 'dark'
   /** The terminal pane's shell. */
   shell: ShellId
@@ -387,10 +466,29 @@ export const DEFAULT_SETTINGS: Settings = {
   model: null,
   mode: 'default',
   effort: null,
+  outputStyle: null,
+  promptSuggestions: true,
+  remoteControl: false,
+  transcriptView: 'normal',
   idleMinutes: 10,
-  notifications: true,
+  archiveAfterDays: 0,
+  keepAwake: true,
+  keepAwakeOnBattery: true,
+  branchPrefix: 'claude',
+  worktreeFolder: null,
+  notifyPermission: 'banner',
+  notifyQuestion: 'banner',
+  notifyFinished: 'banner',
+  notifySound: true,
+  flashTaskbar: true,
   theme: 'system',
   shell: 'powershell'
+}
+
+/** The level a card or a turn's end notifies at. */
+export function noticeLevel(settings: Settings, kind: 'waiting' | 'finished' | 'failed', card?: { kind: string }): NoticeLevel {
+  if (kind !== 'waiting') return settings.notifyFinished
+  return card?.kind === 'question' ? settings.notifyQuestion : settings.notifyPermission
 }
 
 export interface ClaudeInfo {
@@ -437,7 +535,14 @@ export interface SendRequest {
   images: ImageAttachment[]
 }
 
-export type SetRequest = { model: string | null } | { mode: ModeId } | { effort: Effort | null }
+export type SetRequest =
+  | { model: string | null }
+  | { mode: ModeId }
+  | { effort: Effort | null }
+  | { fast: boolean }
+  | { outputStyle: string | null }
+  /** Folders besides its working folder that it may use (all of them). */
+  | { folders: string[] }
 
 /** Whether a session can take a message here, and if not, why. */
 /** `path`: the folder the reason is about, shown on a line of its own (paths run long). */
@@ -480,3 +585,12 @@ export type LiveEvent =
   | { type: 'models'; models: ModelChoice[] }
   /** A notification was clicked: show this session. */
   | { type: 'reveal'; id: string }
+  /** Claude offered (waits for your answer) or proposed a session from session `id`. */
+  | { type: 'proposal'; id: string; proposal: { taskId: string; title: string; kind: 'offer' | 'proposal' } }
+  | { type: 'proposal-gone'; id: string; taskId: string }
+  /** Session `id` was started by `parent` (a side session), under `name`. */
+  | { type: 'linked'; id: string; parent: string; name: string }
+  /** Claude saw to these sessions' finished marks (mark_completed). */
+  | { type: 'completed'; ids: string[] }
+  /** Claude switched how a conversation shows (set_transcript_view). */
+  | { type: 'view'; id: string; view: TranscriptView }

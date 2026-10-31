@@ -32,6 +32,10 @@ export const IPC = {
   transcriptChanged: 'transcript:changed',
   /** invoke(sessionId, { check }) → ResumeResult: opens `claude --resume` in a terminal window */
   resumeSession: 'session:resume',
+  /** invoke(sessionId) → ExportResult: a zip of its transcripts in Downloads */
+  exportSession: 'session:export',
+  /** invoke(query, includeArchived) → TranscriptSearch: sessions whose conversations say it */
+  searchTranscripts: 'library:search',
   /** invoke → WindowState */
   windowState: 'window:state',
   /** main → renderer: WindowState */
@@ -79,8 +83,12 @@ export const IPC = {
   liveUnqueue: 'live:unqueue',
   /** invoke(sessionId, CardAnswer) */
   liveAnswer: 'live:answer',
-  /** invoke(sessionId, SetRequest): model, mode or effort */
+  /** invoke(sessionId, SetRequest): model, mode, effort, fast mode, output style or folders */
   liveSet: 'live:set',
+  /** invoke(sessionId, serverName, enabled): turns one of its MCP servers off or on */
+  liveToggleMcp: 'live:toggle-mcp',
+  /** invoke(sessionId, serverName): connects one of its MCP servers again */
+  liveReconnectMcp: 'live:reconnect-mcp',
   /** invoke(sessionId) → CommandInfo[]: its slash commands */
   liveCommands: 'live:commands',
   /** invoke(sessionId) → FileListing: what `@` offers, from its working folder */
@@ -246,6 +254,18 @@ export interface TranscriptChange {
 /** Whether a session can be opened in a terminal, and if not, why. */
 export type ResumeResult = { ok: true; command: string } | { ok: false; reason: string }
 
+/** Where an exported session's zip went. */
+export interface ExportResult {
+  path: string
+  size: number
+}
+
+/** Sessions whose conversations say what you searched for, newest first; `done` is false when a newer search cut it short. */
+export interface TranscriptSearch {
+  hits: { id: string; snippet: string }[]
+  done: boolean
+}
+
 export interface ApplyResult {
   rev: number
   library: LibraryData
@@ -267,6 +287,8 @@ export type WorkerRequest =
   | { type: 'edits'; reqId: number; file: string; cwd: string | null }
   /** The entry before a line on the chain (its parentUuid): null for the first, undefined when the line isn't there. */
   | { type: 'parent'; reqId: number; file: string; uuid: string }
+  /** Which of these transcripts say `query` (newest first), with a snippet each; a newer search ends this one. */
+  | { type: 'search'; reqId: number; query: string; files: { id: string; file: string }[]; limit: number }
   | { type: 'unfollow' }
 
 /** transcripts worker → main */

@@ -27,6 +27,8 @@ export interface TerminalInfo {
   created: number
   /** Set once the shell has ended. */
   exitCode: number | null
+  /** A name Claude gave a tab it opened ("dev server"). */
+  title?: string
 }
 
 /** main → window: what a shell wrote. `seq` counts every character it has written, this included. */

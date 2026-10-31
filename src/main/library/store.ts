@@ -108,6 +108,10 @@ export function sanitize(raw: unknown): LibraryData {
     if (e.archived === true) entry.archived = true
     if (isString(e.title) && e.title.trim()) entry.title = e.title
     if (typeof e.missingSince === 'number') entry.missingSince = e.missingSince
+    if (e.unread === true) entry.unread = true
+    if (isString(e.startedBy)) entry.startedBy = e.startedBy
+    if (isString(e.name) && e.name.length <= 24) entry.name = e.name
+    if (Array.isArray(e.folders) && e.folders.every(isString) && e.folders.length) entry.folders = e.folders.slice(0, 100)
     sessions[id] = entry
   }
   const trustedFolders = Array.isArray(raw.trustedFolders) ? raw.trustedFolders.filter(isString) : []

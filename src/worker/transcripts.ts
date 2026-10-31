@@ -10,6 +10,7 @@ import { composeEdits } from '@shared/diff'
 import { readEdits } from './edits'
 import { collectSessions, INDEX_VERSION, indexAll, indexAppended, indexFile, isTranscript, samePath, type FileIndex, type IndexCache } from './indexer'
 import { Follower, readBlob, readPage, readParent } from './reader'
+import { searchFile } from './search'
 
 /** Changes are batched: a session streaming in the Claude app writes several lines a second. */
 const BATCH_MS = 150
@@ -133,6 +134,33 @@ function answer(request: Extract<WorkerRequest, { type: 'page' | 'blob' | 'edits
   }
 }
 
+// ─── Search inside conversations ─────────────────────────────────────────────────────
+
+let searchGen = 0
+
+/**
+ * Searches one transcript at a time, newest first, letting other requests
+ * (the chat's pages) in between files; a newer search ends this one, which
+ * answers with what it found so far.
+ */
+function search(request: Extract<WorkerRequest, { type: 'search' }>): void {
+  const gen = ++searchGen
+  const hits: { id: string; snippet: string }[] = []
+  let i = 0
+  const step = () => {
+    const started = Date.now()
+    // A few files per step, so a run of small ones doesn't cost a turn each.
+    while (gen === searchGen && i < request.files.length && hits.length < request.limit && Date.now() - started < 30) {
+      const { id, file } = request.files[i++]
+      const found = searchFile(file, request.query)
+      if (found) hits.push({ id, snippet: found })
+    }
+    if (gen === searchGen && i < request.files.length && hits.length < request.limit) setImmediate(step)
+    else post({ type: 'answer', reqId: request.reqId, value: { hits, done: gen === searchGen } })
+  }
+  step()
+}
+
 function startWatching(): void {
   watcher = watch(projectsDir, {
     ignoreInitial: true,
@@ -180,6 +208,8 @@ port.on('message', ({ data }: { data: WorkerRequest }) => {
     case 'edits':
     case 'parent':
       return answer(data)
+    case 'search':
+      return search(data)
     case 'unfollow':
       follower = null
       return

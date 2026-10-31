@@ -3,6 +3,7 @@
 // a message clears Mail's dot. Not kept across launches.
 import { useEffect } from 'react'
 import { create } from 'zustand'
+import { useLibrary } from '../../stores/library'
 import { isBusy, useLive } from '../../stores/live'
 import { useUi } from '../../stores/ui'
 
@@ -26,6 +27,9 @@ export function useFinishedTracking(): void {
       if (s.selection === before.selection) return
       const ids = useFinished.getState().ids
       if (s.selection.some((id) => ids.has(id))) useFinished.setState({ ids: new Set([...ids].filter((id) => !s.selection.includes(id))) })
+      // Opening a session marked unread reads it, as in Mail (only the one the chat shows).
+      const open = s.selection.length === 1 ? s.selection[0] : null
+      if (open && useLibrary.getState().library.sessions[open]?.unread) void useLibrary.getState().apply({ type: 'setUnread', ids: [open], unread: false }, { record: false })
     })
     return () => {
       offLive()

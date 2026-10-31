@@ -68,6 +68,13 @@ export interface SessionEntry {
   title?: string
   /** When its transcript went missing; the entry is pruned 30 days later. */
   missingSince?: number
+  /** Marked unread (the blue dot): by you, or by Claude. Opening it reads it. */
+  unread?: boolean
+  /** Folders besides its working folder it may use (Add Folder…), for every process it starts. */
+  folders?: string[]
+  /** The session that started it (a side session), and the short name its family calls it by. */
+  startedBy?: string
+  name?: string
 }
 
 export interface LibraryData {
@@ -215,6 +222,11 @@ export type LibraryOp =
   | { type: 'placeSessions'; placements: Record<string, string | null> }
   | { type: 'setPinned'; ids: string[]; pinned: boolean }
   | { type: 'setArchived'; ids: string[]; archived: boolean }
+  | { type: 'setUnread'; ids: string[]; unread: boolean }
+  /** Every folder besides its working folder the session may use. */
+  | { type: 'setSessionFolders'; id: string; folders: string[] }
+  /** A side session: who started it, its name, and the title it was started with (until Claude Code names it). */
+  | { type: 'linkSession'; id: string; startedBy: string; name: string; title: string | null }
   /** `title: null` goes back to Claude's title. */
   | { type: 'renameSession'; id: string; title: string | null }
   | { type: 'setFilingRules'; id: string; paths: string[] }
@@ -394,6 +406,26 @@ export function applyOp(lib: LibraryData, op: LibraryOp, ctx: OpContext): OpResu
       return { library, undo: { type: 'setArchived', ids: changed, archived: !op.archived } }
     }
 
+    case 'setUnread': {
+      const changed = op.ids.filter((id) => !!lib.sessions[id]?.unread !== op.unread)
+      const library = setEntries(lib, changed, (e) => (op.unread ? { ...e, unread: true } : withoutKey(e, 'unread')))
+      return { library, undo: { type: 'setUnread', ids: changed, unread: !op.unread } }
+    }
+
+    case 'setSessionFolders': {
+      const seen = new Set<string>()
+      const folders = op.folders.map((f) => f.trim()).filter((f) => f && !seen.has(normalizePath(f)) && seen.add(normalizePath(f)))
+      const before = lib.sessions[op.id]?.folders ?? []
+      const library = setEntries(lib, [op.id], (e) => (folders.length ? { ...e, folders } : withoutKey(e, 'folders')))
+      return { library, undo: { type: 'setSessionFolders', id: op.id, folders: before } }
+    }
+
+    case 'linkSession': {
+      const title = op.title ? cleanName(op.title, TITLE_MAX) : ''
+      const library = setEntries(lib, [op.id], (e) => ({ ...e, startedBy: op.startedBy, name: op.name.slice(0, 24), ...(title && !e.title ? { title } : {}) }))
+      return { library }
+    }
+
     case 'renameSession': {
       const title = op.title === null ? '' : cleanName(op.title, TITLE_MAX)
       const before = lib.sessions[op.id]?.title ?? null
@@ -502,4 +534,22 @@ export function matchesSearch(terms: readonly string[], meta: SessionMeta, title
 
 export function searchTerms(query: string): string[] {
   return query.toLowerCase().split(/\s+/).filter(Boolean)
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Sessions to archive under Settings' "Archive inactive sessions": no activity
+ * for `days`, not pinned, not marked unread, not already archived, and not
+ * running here (a process alive, a turn or a card, background work).
+ */
+export function inactiveSessions(sessions: readonly SessionMeta[], entries: Record<string, SessionEntry>, days: number, now: number, running: (id: string) => boolean): string[] {
+  if (days <= 0) return []
+  const before = now - days * DAY_MS
+  return sessions
+    .filter((m) => {
+      const e = entries[m.id]
+      return !!m.file && m.updated < before && !e?.archived && !e?.pinned && !e?.unread && !running(m.id)
+    })
+    .map((m) => m.id)
 }

@@ -233,6 +233,12 @@
 .concept-dot.is-finished {
   background: var(--added-mark);
 }
+/* Marked unread, as Mail's dot: the accent, a step larger than the others so it doesn't read as finished. */
+.concept-dot.is-unread {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+}
 :root[data-design='concept'] .session-row.is-selected .row-waiting {
   color: var(--warning);
 }
@@ -616,6 +622,65 @@ button.concept-panel-row:focus-visible {
 @media (hover: hover) {
   button.concept-panel-row:enabled:hover {
     background: var(--fill);
+  }
+}
+/* A connector's switch, in its row (Apple keeps switches for list rows): the
+   track fills with the accent when it's on, the knob slides across. */
+.concept-switch {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--fill-strong);
+  box-shadow: inset 0 0 0 0.5px var(--separator-strong);
+  outline: none;
+  transition: background-color var(--duration-tooltip) var(--ease-out);
+}
+.concept-switch[aria-checked='true'] {
+  background: var(--accent-strong, var(--accent));
+}
+.concept-switch:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+.concept-switch:disabled {
+  opacity: 0.4;
+}
+.concept-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform var(--duration-tooltip) var(--ease-out);
+}
+.concept-switch[aria-checked='true'] .concept-switch-knob {
+  transform: translateX(12px);
+}
+.concept-switch:enabled:active .concept-switch-knob {
+  width: 14px;
+}
+.concept-switch[aria-checked='true']:enabled:active .concept-switch-knob {
+  transform: translateX(10px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .concept-switch,
+  .concept-switch-knob {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .concept-switch {
+    border: 1px solid CanvasText;
+  }
+  .concept-switch[aria-checked='true'] {
+    background: Highlight;
+  }
+  .concept-switch-knob {
+    background: CanvasText;
   }
 }
 /* Show 12 More / Show Less, under a long list. */

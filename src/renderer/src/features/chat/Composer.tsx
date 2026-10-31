@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react'
-import { ArrowUp, CircleAlert, Lock, Paperclip, Square, X } from 'lucide-react'
+import { ArrowUp, CircleAlert, Lock, Paperclip, Square, X, Zap } from 'lucide-react'
 import type { SessionMeta } from '@shared/library'
 import type { CanSend, CommandInfo, LiveSummary } from '@shared/live'
 import { Button } from '../../components/ui/Button'
@@ -268,6 +268,37 @@ function useFiles(sessionId: string, focused: boolean, mentionStart: number | nu
   return files?.id === sessionId ? files.prepared : null
 }
 
+/**
+ * Fast mode, as the Claude app's composer switch: a button that stays held in
+ * while it's on (Apple's toggle outside a list). Faster output on models that
+ * offer it, billed at fast-mode rates; it holds for the session's process and
+ * the next. When the service can't serve it, the button says why.
+ */
+function FastToggle({ sessionId, summary }: { sessionId: string; summary: LiveSummary | undefined }) {
+  const on = !!summary?.fast
+  const cooling = on && summary?.fastState === 'cooldown'
+  const blocked = on ? (summary?.fastUnavailable ?? null) : null
+  const tip = blocked ?? (cooling ? 'Fast mode is cooling down after a limit; standard speed meanwhile' : on ? 'Fast mode is on: faster output, at fast-mode rates' : 'Fast mode: faster output, at fast-mode rates')
+  return (
+    <Tooltip label={tip}>
+      <button
+        type="button"
+        aria-pressed={on}
+        aria-label="Fast mode"
+        onClick={() => void useLive.getState().set(sessionId, { fast: !on })}
+        className={cn(
+          'no-drag flex h-7 items-center gap-1 rounded-full px-2 text-[12.5px] outline-none select-none transition-[transform,background-color,color] duration-[var(--duration-press)] ease-out focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)] active:scale-[0.97] motion-reduce:active:scale-100',
+          on ? 'bg-[var(--accent-fill)] font-medium text-accent-text' : 'text-label-secondary hover:bg-fill-strong hover:text-label',
+          (blocked || cooling) && 'opacity-60'
+        )}
+      >
+        <Zap size={13} strokeWidth={1.75} aria-hidden fill={on ? 'currentColor' : 'none'} />
+        Fast
+      </button>
+    </Tooltip>
+  )
+}
+
 /** Where a collapsed selection is; a selection that spans text has no caret. */
 const caretOf = (el: HTMLTextAreaElement) => (el.selectionStart === el.selectionEnd ? el.selectionStart : null)
 
@@ -294,6 +325,10 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
   const mode = summary?.mode ?? settings.mode
   const effort = summary ? summary.effort : settings.effort
   const efforts = effortsFor(model, models)
+  // Fast mode, for a model that offers it (or a session already running fast, to turn it off).
+  const fastOffered = !!summary?.fast || models.some((m) => m.fast && (m.value === model || m.value === summary?.activeModel))
+  // A suggested next prompt (Settings › General): shown in the empty box, Tab takes it.
+  const suggestion = !noting && !busy && !draft.text && !draft.images.length && summary?.suggestion ? summary.suggestion : null
 
   // "/com" at the start, before any space: the slash commands that match.
   const slash = /^\/(\S*)$/.exec(draft.text)?.[1] ?? null
@@ -395,6 +430,11 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
         return
       }
     }
+    if (e.key === 'Tab' && !e.shiftKey && suggestion) {
+      e.preventDefault()
+      setText(suggestion)
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       send()
@@ -469,8 +509,9 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
           onBlur={() => setCaret(null)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          placeholder={noting ? 'Tell Claude what to do instead' : summary?.state === 'new' ? 'What should Claude do?' : 'Message Claude'}
+          placeholder={noting ? 'Tell Claude what to do instead' : suggestion ?? (summary?.state === 'new' ? 'What should Claude do?' : 'Message Claude')}
           aria-label={noting ? 'What Claude should do instead' : 'Message'}
+          aria-description={suggestion ? `Suggested: ${suggestion}. Press Tab to use it.` : undefined}
           aria-autocomplete={slash !== null || mention !== null ? 'list' : undefined}
           aria-controls={menuOpen ? 'slash-commands' : filesOpen ? 'mention-files' : undefined}
           aria-activedescendant={menuOpen ? `slash-commands-${highlight}` : filesOpen ? `mention-files-${highlight}` : undefined}
@@ -487,7 +528,14 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
           <ModePicker value={mode} onChange={(m) => void useLive.getState().set(sessionId, { mode: m })} />
           <ModelPicker value={model} models={models} onChange={(m) => void useLive.getState().set(sessionId, { model: m })} />
           {efforts.length > 0 && <EffortPicker value={effort} efforts={efforts} onChange={(v) => void useLive.getState().set(sessionId, { effort: v })} />}
+          {fastOffered && <FastToggle sessionId={sessionId} summary={summary} />}
           <div className="flex-1" />
+          {suggestion && (
+            <span aria-hidden className="mr-1 hidden items-center gap-1 text-[11.5px] text-label-tertiary sm:flex">
+              <kbd className="rounded-[4px] px-1 font-sans text-[10.5px] shadow-[inset_0_0_0_0.5px_var(--separator-strong)]">Tab</kbd>
+              to use
+            </span>
+          )}
           <ContextMeter sessionId={sessionId} summary={summary} />
           {busy && (
             <Tooltip label="Stop" shortcut="Esc">

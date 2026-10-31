@@ -1,10 +1,12 @@
 // When a session needs you or finishes while you're in another app: a Windows
 // notification (clicking it opens the session), the taskbar button flashing,
-// and a badge on it counting the sessions waiting for you. Nothing of this
-// while Gloom is in front: the chat and the sidebar already say it there.
+// and a badge on it counting the sessions waiting for you. Each kind (Claude
+// asking permission, asking a question, finishing) has its own level in
+// Settings, as in the Claude app: a banner, the badge only, or nothing. Nothing
+// of this while Gloom is in front: the chat and the sidebar already say it there.
 import { app, BrowserWindow, nativeImage, Notification } from 'electron'
 import { IPC } from '@shared/ipc'
-import type { LiveEvent, PromptCard } from '@shared/live'
+import { noticeLevel, type LiveEvent, type PromptCard } from '@shared/live'
 import { settings } from './claude/settings'
 import type { AttentionKind } from './claude/sessions'
 
@@ -32,7 +34,7 @@ export function reveal(win: BrowserWindow, id: string): void {
 /** Shows a Windows notification; a click opens the session. */
 let showNote = (win: BrowserWindow, id: string, title: string, text: string): void => {
   if (!Notification.isSupported()) return
-  const note = new Notification({ title, body: text })
+  const note = new Notification({ title, body: text, silent: !settings().notifySound })
   shown.add(note)
   note.on('click', () => {
     shown.delete(note)
@@ -44,8 +46,10 @@ let showNote = (win: BrowserWindow, id: string, title: string, text: string): vo
 
 export function attend(win: BrowserWindow | null, id: string, title: string, kind: AttentionKind, card?: PromptCard): void {
   if (!win || win.isDestroyed() || (win.isFocused() && win.isVisible() && !win.isMinimized())) return
-  win.flashFrame(true)
-  if (settings().notifications) showNote(win, id, title, body(kind, card))
+  const level = noticeLevel(settings(), kind, card)
+  if (level === 'off') return
+  if (settings().flashTaskbar) win.flashFrame(true)
+  if (level === 'banner') showNote(win, id, title, body(kind, card))
 }
 
 // The end-to-end tests record notifications instead of showing them (development builds only).

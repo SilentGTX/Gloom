@@ -9,6 +9,7 @@ import { join, normalize } from 'node:path'
 import { promisify } from 'node:util'
 import { addedFile, byPath, parseGitDiff, untrackedPaths, type DiffFile, type TreeDiff } from '@shared/diff'
 import { worktreeOf } from '@shared/git'
+import { settings } from '../claude/settings'
 import { gitExe } from '../exec'
 
 const run = promisify(execFile)
@@ -68,7 +69,7 @@ async function read(cwd: string): Promise<TreeDiff> {
     ])
     // A session's worktree compares against where its branch left the one it came from, so
     // what Claude committed shows too: what Merge would bring.
-    const since = head?.trim() && worktreeOf(root) ? await worktreeBase(root, branch?.trim() ?? '') : null
+    const since = head?.trim() && worktreeOf(root, settings().worktreeFolder) ? await worktreeBase(root, branch?.trim() ?? '') : null
     const base = since?.commit ?? (head?.trim() ? 'HEAD' : EMPTY_TREE)
     let files: Omit<DiffFile, 'abs'>[]
     let truncated = false

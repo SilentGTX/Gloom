@@ -1,6 +1,7 @@
 // The taskbar badge: how many sessions wait for you, in Gloom's indigo. Main
 // sets it on the taskbar button but has no canvas, so the window draws it.
 import { useEffect } from 'react'
+import { noticeLevel } from '@shared/live'
 import { useLive } from '../stores/live'
 
 function draw(count: number): string {
@@ -20,8 +21,9 @@ function draw(count: number): string {
   return canvas.toDataURL('image/png')
 }
 
+/** Sessions waiting for you, leaving out the kinds you turned off in Settings › Notifications. */
 export function useWaitingBadge(): void {
-  const waiting = useLive((s) => Object.values(s.sessions).filter((l) => l.state === 'waiting').length)
+  const waiting = useLive((s) => Object.values(s.sessions).filter((l) => l.state === 'waiting' && noticeLevel(s.settings, 'waiting', l.cards[0]) !== 'off').length)
   useEffect(() => {
     const api = window.gloom
     if (!api) return

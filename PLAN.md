@@ -1381,3 +1381,31 @@ disclosure pages; `apple-design` for motion).
 - **Skill reviews:** every UI phase is built with both Apple skills loaded (`apple-hig` with its
   foundation pages, and `apple-design`). It ends with a review of its new screens against both,
   plus `review-animations`. The full audit is Phase 7.
+
+12. **Parity with the Claude app** (your "do all", 2026-10-31, after a check of what the Claude
+    app's Code tab has that Gloom doesn't: its own Settings, sidebar and panes, and the tools it
+    gives Claude). Built in the worktree `D:\JS\Gloom-parity` on branch `parity`, in four parts,
+    each copying the Claude app's behaviour where it has one:
+   - **A. Settings and small things:** keep the computer awake while Claude works (and on
+     battery); notifications per kind (permission requests, questions, a finished turn: banner,
+     badge only or off), their sound, and the taskbar flash as a switch; archive inactive
+     sessions after a number of days; the branch prefix and the worktrees' location; output
+     style; fast mode; prompt suggestions; Remote Control for new sessions; transcript views
+     (normal, thinking, verbose); mark a session unread or completed; export a session (a zip in
+     Downloads, as the app does); add a folder to a session; turn a session's MCP servers off
+     and on, and reconnect them; search inside conversations.
+   - **B. Tools Claude gets in Gloom:** an MCP server Gloom gives every session (the Agent SDK's
+     in-process servers): the task list pinned under the latest message, the next-step box at a
+     turn's end, chapters with a table of contents, inline widgets, the terminal pane's tabs
+     (list, read, run, stop), sessions and folders, and Gloom's settings. Side sessions: Claude
+     offers, proposes or starts another session (fresh or forked, in a worktree of its own),
+     hands its task off, and hears when one it started finishes.
+   - **C. Panes:** the trailing pane takes tabs: Diff, File (a file at a line), Plan, Tasks
+     (background shells and agents, with Stop), Browser (a real browser view; dev servers from
+     `.claude/launch.json`; browser tools for Claude) and Artifacts. Split view (two sessions
+     side by side) and panes in a window of their own.
+   - **D. Pull requests and elsewhere:** a session's pull request (found from its branch with
+     `gh`, or linked by hand): checks, reviews, merge, auto-merge, Auto-fix (Gloom wakes the
+     session on failed checks, conflicts and new comments) and archiving when it closes;
+     Routines (prompts that run on a schedule while Gloom is open); SSH sessions (`claude` runs
+     on another machine over `ssh`); cloud sessions (`claude --cloud`).

@@ -5,12 +5,17 @@
 // from is kept in the repository's own config (branch.<branch>.gloomBase), so
 // Merge knows where to land it, whoever made the worktree and whenever.
 import { existsSync, mkdirSync, readFileSync, appendFileSync } from 'node:fs'
-import { dirname, join, normalize, relative, resolve } from 'node:path'
+import { basename, dirname, join, normalize, relative, resolve } from 'node:path'
 import { worktreeName, worktreeOf, type MergeResult, type RemoveResult, type RepoInfo, type WorktreeInfo } from '@shared/git'
+import { settings } from '../claude/settings'
 import { git } from './diff'
 
-const PREFIX = 'claude'
 const EXCLUDE = '.claude/worktrees/'
+
+/** The worktree a session's folder is in, wherever Settings put worktrees. */
+export function sessionWorktree(cwd: string): ReturnType<typeof worktreeOf> {
+  return worktreeOf(cwd, settings().worktreeFolder)
+}
 
 const quiet = (p: Promise<string>) => p.then(
   (out) => out.trim(),
@@ -41,14 +46,16 @@ export async function createWorktree(cwd: string): Promise<{ cwd: string; branch
   const root = normalize((await git(cwd, ['rev-parse', '--show-toplevel'])).trim())
   const main = await mainCheckout(cwd)
   const base = (await quiet(git(root, ['symbolic-ref', '--short', '-q', 'HEAD']))) || null
-  const folder = join(main, '.claude', 'worktrees')
+  const { branchPrefix, worktreeFolder } = settings()
+  // Inside the project (the Claude app's default), or <your folder>/<repository>.
+  const folder = worktreeFolder ? join(worktreeFolder, basename(main)) : join(main, '.claude', 'worktrees')
   const branches = new Set((await git(main, ['for-each-ref', '--format=%(refname:short)', 'refs/heads/'])).split('\n').map((b) => b.trim()))
-  const name = worktreeName((n) => existsSync(join(folder, n)) || branches.has(`${PREFIX}/${n}`))
+  const name = worktreeName((n) => existsSync(join(folder, n)) || branches.has(`${branchPrefix}/${n}`))
   const path = join(folder, name)
-  const branch = `${PREFIX}/${name}`
+  const branch = `${branchPrefix}/${name}`
   mkdirSync(folder, { recursive: true })
   await git(root, ['worktree', 'add', '-b', branch, path, 'HEAD'])
-  await exclude(main)
+  if (!worktreeFolder) await exclude(main)
   if (base) await git(main, ['config', `branch.${branch}.gloomBase`, base])
   const inside = relative(root, cwd)
   return { cwd: inside && !inside.startsWith('..') ? join(path, inside) : path, branch, base }
@@ -68,7 +75,7 @@ const count = async (cwd: string, range: string) => Number(await quiet(git(cwd, 
 
 /** The worktree a session works in, with where it stands against the branch it came from. */
 export async function worktreeInfo(cwd: string): Promise<WorktreeInfo | null> {
-  const found = worktreeOf(cwd)
+  const found = sessionWorktree(cwd)
   if (!found || !existsSync(found.path)) return null
   const branch = await quiet(git(found.path, ['symbolic-ref', '--short', '-q', 'HEAD']))
   if (!branch) return null
@@ -133,11 +140,13 @@ export async function removeWorktree(cwd: string, force: boolean): Promise<Remov
  * empty folder (Claude Code only finds a session from its own folder).
  */
 export async function recreateFolder(cwd: string): Promise<void> {
-  const found = worktreeOf(cwd)
-  if (found && existsSync(found.repo)) {
-    const branch = `${PREFIX}/${found.name}`
-    const has = await quiet(git(found.repo, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`]))
-    if (has) {
+  const found = sessionWorktree(cwd)
+  // Its branch under today's prefix, else the Claude app's default one.
+  const prefixes = [...new Set([settings().branchPrefix, 'claude'])]
+  if (found && existsSync(found.repo) && (await quiet(git(found.repo, ['rev-parse', '--git-dir'])))) {
+    let branch = ''
+    for (const prefix of prefixes) if (!branch && (await quiet(git(found.repo, ['rev-parse', '--verify', '-q', `refs/heads/${prefix}/${found.name}`])))) branch = `${prefix}/${found.name}`
+    if (branch) {
       await quiet(git(found.repo, ['worktree', 'prune']))
       await git(found.repo, ['worktree', 'add', found.path, branch])
       mkdirSync(cwd, { recursive: true })

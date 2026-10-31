@@ -32,12 +32,23 @@ export type MergeResult = { ok: true; branch: string; base: string; commits: num
 
 export type RemoveResult = { removed: true } | { removed: false; dirty?: number; reason?: string }
 
-/** The worktree folder a session's working folder is in, if it's one: `<repo>/.claude/worktrees/<name>`. */
-export function worktreeOf(cwd: string): { repo: string; name: string; path: string } | null {
-  const m = /^(.*?)[\\/]\.claude[\\/]worktrees[\\/]([^\\/]+)/.exec(cwd)
-  if (!m || !m[1]) return null
+/**
+ * The worktree folder a session's working folder is in, if it's one:
+ * `<repo>/.claude/worktrees/<name>`, or `<folder>/<repository>/<name>` when
+ * Settings put worktrees in a folder of your own (`repo` is then the folder
+ * holding that repository's worktrees).
+ */
+export function worktreeOf(cwd: string, folder?: string | null): { repo: string; name: string; path: string } | null {
   const sep = cwd.includes('\\') ? '\\' : '/'
-  return { repo: m[1], name: m[2], path: [m[1], '.claude', 'worktrees', m[2]].join(sep) }
+  const m = /^(.*?)[\\/]\.claude[\\/]worktrees[\\/]([^\\/]+)/.exec(cwd)
+  if (m && m[1]) return { repo: m[1], name: m[2], path: [m[1], '.claude', 'worktrees', m[2]].join(sep) }
+  const root = folder?.replace(/[\\/]+$/, '')
+  if (!root || cwd.length <= root.length + 1 || cwd.slice(0, root.length).toLowerCase() !== root.toLowerCase() || !/[\\/]/.test(cwd[root.length])) return null
+  const [repoName, name] = cwd.slice(root.length + 1).split(/[\\/]/)
+  if (!repoName || !name) return null
+  // Spelled as the session's folder spells it, so it compares with paths made from that.
+  const base = cwd.slice(0, root.length)
+  return { repo: [base, repoName].join(sep), name, path: [base, repoName, name].join(sep) }
 }
 
 const ADJECTIVES = ['amber', 'brisk', 'calm', 'dusky', 'early', 'faint', 'gentle', 'hazy', 'ivory', 'jade', 'keen', 'late', 'misty', 'nimble', 'opal', 'pale', 'quiet', 'rosy', 'soft', 'tidy', 'umber', 'violet', 'warm', 'young']

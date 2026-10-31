@@ -66,6 +66,13 @@ export function parseOp(raw: unknown): LibraryOp {
       return { type: 'setPinned', ids: ids(raw.ids), pinned: bool(raw.pinned, 'pinned') }
     case 'setArchived':
       return { type: 'setArchived', ids: ids(raw.ids), archived: bool(raw.archived, 'archived') }
+    case 'setUnread':
+      return { type: 'setUnread', ids: ids(raw.ids), unread: bool(raw.unread, 'unread') }
+    case 'setSessionFolders':
+      if (!Array.isArray(raw.folders) || raw.folders.length > 100) throw new LibraryError('bad folders')
+      return { type: 'setSessionFolders', id: str(raw.id, 'id'), folders: raw.folders.map((f) => str(f, 'folder')) }
+    case 'linkSession':
+      return { type: 'linkSession', id: str(raw.id, 'id'), startedBy: str(raw.startedBy, 'id'), name: str(raw.name, 'name'), title: strOrNull(raw.title ?? null, 'title') }
     case 'renameSession':
       return { type: 'renameSession', id: str(raw.id, 'id'), title: strOrNull(raw.title, 'title') }
     case 'setFilingRules':

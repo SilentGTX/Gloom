@@ -121,6 +121,19 @@ export class LibraryService {
     return parent
   }
 
+  /**
+   * Sessions whose conversations say `query` (newest first, archived ones only
+   * when asked), with a snippet each. A newer search ends an older one early.
+   */
+  searchTranscripts(query: string, includeArchived: boolean, limit: number): Promise<{ hits: { id: string; snippet: string }[]; done: boolean }> {
+    const entries = this.store.library.sessions
+    const files = [...this.index.values()]
+      .filter((m) => m.file && (includeArchived || !entries[m.id]?.archived))
+      .sort((a, b) => b.updated - a.updated)
+      .map((m) => ({ id: m.id, file: m.file }))
+    return this.ask({ type: 'search', query, files, limit }) as Promise<{ hits: { id: string; snippet: string }[]; done: boolean }>
+  }
+
   unfollow(): void {
     const request: WorkerRequest = { type: 'unfollow' }
     this.worker?.postMessage(request)

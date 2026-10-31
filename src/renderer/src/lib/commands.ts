@@ -6,6 +6,7 @@ import { COMMANDS, findCommand, matchesAccelerator, type CommandId, type Command
 import { useFind } from '../features/chat/find'
 import { useWorktrees } from '../features/chat/Worktree'
 import { newFolder } from '../features/folders/folders'
+import { addFolder, exportSession, isUnread, markCompleted, setTranscriptView, setUnread, toggleFast } from '../features/sessions/actions'
 import { resumeSession } from '../features/sessions/SessionMenu'
 import { screenHasFocus } from '../features/terminal/registry'
 import { useDiff } from '../stores/diff'
@@ -52,6 +53,12 @@ function toggleView(view: Exclude<ChatView, 'conversation'>) {
 }
 
 const concept = () => useUi.getState().design === 'concept'
+
+/** The one session the chat shows, or null (none, or several selected). */
+function openSession(): string | null {
+  const { selection } = useUi.getState()
+  return selection.length === 1 ? selection[0] : null
+}
 
 const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
   'edit.undo': () => {
@@ -138,8 +145,43 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
   'view.textReset': () => useUi.getState().resetText(),
   'view.toggleGlass': () => useUi.getState().toggleGlass(),
   'view.designConcept': () => switchDesign('concept'),
-  'view.designClassic': () => switchDesign('classic')
+  'view.designClassic': () => switchDesign('classic'),
+  'session.fast': () => {
+    const id = openSession()
+    if (id) void toggleFast(id)
+  },
+  'session.addFolder': () => {
+    const id = openSession()
+    if (id) void addFolder(id)
+  },
+  'session.markUnread': () => {
+    const { selection } = useUi.getState()
+    if (!selection.length) return
+    setUnread(selection, !selection.every(isUnread))
+  },
+  'session.markCompleted': () => {
+    const { selection } = useUi.getState()
+    if (selection.length) markCompleted(selection)
+  },
+  'session.export': () => {
+    const id = openSession()
+    if (id) void exportSession(id)
+  },
+  'view.transcriptNormal': (k) => {
+    const id = openSession()
+    if (id) setTranscriptView(id, 'normal', k)
+  },
+  'view.transcriptThinking': (k) => {
+    const id = openSession()
+    if (id) setTranscriptView(id, 'thinking', k)
+  },
+  'view.transcriptVerbose': (k) => {
+    const id = openSession()
+    if (id) setTranscriptView(id, 'verbose', k)
+  }
 }
+
+
 
 /** Commands that leave the command palette up: they work on its field, or only change the text size. */
 const KEEPS_PALETTE = new Set<CommandId>(['view.palette', 'edit.undo', 'view.textBigger', 'view.textSmaller', 'view.textReset'])

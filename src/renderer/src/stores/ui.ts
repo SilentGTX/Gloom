@@ -4,6 +4,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { SmartFolder } from '@shared/library'
+import type { TranscriptView } from '@shared/live'
 import { computeLayout, DIFF, inspectorFits, SIDEBAR, TERMINAL, type ColumnPrefs } from '../features/shell/layout'
 import { SHOWN_STEP } from '../features/sidebar/tree'
 
@@ -73,6 +74,8 @@ interface UiState extends ColumnPrefs {
   /** The inspector's sections in the order you dragged them into, and the ones you folded. */
   inspectorOrder: InspectorPart[]
   inspectorFolded: InspectorPart[]
+  /** Conversations you switched to another Transcript View than Settings' default, by session. Not kept. */
+  transcriptViews: Record<string, TranscriptView>
 
   setSidebarWidth(width: number): void
   toggleDiff(viaKeyboard: boolean, open?: boolean): void
@@ -110,6 +113,7 @@ interface UiState extends ColumnPrefs {
   setInspectorOrder(order: InspectorPart[]): void
   /** Folds or unfolds a section; with no `open`, flips it. */
   foldInspectorPart(part: InspectorPart, open?: boolean): void
+  setTranscriptView(id: string, view: TranscriptView): void
 }
 
 export const useUi = create<UiState>()(
@@ -149,6 +153,7 @@ export const useUi = create<UiState>()(
         inspectorOrder: INSPECTOR_PARTS,
         // As Claude Code's panel starts: the context as its share alone, the details folded.
         inspectorFolded: ['context', 'session'],
+        transcriptViews: {},
 
         setSidebarWidth: (width) => set({ sidebarWidth: width }),
         toggleDiff: (viaKeyboard, open) => {
@@ -201,6 +206,7 @@ export const useUi = create<UiState>()(
         setSearch: (search) => set({ search }),
         setSort: (sort) => set({ sort }),
         select: (ids) => set({ selection: ids }),
+        setTranscriptView: (id, view) => set({ transcriptViews: { ...get().transcriptViews, [id]: view } }),
         rename: (renaming) => set({ renaming }),
         setInfo: (open) => set({ info: open }),
         revealRow: (key) => set({ reveal: key }),

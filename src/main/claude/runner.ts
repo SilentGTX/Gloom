@@ -56,6 +56,8 @@ import { lineEntries, resolveRef, type LineAt, type ToolResult, type TranscriptE
 import type { CodeRewind } from '@shared/live'
 import { systemExe } from '../exec'
 import { cliAtLeast, EXPECTED_VERSION, findClaude } from './binary'
+import { GLOOM_PROMPT, QUIET_TOOLS } from './gloom-tools'
+import { settings } from './settings'
 
 /** Streamed text reaches the window at most this often. */
 const STREAM_MS = 40
@@ -82,9 +84,17 @@ export interface RunnerOptions {
   effort: Effort | null
   /** The transcript exists, so the CLI resumes it; otherwise it starts one with this ID. */
   resume: boolean
+  /** Folders besides its working folder it may use. */
+  folders?: string[]
+  /** Connect to Remote Control as each process starts (Settings, for sessions made in Gloom). */
+  remoteControl?: boolean
+  /** A side session forked from this one: its first process starts from that conversation, under this session's ID. */
+  forkFrom?: string
 }
 
 export interface RunnerEvents {
+  /** Gloom's tools for this session's processes (gloom-tools.ts), made fresh for each one. */
+  tools?(): Options['mcpServers']
   summary(summary: LiveSummary): void
   entries(entries: TranscriptEntry[], results: Record<string, ToolResult>, reset: boolean): void
   stream(stream: StreamState | null): void
@@ -168,9 +178,25 @@ function modelChoice(m: ModelInfo): ModelChoice {
     value: m.value,
     label: m.displayName || m.value,
     description: m.description ?? '',
-    efforts: m.supportsEffort === false ? [] : (m.supportedEffortLevels ?? [...EFFORTS]).filter(isEffort)
+    efforts: m.supportsEffort === false ? [] : (m.supportedEffortLevels ?? [...EFFORTS]).filter(isEffort),
+    ...(m.supportsFastMode ? { fast: true } : {})
   }
 }
+
+/** Why fast mode can't serve, in words, from the CLI's reason. */
+const FAST_BLOCKED: Record<string, string> = {
+  free: 'Fast mode needs a paid plan.',
+  preference: 'Fast mode is turned off in your Claude Code settings.',
+  extra_usage_disabled: 'Fast mode needs extra usage turned on for your account.',
+  network_error: 'Claude Code couldn’t reach Anthropic to check fast mode.',
+  not_first_party: 'Fast mode isn’t offered through this provider.',
+  disabled_by_env: 'An environment variable turned fast mode off.',
+  model_not_allowed: 'This model doesn’t run in fast mode.',
+  sdk_opt_in_required: 'This Claude Code turns fast mode on per session: switch it on again.',
+  unknown: 'Fast mode isn’t available right now.'
+}
+
+const fastState = (v: unknown): 'off' | 'cooldown' | 'on' | null => (v === 'off' || v === 'cooldown' || v === 'on' ? v : null)
 
 /**
  * The models the installed Claude Code offers. Gloom asks when the CLI has
@@ -353,6 +379,18 @@ export class Runner {
   private askedForModels = false
   private askedForAccount = false
   private mcp: McpServer[] | null = null
+  /** Fast mode as you set it; its process says whether it's serving (fastState). */
+  private fast = false
+  private fastState: 'off' | 'cooldown' | 'on' | null = null
+  private fastUnavailable: string | null = null
+  /** The output style you picked for this session (null: Settings', else your Claude Code settings'). */
+  private outputStyle: string | null = null
+  private styleInForce: string | null = null
+  private outputStyles: string[] = []
+  private suggestion: string | null = null
+  private remoteControl: boolean
+  private folders: string[]
+  private forkFrom: string | null
 
   constructor(
     options: RunnerOptions,
@@ -367,6 +405,9 @@ export class Runner {
     this.effort = options.effort
     this.resume = options.resume
     this.state = options.resume ? 'idle' : 'new'
+    this.folders = options.folders ?? []
+    this.remoteControl = options.remoteControl === true
+    this.forkFrom = options.forkFrom ?? null
   }
 
   /** Whether its process is running. */
@@ -401,7 +442,16 @@ export class Runner {
       lastActive: this.lastActive,
       version: this.version,
       rewoundTo: this.rewound,
-      mcp: this.mcp
+      mcp: this.mcp,
+      fast: this.fast,
+      fastState: this.fastState,
+      fastUnavailable: this.fastUnavailable,
+      outputStyle: this.styleInForce ?? this.outputStyle ?? settings().outputStyle,
+      outputStyles: this.outputStyles,
+      suggestion: this.suggestion,
+      remoteControl: this.remoteControl,
+      folders: this.folders,
+      alive: this.q !== null
     }
   }
 
@@ -445,6 +495,7 @@ export class Runner {
   }
 
   private deliver(message: SDKUserMessage): void {
+    this.suggestion = null
     if (!this.q) this.start()
     this.state = this.state === 'starting' ? 'starting' : 'working'
     this.turnStarted = Date.now()
@@ -477,21 +528,38 @@ export class Runner {
 
   // ─── The process ───────────────────────────────────────────────────────────
 
-  /** What every process of this session starts with: Claude Code as it runs in a terminal, checkpoints on. */
+  /**
+   * What every process of this session starts with: Claude Code as it runs in
+   * a terminal, checkpoints on, and the switches Gloom keeps for it (fast mode,
+   * output style, Remote Control, extra folders) as flag settings.
+   */
   private options(claude: string): Options {
+    const s = settings()
+    const style = this.outputStyle ?? s.outputStyle
+    const flags = {
+      ...(this.fast ? { fastMode: true } : {}),
+      ...(style ? { outputStyle: style } : {}),
+      ...(this.remoteControl ? { remoteControlAtStartup: true } : {})
+    }
     return {
       pathToClaudeCodeExecutable: claude,
       cwd: this.cwd,
       env: cleanEnv(),
       // Without these the SDK skips your settings and CLAUDE.md, and isn't Claude Code.
       settingSources: ['user', 'project', 'local'],
-      systemPrompt: { type: 'preset', preset: 'claude_code' },
+      // Claude Code's own prompt, then what Gloom's tools are for.
+      systemPrompt: { type: 'preset', preset: 'claude_code', append: GLOOM_PROMPT },
+      // AskUserQuestion's options may carry a preview, which the question card shows.
+      toolConfig: { askUserQuestion: { previewFormat: 'markdown' } },
       includePartialMessages: true,
       // So the mode picker can switch a running session into Bypass.
       allowDangerouslySkipPermissions: true,
       // Claude's Write and Edit changes can be rewound to any message you send (the message's UUID is its checkpoint).
       enableFileCheckpointing: true,
       permissionMode: this.mode,
+      promptSuggestions: s.promptSuggestions,
+      ...(this.folders.length ? { additionalDirectories: this.folders } : {}),
+      ...(Object.keys(flags).length ? { settings: flags } : {}),
       ...(this.model ? { model: this.model } : {}),
       ...(this.effort ? { effort: this.effort } : {})
     }
@@ -505,13 +573,19 @@ export class Runner {
     this.closing = false
     this.stderr = ''
     this.state = 'starting'
-    const canUseTool: CanUseTool = (toolName, input, options) => this.ask(toolName, input, options)
+    // Gloom's tools that only show or read go through without a card.
+    const canUseTool: CanUseTool = (toolName, input, options) => (QUIET_TOOLS.has(toolName) ? Promise.resolve({ behavior: 'allow', updatedInput: input }) : this.ask(toolName, input, options))
     const fork = this.forkAt
+    const forkFrom = this.forkFrom
+    this.forkFrom = null
+    const tools = this.events.tools?.()
     const q = query({
       prompt: inbox,
       options: {
         ...this.options(claude),
-        ...(this.resume ? { resume: this.id } : { sessionId: this.id }),
+        ...(tools ? { mcpServers: tools } : {}),
+        // A side session forked from another starts from its conversation, under its own ID.
+        ...(forkFrom ? { resume: forkFrom, forkSession: true, sessionId: this.id } : this.resume ? { resume: this.id } : { sessionId: this.id }),
         // After a conversation rewind: carry on from the entry before the message rewound to. Newer
         // CLIs also check that only that turn goes (older ones reject the flag outright).
         ...(fork && this.resume ? { resumeSessionAt: fork.at, ...(cliAtLeast(EXPECTED_VERSION) ? { resumeDropsTurn: fork.drops } : {}) } : {}),
@@ -736,6 +810,13 @@ export class Runner {
       case 'rate_limit_event':
         if (isObj(m.rate_limit_info)) this.events.rateLimit(m.rate_limit_info as unknown as Record<string, unknown>)
         return
+      case 'prompt_suggestion':
+        // Only once the turn is over; your next message clears it.
+        if (!this.busy && typeof m.suggestion === 'string' && m.suggestion.trim()) {
+          this.suggestion = m.suggestion.trim().slice(0, 2000)
+          this.emit()
+        }
+        return
       default:
         return
     }
@@ -749,7 +830,11 @@ export class Runner {
       if (isMode(m.permissionMode)) this.mode = m.permissionMode
       // Its MCP servers and how each one started, for the inspector's Connectors.
       if (Array.isArray(m.mcp_servers))
-        this.mcp = m.mcp_servers.flatMap((s: unknown) => (isObj(s) && typeof s.name === 'string' ? [{ name: s.name, status: typeof s.status === 'string' ? s.status : 'unknown' }] : []))
+        this.mcp = m.mcp_servers.flatMap((s: unknown) =>
+          isObj(s) && typeof s.name === 'string' ? [{ name: s.name, status: typeof s.status === 'string' ? s.status : 'unknown', ...(typeof s.source === 'string' ? { scope: s.source } : {}) }] : []
+        )
+      if (typeof m.output_style === 'string') this.styleInForce = m.output_style
+      this.readFast(m)
       if (this.state === 'starting') this.state = 'working'
       this.emit()
       this.learn()
@@ -764,10 +849,31 @@ export class Runner {
     }
   }
 
+  /** Fast mode as its process reports it (init, each turn's result): serving or not, and why not. */
+  private readFast(m: Record<string, unknown>): void {
+    const state = fastState(m.fast_mode_state)
+    if (state) this.fastState = state
+    if ('fast_mode_disabled_reason' in m || state) {
+      const reason = typeof m.fast_mode_disabled_reason === 'string' && m.fast_mode_disabled_reason !== 'pending' ? m.fast_mode_disabled_reason : null
+      this.fastUnavailable = reason ? (FAST_BLOCKED[reason] ?? FAST_BLOCKED.unknown) : null
+    }
+  }
+
   /** What its first process can tell us: slash commands, the models on your plan, and the account. */
   private learn(): void {
     const q = this.q
     if (!q) return
+    // The output styles its Claude Code offers (your own ones included), for the picker.
+    q.initializationResult().then(
+      (init) => {
+        const styles = Array.isArray(init.available_output_styles) ? init.available_output_styles.filter((x): x is string => typeof x === 'string') : []
+        this.outputStyles = styles
+        if (typeof init.output_style === 'string') this.styleInForce = init.output_style
+        this.readFast(init as unknown as Record<string, unknown>)
+        this.emit()
+      },
+      () => {}
+    )
     if (!this.askedForAccount) {
       this.askedForAccount = true
       q.accountInfo().then(
@@ -853,6 +959,7 @@ export class Runner {
     this.activity = null
     this.turnStarted = null
     this.setStream(null)
+    this.readFast(m)
     const ok = m.subtype === 'success' && m.is_error !== true
     if (!ok && !interrupted) {
       const status = num(m.api_error_status)
@@ -1007,5 +1114,54 @@ export class Runner {
     this.effort = effort
     this.emit()
     await this.q?.applyFlagSettings({ effortLevel: effort })
+  }
+
+  /** Fast mode from the next request on; it holds for this process and the next. */
+  async setFast(on: boolean): Promise<void> {
+    this.fast = on
+    if (!on) this.fastUnavailable = null
+    this.emit()
+    await this.q?.applyFlagSettings({ fastMode: on })
+  }
+
+  /** The session's own output style (null: back to the default). Claude Code takes it from the next turn. */
+  async setOutputStyle(style: string | null): Promise<void> {
+    this.outputStyle = style
+    this.styleInForce = style ?? settings().outputStyle
+    this.emit()
+    await this.q?.applyFlagSettings({ outputStyle: style ?? settings().outputStyle ?? null })
+  }
+
+  /** Folders besides its working folder it may use: at once in a running process, and in every later one. */
+  async setFolders(folders: string[]): Promise<void> {
+    this.folders = folders
+    this.emit()
+    await this.q?.applyFlagSettings({ permissions: { additionalDirectories: folders } })
+  }
+
+  /** Turns one of its MCP servers off or on (Claude Code keeps the choice for the project), then reads them again. */
+  async toggleMcp(name: string, enabled: boolean): Promise<void> {
+    const q = this.q
+    if (!q) throw new Error('Start the session to change its connectors.')
+    await q.toggleMcpServer(name, enabled)
+    await this.readMcp(q)
+  }
+
+  /** Connects one of its MCP servers again (a failed one, say), then reads them again. */
+  async reconnectMcp(name: string): Promise<void> {
+    const q = this.q
+    if (!q) throw new Error('Start the session to reconnect its connectors.')
+    try {
+      await q.reconnectMcpServer(name)
+    } finally {
+      await this.readMcp(q)
+    }
+  }
+
+  private async readMcp(q: Query): Promise<void> {
+    const list = await q.mcpServerStatus().catch(() => null)
+    if (!list || this.q !== q) return
+    this.mcp = list.map((m) => ({ name: m.name, status: m.status, ...(m.error ? { error: m.error.slice(0, 500) } : {}), ...(m.scope ? { scope: m.scope } : {}) }))
+    this.emit()
   }
 }

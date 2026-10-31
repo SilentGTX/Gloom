@@ -9,7 +9,7 @@ import { Markdown } from './Markdown'
 import { ImageStrip, ShowAll, useFullText } from './media'
 import { PromptActions, RewindAllowed } from './Rewind'
 import type { Row } from './rows'
-import { formatDuration, TextCard, ToolRow } from './ToolRow'
+import { formatDuration, OpenByDefault, TextCard, ToolRow } from './ToolRow'
 import { describeMention, modelName } from './tools'
 
 /** One row of the transcript. Rows only ever fade; Virtuoso measures them, so nothing animates their size. */
@@ -236,10 +236,11 @@ function TextRow({ sessionId, entry }: { sessionId: string; entry: TextEntry }) 
   )
 }
 
-/** Thinking stays folded, named for how long it took when that's known. */
+/** Thinking, named for how long it took when that's known: folded, unless the Transcript View opens it. */
 function ThinkingRow({ rowKey, entry }: { rowKey: string; entry: ThinkingEntry }) {
-  const open = useTranscript((s) => s.expanded.has(rowKey))
-  const setExpanded = useTranscript((s) => s.setExpanded)
+  const toggled = useTranscript((s) => s.expanded.has(rowKey))
+  const open = useContext(OpenByDefault).thinking !== toggled
+  const setExpanded = (_key: string, _open: boolean) => useTranscript.getState().setExpanded(rowKey, !toggled)
   const label = entry.ms ? `Thought for ${formatDuration(entry.ms)}` : 'Thinking'
   return (
     <div>

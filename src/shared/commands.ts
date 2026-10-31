@@ -34,6 +34,16 @@ export const COMMANDS = [
   { id: 'terminal.new', label: 'New Terminal', group: 'file', accelerator: 'CmdOrCtrl+Shift+`', runs: 'renderer' },
   // A worktree session's branch onto the branch it came from (the toolbar's Merge).
   { id: 'session.merge', label: 'Merge Worktree…', group: 'file', runs: 'renderer', keywords: 'branch' },
+  // Fast mode for the open session, from its next request on (models that offer it; billed at fast-mode rates).
+  { id: 'session.fast', label: 'Fast Mode', group: 'file', runs: 'renderer', keywords: 'speed quick faster' },
+  // A folder besides its working folder the open session may use (Claude Code's --add-dir).
+  { id: 'session.addFolder', label: 'Add Folder to Session…', group: 'file', runs: 'renderer', keywords: 'directory access add dir' },
+  // The blue dot, as Mail's: says Mark as Read when it's on. Opening the session reads it too.
+  { id: 'session.markUnread', label: 'Mark as Unread', group: 'file', runs: 'renderer', keywords: 'read dot' },
+  // Acknowledges a finished or failed mark without opening the session.
+  { id: 'session.markCompleted', label: 'Mark as Completed', group: 'file', runs: 'renderer', keywords: 'done acknowledge' },
+  // A zip of the open session's transcripts in Downloads, as the Claude app's Export.
+  { id: 'session.export', label: 'Export Session…', group: 'file', runs: 'renderer', keywords: 'zip save download transcript' },
   { id: 'app.settings', label: 'Settings…', group: 'file', accelerator: 'CmdOrCtrl+,', runs: 'renderer', keywords: 'preferences options' },
   { id: 'app.quit', label: 'Quit Gloom', group: 'file', accelerator: 'CmdOrCtrl+Q', runs: 'main', keywords: 'exit close' },
   // Undoes typing in a field, otherwise the last change to your folders and sessions.
@@ -58,6 +68,10 @@ export const COMMANDS = [
   // What the diff pane shows, as its toolbar's segments do.
   { id: 'view.diffSession', label: 'This Session', group: 'view', submenu: 'Show in Diff', runs: 'renderer' },
   { id: 'view.diffTree', label: 'Working Tree', group: 'view', submenu: 'Show in Diff', runs: 'renderer' },
+  // How the open conversation shows, as the Claude app's Transcript View: tool calls folded, Claude's thinking too, or everything open.
+  { id: 'view.transcriptNormal', label: 'Normal', group: 'view', submenu: 'Transcript View', runs: 'renderer', keywords: 'conversation folded' },
+  { id: 'view.transcriptThinking', label: 'Thinking', group: 'view', submenu: 'Transcript View', runs: 'renderer', keywords: 'conversation reasoning' },
+  { id: 'view.transcriptVerbose', label: 'Verbose', group: 'view', submenu: 'Transcript View', runs: 'renderer', keywords: 'conversation details expanded' },
   // Reads the diff pane's changes again (they also refresh as the session works).
   { id: 'view.refreshDiff', label: 'Refresh Diff', group: 'view', accelerator: 'F5', runs: 'renderer' },
   // The keyboard moves between the sidebar, the transcript, the composer and the panes, as F6 does in

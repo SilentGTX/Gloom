@@ -4,25 +4,27 @@ import { homedir, release } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { findCommand, type CommandId } from '@shared/commands'
 import type { TreeDiff } from '@shared/diff'
-import { worktreeOf, type RemoveResult } from '@shared/git'
+import type { RemoveResult } from '@shared/git'
 import { IPC, type AppInfo, type ResumeResult, type TerminalCreate } from '@shared/ipc'
-import { displayTitle } from '@shared/library'
+import { displayTitle, inactiveSessions } from '@shared/library'
 import type { FileListing } from '@shared/live'
 import { parseRef, type Cursor } from '@shared/transcript'
 import { attend, setBadge } from './attention'
 import { claudeInfo } from './claude/binary'
-import { parseAnswer, parseNewSession, parseRewind, parseSend, parseSet, sessionId } from './claude/parse'
+import { parseAnswer, parseNewSession, parseRewind, parseSend, parseSet, serverName, sessionId } from './claude/parse'
 import { Sessions } from './claude/sessions'
 import { knownModels, loadSettings, onSettings, settings, updateSettings } from './claude/settings'
 import { installApplicationMenu, runCommand } from './commands'
+import { exportSession } from './export'
 import { listFiles } from './files'
 import { parseTakeover, takeOver } from './handover'
 import { LibraryService } from './library/service'
+import { KeepAwake } from './power'
 import { registerAppScheme, serveApp } from './protocol'
 import { runPtySmoke } from './smoke'
 import { storageToMove } from './storage'
 import { workingTreeDiff } from './git/diff'
-import { createWorktree, mergeWorktree, recreateFolder, removeWorktree, repoInfo, worktreeInfo } from './git/worktrees'
+import { createWorktree, mergeWorktree, recreateFolder, removeWorktree, repoInfo, sessionWorktree, worktreeInfo } from './git/worktrees'
 import { Terminals } from './pty/terminals'
 import { claudeInTerminal, resumeInTerminal } from './terminal'
 import { deferUpdatesWhile, finishStarting, installPending, launchCheck, onUpdateScreen, sessionsQuiet, showStarting, updateScreen } from './update-screen'
@@ -36,6 +38,9 @@ const takeover = parseTakeover(process.argv)
 registerAppScheme()
 /** Older versions are removed once this one has settled in. */
 const TIDY_AFTER_MS = 10_000
+/** Inactive sessions are looked for this long after launch, then every hour. */
+const ARCHIVE_FIRST_MS = 60_000
+const ARCHIVE_EVERY_MS = 60 * 60 * 1000
 
 // `Gloom.exe --smoke-pty[=<file>]` runs the packaging smoke test headless and
 // exits with its result, so an installed build can be checked from a script.
@@ -172,6 +177,17 @@ if (smokeArg) {
       if (!trusted(event)) throw new Error('untrusted sender')
       library.unfollow()
     })
+    ipcMain.handle(IPC.exportSession, (event, id: unknown) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      const meta = typeof id === 'string' ? library.session(id) : undefined
+      if (!meta) throw new Error('That session’s transcript is gone.')
+      return exportSession(meta, library.entry(meta.id))
+    })
+    ipcMain.handle(IPC.searchTranscripts, (event, query: unknown, includeArchived: unknown) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      if (typeof query !== 'string' || query.trim().length < 2 || query.length > 500) return { hits: [], done: true }
+      return library.searchTranscripts(query.trim(), includeArchived === true, 20)
+    })
     ipcMain.handle(IPC.resumeSession, (event, id: unknown, options: unknown): ResumeResult => {
       if (!trusted(event)) throw new Error('untrusted sender')
       const session = typeof id === 'string' ? library.session(id) : undefined
@@ -196,17 +212,50 @@ if (smokeArg) {
       const meta = library.session(id)
       return meta ? displayTitle(meta, library.entry(id)) : 'New Session'
     }
+    // The computer stays awake while a session works (Settings › Sessions).
+    const awake = new KeepAwake()
+    let anyBusy = (): boolean => false
     const sessions = new Sessions(
       {
-        event: (event) => mainWindow?.webContents.send(IPC.liveEvent, event),
+        event: (event) => {
+          mainWindow?.webContents.send(IPC.liveEvent, event)
+          if (event.type === 'summary' || event.type === 'closed') awake.update(anyBusy())
+        },
         attention: (id, kind, card) => attend(mainWindow, id, titleOf(id), kind, card),
         quiet: () => sessionsQuiet()
       },
       (id) => library.session(id),
-      (id, uuid) => library.chainParent(id, uuid)
+      (id, uuid) => library.chainParent(id, uuid),
+      (id) => library.entry(id)
     )
+    anyBusy = () => sessions.busy()
+    onSettings(() => awake.update(sessions.busy()))
     deferUpdatesWhile(() => sessions.busy())
-    app.on('before-quit', () => sessions.closeAll())
+    app.on('before-quit', () => {
+      sessions.closeAll()
+      awake.stop()
+    })
+
+    // Settings › Sessions › Archive inactive sessions, as the Claude app does it: never one
+    // Gloom is running, pinned or marked unread; a clean worktree goes with it, one with
+    // uncommitted changes stays on disk.
+    const archiveInactive = async () => {
+      const days = settings().archiveAfterDays
+      if (days <= 0) return
+      const snap = library.snapshot()
+      if (!snap.indexed) return
+      const ids = inactiveSessions(snap.sessions, snap.library.sessions, days, Date.now(), (id) => sessions.running(id))
+      if (!ids.length) return
+      library.apply({ type: 'setArchived', ids, archived: true })
+      for (const id of ids) {
+        const cwd = library.session(id)?.cwd
+        if (cwd && sessionWorktree(cwd) && existsSync(cwd)) await removeWorktree(cwd, false).catch(() => null)
+      }
+    }
+    setTimeout(() => {
+      void archiveInactive()
+      setInterval(() => void archiveInactive(), ARCHIVE_EVERY_MS).unref()
+    }, ARCHIVE_FIRST_MS).unref()
     handle(IPC.liveList, () => sessions.list())
     handle(IPC.liveSnapshot, (_event, id) => sessions.snapshot(sessionId(id)))
     handle(IPC.liveCreate, async (_event, raw) => {
@@ -246,7 +295,7 @@ if (smokeArg) {
       const sid = sessionId(id)
       const cwd = sessions.cwdOf(sid)
       if (!cwd) return { removed: false, reason: 'Gloom doesn’t know where this session works.' }
-      if (!worktreeOf(cwd)) return { removed: false, reason: 'It doesn’t work in a worktree.' }
+      if (!sessionWorktree(cwd)) return { removed: false, reason: 'It doesn’t work in a worktree.' }
       // A working session keeps its folder; an idle one's process closes first.
       if (!sessions.closeIdle(sid)) return { removed: false, reason: 'Claude is working in it.' }
       return removeWorktree(cwd, force === true)
@@ -260,7 +309,15 @@ if (smokeArg) {
     handle(IPC.liveInterrupt, (_event, id) => sessions.interrupt(sessionId(id)))
     handle(IPC.liveUnqueue, (_event, id, queuedId) => sessions.unqueue(sessionId(id), String(queuedId)))
     handle(IPC.liveAnswer, (_event, id, answer) => sessions.answer(sessionId(id), parseAnswer(answer)))
-    handle(IPC.liveSet, (_event, id, request) => sessions.set(sessionId(id), parseSet(request)))
+    handle(IPC.liveSet, async (_event, id, request) => {
+      const sid = sessionId(id)
+      const parsed = parseSet(request)
+      await sessions.set(sid, parsed)
+      // A session's extra folders are kept with it, for every process it starts.
+      if ('folders' in parsed) library.apply({ type: 'setSessionFolders', id: sid, folders: parsed.folders })
+    })
+    handle(IPC.liveToggleMcp, (_event, id, name, enabled) => sessions.toggleMcp(sessionId(id), serverName(name), enabled === true))
+    handle(IPC.liveReconnectMcp, (_event, id, name) => sessions.reconnectMcp(sessionId(id), serverName(name)))
     handle(IPC.liveCommands, (_event, id) => sessions.commands(sessionId(id)))
     handle(IPC.liveFiles, (_event, id): FileListing | Promise<FileListing> => {
       const sid = sessionId(id)

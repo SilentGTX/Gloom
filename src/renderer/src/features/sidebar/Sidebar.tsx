@@ -22,6 +22,7 @@ import { useConcept } from '../concept/parts'
 import { archiveSessions, SessionMenu } from '../sessions/SessionMenu'
 import { AppMenu } from '../shell/AppMenu'
 import { SidebarButton } from '../shell/Toolbar'
+import { ConversationHits, useConversationSearch } from './ConversationHits'
 import { ArchiveRow, GroupContents, GroupRow, MoreRow, RowMotion, SectionHeading, SessionRow } from './rows'
 import {
   buildTree,
@@ -109,6 +110,10 @@ function Sidebar({ width, inSheet, concept }: { width: number; inSheet?: boolean
   }, [indexed, settled])
 
   const searching = search.trim() !== ''
+  // Inside the conversations too, under the title matches (2 characters or more).
+  const conversations = useConversationSearch(search, true)
+  const titleHits = useMemo(() => new Set(tree.sections.filter((s) => s.key === 'results' || s.key === 'archived-results').flatMap((s) => s.rows.flatMap((r) => (r.kind === 'session' ? [r.item.id] : [])))), [tree])
+  const inConversations = conversations.searching || conversations.hits.some((h) => !titleHits.has(h.id))
   const order = useMemo(() => [...tree.rows.map((r) => r.key), ARCHIVE], [tree])
   const byKey = useMemo(() => new Map<string, TreeRow>(tree.rows.map((r) => [r.key, r])), [tree])
   // The selection in sidebar order, each session once; any that aren't showing come last.
@@ -519,7 +524,9 @@ function Sidebar({ width, inSheet, concept }: { width: number; inSheet?: boolean
     if (section.rows.length) return null
     if (section.key === 'folders') return <p className="px-2.5 py-1 text-footnote text-label-secondary">Make a folder, then drag sessions into it.</p>
     if (section.key === 'results')
-      return (
+      return inConversations ? (
+        <p className="px-2.5 py-1 text-footnote text-label-secondary">No titles or prompts match.</p>
+      ) : (
         <EmptyState icon={<SearchX size={32} strokeWidth={1.25} />} title="No Results">
           No sessions match “{search.trim()}”.
         </EmptyState>
@@ -583,7 +590,7 @@ function Sidebar({ width, inSheet, concept }: { width: number; inSheet?: boolean
               <ContextMenuTrigger onContextMenu={onContextMenu} className="flex min-h-0 flex-1 flex-col">
                 <nav aria-label="Sessions" className={cn('flex flex-1 flex-col overflow-y-auto pb-2', concept ? 'px-2.5' : 'px-2')}>
                   {tree.sections.map((section, i) => (
-                    <div key={section.key} className={cn('flex flex-col', section.key !== 'folders' && section.rows.length === 0 && 'flex-1')}>
+                    <div key={section.key} className={cn('flex flex-col', section.key !== 'folders' && section.rows.length === 0 && !(section.key === 'results' && inConversations) && 'flex-1')}>
                       {heading(section, i === 0)}
                       {empty(section) ?? (
                         <RowMotion.Provider value={{ instant: viaKeyboard || !settled, layout: settled && layout && (section.key === 'library' || section.key === 'folders') }}>
@@ -594,6 +601,7 @@ function Sidebar({ width, inSheet, concept }: { width: number; inSheet?: boolean
                       )}
                     </div>
                   ))}
+                  {searching && <ConversationHits query={search} shown={titleHits} search={conversations} />}
                   {/* The concept keeps its foot for your account: Archived ends the list instead. */}
                   {concept && <div className="mt-3">{archiveRow}</div>}
                 </nav>

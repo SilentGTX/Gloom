@@ -38,6 +38,8 @@ const api: GloomApi = {
   unfollowTranscript: () => ipcRenderer.invoke(IPC.unfollowTranscript),
   onTranscript: (listener) => subscribe<TranscriptChange>(IPC.transcriptChanged, listener),
   resumeSession: (id, options) => ipcRenderer.invoke(IPC.resumeSession, id, options),
+  exportSession: (id) => ipcRenderer.invoke(IPC.exportSession, id),
+  searchTranscripts: (query, includeArchived) => ipcRenderer.invoke(IPC.searchTranscripts, query, includeArchived),
   live: {
     list: () => ipcRenderer.invoke(IPC.liveList),
     snapshot: (id) => ipcRenderer.invoke(IPC.liveSnapshot, id),
@@ -50,6 +52,8 @@ const api: GloomApi = {
     unqueue: (id, queuedId) => ipcRenderer.invoke(IPC.liveUnqueue, id, queuedId),
     answer: (id, answer) => ipcRenderer.invoke(IPC.liveAnswer, id, answer),
     set: (id, request) => ipcRenderer.invoke(IPC.liveSet, id, request),
+    toggleMcp: (id, name, enabled) => ipcRenderer.invoke(IPC.liveToggleMcp, id, name, enabled),
+    reconnectMcp: (id, name) => ipcRenderer.invoke(IPC.liveReconnectMcp, id, name),
     commands: (id) => ipcRenderer.invoke(IPC.liveCommands, id),
     files: (id) => ipcRenderer.invoke(IPC.liveFiles, id),
     models: () => ipcRenderer.invoke(IPC.liveModels),

@@ -23,6 +23,20 @@ const LOW_WATER = 256 * 1024
 export interface TerminalEvents {
   data(data: TerminalData): void
   exit(exit: TerminalExit): void
+  /** A terminal Claude opened (Gloom's terminal tools), for the window to list. */
+  opened?(info: TerminalInfo): void
+}
+
+/** Terminal escape sequences (colours, cursor moves, titles), for reading a screen as text. */
+const ESCAPES = /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b[@-Z\\-_]|[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g
+
+/** The last `lines` lines of what a shell wrote, as plain text (escapes gone, carriage returns redrawn). */
+export function screenText(output: string, lines: number): string {
+  const text = output.replace(/\r\n/g, '\n').replace(ESCAPES, '')
+  // A carriage return alone redraws its line: keep what came after the last one.
+  const rows = text.split('\n').map((row) => row.slice(row.lastIndexOf('\r') + 1))
+  while (rows.length && !rows[rows.length - 1].trim()) rows.pop()
+  return rows.slice(-lines).join('\n')
 }
 
 interface Term {
@@ -102,7 +116,7 @@ export class Terminals {
   }
 
   /** A new shell in `cwd`: the one asked for if it's installed, else the first that is. */
-  create(cwd: string, want: ShellId, cols: number, rows: number): TerminalInfo {
+  create(cwd: string, want: ShellId, cols: number, rows: number, title?: string): TerminalInfo {
     const shells = this.shells()
     const shell = shells.find((s) => s.id === want) ?? shells[0]
     if (!shell) throw new Error('No shell was found on this PC.')
@@ -112,7 +126,7 @@ export class Terminals {
     env.TERM_PROGRAM = 'Gloom'
     env.COLORTERM = 'truecolor'
     const proc = nodePty().spawn(shell.path, ARGS[shell.id], { name: 'xterm-256color', cols, rows, cwd, env })
-    const info: TerminalInfo = { id: randomUUID(), cwd, shell: shell.id, short: shell.short, created: Date.now(), exitCode: null }
+    const info: TerminalInfo = { id: randomUUID(), cwd, shell: shell.id, short: shell.short, created: Date.now(), exitCode: null, ...(title ? { title } : {}) }
     const term: Term = { info, proc, kept: [], keptLength: 0, seq: 0, pending: '', timer: null, unacked: 0, paused: false, attached: false }
     this.terms.set(info.id, term)
     proc.onData((data) => {
@@ -140,6 +154,40 @@ export class Terminals {
 
   input(id: string, data: string): void {
     this.terms.get(id)?.proc?.write(data)
+  }
+
+  /** What a terminal shows now, as text: its last `lines` lines. */
+  screen(id: string, lines: number): string {
+    const term = this.get(id)
+    this.flush(term)
+    return screenText(term.kept.join(''), lines)
+  }
+
+  /** Resolves once the terminal writes something new, or after `ms`. */
+  waitForOutput(id: string, ms: number): Promise<void> {
+    const term = this.get(id)
+    const seq = term.seq + term.pending.length
+    return new Promise((resolve) => {
+      const started = Date.now()
+      const check = () => {
+        const now = this.terms.get(id)
+        if (!now || now.seq + now.pending.length > seq || Date.now() - started >= ms || now.info.exitCode !== null) return resolve()
+        setTimeout(check, 50)
+      }
+      check()
+    })
+  }
+
+  /** A terminal Claude opened: made like the pane's own, and listed in the window. */
+  openFor(cwd: string, want: ShellId, title?: string): TerminalInfo {
+    const info = this.create(cwd, want, 120, 30, title)
+    this.events.opened?.(info)
+    return info
+  }
+
+  /** Whether it's still open (its shell may have ended). */
+  has(id: string): boolean {
+    return this.terms.has(id)
   }
 
   resize(id: string, cols: number, rows: number): void {

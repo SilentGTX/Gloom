@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ChevronDown, CircleAlert, CircleCheck } from 'lucide-react'
 import type { AppInfo } from '@shared/ipc'
-import { isMode, type Settings as SettingsData } from '@shared/live'
+import { branchPrefixProblem, isMode, TRANSCRIPT_VIEWS, type NoticeLevel, type Settings as SettingsData } from '@shared/live'
 import type { ShellId, ShellInfo } from '@shared/terminal'
 import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
@@ -12,9 +12,11 @@ import { useLive } from '../../stores/live'
 import { useUi } from '../../stores/ui'
 import { EffortPicker, effortsFor, ModelPicker, ModePicker } from '../chat/pickers'
 
-type Pane = 'general' | 'claude' | 'about'
+type Pane = 'general' | 'sessions' | 'notifications' | 'claude' | 'about'
 const PANES: { id: Pane; label: string }[] = [
   { id: 'general', label: 'General' },
+  { id: 'sessions', label: 'Sessions' },
+  { id: 'notifications', label: 'Notifications' },
   { id: 'claude', label: 'Claude Code' },
   { id: 'about', label: 'About' }
 ]
@@ -24,8 +26,22 @@ let lastPane: Pane = 'general'
 
 const IDLE_CHOICES = [5, 10, 15, 30, 60, 0]
 const idleLabel = (m: number) => (m === 0 ? 'Never' : m === 60 ? 'After 1 hour' : `After ${m} minutes`)
+/** The days the Claude app's picker offers. */
+const ARCHIVE_CHOICES = [0, 1, 2, 7, 14, 30]
+const archiveLabel = (d: number) => (d === 0 ? 'Never' : d === 1 ? 'After 1 day' : `After ${d} days`)
+/** The output styles Claude Code comes with, until a session lists yours too. */
+const BUILT_IN_STYLES = ['Concise', 'Explanatory', 'Learning', 'Proactive']
 
-function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+const LEVELS: { value: NoticeLevel; label: string; detail: string }[] = [
+  { value: 'banner', label: 'Banners', detail: 'A notification and the taskbar badge' },
+  { value: 'badge', label: 'Badge Only', detail: 'Only the count on the taskbar button' },
+  { value: 'off', label: 'Off', detail: 'Nothing' }
+]
+
+const FIELD =
+  'no-drag flex h-8 w-full items-center gap-2 rounded-[var(--radius-control)] bg-[var(--field)] px-2.5 text-left text-[13px] text-label shadow-[inset_0_0_0_0.5px_var(--separator-strong)] outline-none hover:bg-fill-strong focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)] data-[popup-open]:bg-fill-strong'
+
+function Row({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
     <div className="grid grid-cols-[150px_1fr] items-start gap-x-3 py-1.5">
       <span className="pt-[7px] text-right text-[13px] text-label-secondary">{label}</span>
@@ -35,6 +51,10 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
       </div>
     </div>
   )
+}
+
+function Heading({ children, first = false }: { children: ReactNode; first?: boolean }) {
+  return <h3 className={cn('mb-1 text-[11px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary', !first && 'mt-4')}>{children}</h3>
 }
 
 /** A segmented control: one of a few, all in view. */
@@ -60,20 +80,41 @@ function Segmented<T extends string>({ value, options, onChange, label }: { valu
   )
 }
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange(v: boolean): void; label: string }) {
+/** A checkbox: one setting on or off (macOS's choice for a single setting). `indent` shows it depends on the one above. */
+function Toggle({ checked, onChange, label, disabled = false, indent = false }: { checked: boolean; onChange(v: boolean): void; label: string; disabled?: boolean; indent?: boolean }) {
   return (
-    <label className="flex cursor-default items-center gap-2 pt-[5px] text-[13px] text-label">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-[var(--accent)]" />
+    <label className={cn('flex cursor-default items-center gap-2 pt-[5px] text-[13px]', disabled ? 'text-label-tertiary' : 'text-label', indent && 'pl-6')}>
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-[var(--accent)]" />
       {label}
     </label>
   )
 }
 
+/** A pop-up button: one of several, the chosen one shown. */
+function Choice<T extends string | number>({ value, options, onChange, label }: { value: T; options: { value: T; label: string; detail?: string }[]; onChange(v: T): void; label: string }) {
+  const current = options.find((o) => o.value === value) ?? options[0]
+  return (
+    <MenuRoot>
+      <MenuTrigger aria-label={`${label}: ${current?.label ?? ''}`} className={FIELD}>
+        <span className="flex-1 truncate">{current?.label}</span>
+        <ChevronDown size={12} strokeWidth={2.25} aria-hidden className="shrink-0 opacity-60" />
+      </MenuTrigger>
+      <MenuPopup align="start">
+        <MenuRadioGroup value={String(value)} onChange={(v) => onChange((typeof value === 'number' ? Number(v) : v) as T)}>
+          {options.map((o) => (
+            <MenuRadioItem key={String(o.value)} value={String(o.value)} label={o.label} detail={o.detail} />
+          ))}
+        </MenuRadioGroup>
+      </MenuPopup>
+    </MenuRoot>
+  )
+}
+
 /**
- * Settings (Ctrl+,): what new sessions start with, how long an idle session's
- * process lives, notifications, the terminal's shell and appearance; then
- * Claude Code itself, and Gloom's version. Changes apply as you make them;
- * there's nothing to save.
+ * Settings (Ctrl+,): what new sessions start with, sessions and their
+ * worktrees, notifications, the terminal's shell and appearance; then Claude
+ * Code itself, and Gloom's version. Changes apply as you make them; there's
+ * nothing to save.
  */
 export function SettingsSheet() {
   const open = useLive((s) => s.settingsOpen)
@@ -87,13 +128,15 @@ export function SettingsSheet() {
     setPane(p)
   }
   return (
-    <Dialog open={open} onClose={() => setOpen(false)} title="Settings" width={560}>
+    <Dialog open={open} onClose={() => setOpen(false)} title="Settings" width={600}>
       <div className="flex flex-col gap-4">
         <div className="flex justify-center">
           <Segmented label="Settings pane" value={pane} options={PANES.map((p) => ({ value: p.id, label: p.label }))} onChange={choose} />
         </div>
-        <div className="min-h-[300px]">
+        <div className="min-h-[340px]">
           {pane === 'general' && <General />}
+          {pane === 'sessions' && <Sessions />}
+          {pane === 'notifications' && <Notifications />}
           {pane === 'claude' && <ClaudeCode />}
           {pane === 'about' && <About />}
         </div>
@@ -107,16 +150,20 @@ export function SettingsSheet() {
   )
 }
 
+const update = (patch: Partial<SettingsData>) => void useLive.getState().updateSettings(patch)
+
 function General() {
   const settings = useLive((s) => s.settings)
   const models = useLive((s) => s.models)
-  const update = (patch: Partial<SettingsData>) => void useLive.getState().updateSettings(patch)
+  // Your own styles too, once a session's Claude Code has listed them.
+  const listed = useLive((s) => [...new Set(Object.values(s.sessions).flatMap((l) => l.outputStyles ?? []))].join('\n'))
+  const styles = [...new Set([...BUILT_IN_STYLES, ...listed.split('\n').filter((x) => x && x.toLowerCase() !== 'default')])]
   const glass = useUi((s) => s.glassAlways)
   const design = useUi((s) => s.design)
   const efforts = effortsFor(settings.model, models)
   return (
     <div>
-      <h3 className="mb-1 text-[11px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">New sessions</h3>
+      <Heading first>New sessions</Heading>
       <Row label="Model">
         <ModelPicker look="field" value={settings.model} models={models} onChange={(model) => update({ model })} />
       </Row>
@@ -128,30 +175,21 @@ function General() {
           <EffortPicker look="field" value={settings.effort} efforts={efforts} onChange={(effort) => update({ effort })} />
         </Row>
       )}
-      <h3 className="mt-4 mb-1 text-[11px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">Sessions</h3>
-      <Row label="Close idle sessions" hint="Each running session is a Claude Code process with its own MCP servers. A closed one picks up again when you send it a message.">
-        <MenuRoot>
-          <MenuTrigger className="no-drag flex h-8 w-full items-center gap-2 rounded-[var(--radius-control)] bg-[var(--field)] px-2.5 text-left text-[13px] text-label shadow-[inset_0_0_0_0.5px_var(--separator-strong)] outline-none hover:bg-fill-strong focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)] data-[popup-open]:bg-fill-strong">
-            <span className="flex-1">{idleLabel(settings.idleMinutes)}</span>
-            <ChevronDown size={12} strokeWidth={2.25} aria-hidden className="shrink-0 opacity-60" />
-          </MenuTrigger>
-          <MenuPopup align="start">
-            <MenuRadioGroup value={String(settings.idleMinutes)} onChange={(v) => update({ idleMinutes: Number(v) })}>
-              {IDLE_CHOICES.map((m) => (
-                <MenuRadioItem key={m} value={String(m)} label={idleLabel(m)} />
-              ))}
-            </MenuRadioGroup>
-          </MenuPopup>
-        </MenuRoot>
+      <Row label="Output style" hint="How Claude writes its replies. A session can have its own in the inspector.">
+        <Choice
+          label="Output style"
+          value={settings.outputStyle ?? ''}
+          options={[{ value: '', label: 'Your Claude Code Setting', detail: 'Whatever ~/.claude/settings.json says' }, ...styles.map((s) => ({ value: s, label: s }))]}
+          onChange={(v) => update({ outputStyle: v || null })}
+        />
       </Row>
-      <Row label="Notifications">
-        <Toggle checked={settings.notifications} onChange={(notifications) => update({ notifications })} label="When a session needs you or finishes in the background" />
+      <Row label="Suggestions" hint="Each suggestion is one more small request, made from the conversation Claude already has.">
+        <Toggle checked={settings.promptSuggestions} onChange={(promptSuggestions) => update({ promptSuggestions })} label="Suggest a next prompt after each reply" />
       </Row>
-      <h3 className="mt-4 mb-1 text-[11px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">Terminal</h3>
-      <Row label="Shell" hint="New terminals open with it; ones already open keep theirs.">
-        <ShellPicker value={settings.shell} onChange={(shell) => update({ shell })} />
+      <Row label="Remote Control" hint="Carry on from claude.ai or the Claude app on your phone while Gloom runs the session here.">
+        <Toggle checked={settings.remoteControl} onChange={(remoteControl) => update({ remoteControl })} label="Connect new sessions to Remote Control" />
       </Row>
-      <h3 className="mt-4 mb-1 text-[11px] font-semibold tracking-[var(--tracking-caption)] text-label-secondary">Window</h3>
+      <Heading>Window</Heading>
       <Row label="Design" hint="Concept: a quiet neutral window with an inspector beside the chat. Classic: the dusk, with the diff and terminal as panes.">
         <Segmented
           label="Design"
@@ -178,6 +216,133 @@ function General() {
       <Row label="Glass" hint="Clear glass that lets the dusk show through, even when Windows’ transparency effects are off.">
         <Toggle checked={glass} onChange={() => runCommand('view.toggleGlass')} label="Always show glass" />
       </Row>
+      <Heading>Terminal</Heading>
+      <Row label="Shell" hint="New terminals open with it; ones already open keep theirs.">
+        <ShellPicker value={settings.shell} onChange={(shell) => update({ shell })} />
+      </Row>
+    </div>
+  )
+}
+
+function Sessions() {
+  const settings = useLive((s) => s.settings)
+  return (
+    <div>
+      <Heading first>Sessions</Heading>
+      <Row label="Close idle sessions" hint="Each running session is a Claude Code process with its own MCP servers. A closed one picks up again when you send it a message.">
+        <Choice label="Close idle sessions" value={settings.idleMinutes} options={IDLE_CHOICES.map((m) => ({ value: m, label: idleLabel(m) }))} onChange={(idleMinutes) => update({ idleMinutes })} />
+      </Row>
+      <Row label="Archive inactive" hint="Sessions with no activity for this long go to Archived. Never one that’s running, pinned or unread; a worktree with uncommitted changes stays on disk.">
+        <Choice label="Archive inactive sessions" value={settings.archiveAfterDays} options={ARCHIVE_CHOICES.map((d) => ({ value: d, label: archiveLabel(d) }))} onChange={(archiveAfterDays) => update({ archiveAfterDays })} />
+      </Row>
+      <Row label="Sleep" hint="Only idle sleep: closing the lid still sleeps.">
+        <Toggle checked={settings.keepAwake} onChange={(keepAwake) => update({ keepAwake })} label="Keep the computer awake while Claude works" />
+        <Toggle checked={settings.keepAwakeOnBattery} disabled={!settings.keepAwake} indent onChange={(keepAwakeOnBattery) => update({ keepAwakeOnBattery })} label="On battery power too" />
+      </Row>
+      <Row label="Conversations" hint="How a conversation shows when you open it; View › Transcript View changes the open one.">
+        <Segmented label="Transcript view" value={settings.transcriptView} options={TRANSCRIPT_VIEWS.map((v) => ({ value: v.id, label: v.label }))} onChange={(transcriptView) => update({ transcriptView })} />
+      </Row>
+      <Heading>Worktrees</Heading>
+      <Row label="Branch prefix" hint={<>New sessions’ branches are named <span className="font-mono">{settings.branchPrefix}/quiet-moon</span>.</>}>
+        <PrefixField value={settings.branchPrefix} />
+      </Row>
+      <Row label="Location">
+        <WorktreeLocation folder={settings.worktreeFolder} />
+      </Row>
+    </div>
+  )
+}
+
+/** The branch prefix, checked as you type; it's kept once it's valid and you leave the field (or press Enter). */
+function PrefixField({ value }: { value: string }) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  const problem = branchPrefixProblem(draft.trim())
+  const commit = () => {
+    const next = draft.trim()
+    if (!branchPrefixProblem(next) && next !== value) update({ branchPrefix: next })
+    else if (branchPrefixProblem(next)) setDraft(value)
+  }
+  return (
+    <div>
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+          if (e.key === 'Escape' && draft !== value) {
+            e.stopPropagation()
+            setDraft(value)
+          }
+        }}
+        spellCheck={false}
+        aria-label="Branch prefix"
+        aria-invalid={!!problem}
+        aria-describedby={problem ? 'prefix-problem' : undefined}
+        className={cn(FIELD, 'font-mono', problem && 'shadow-[inset_0_0_0_1px_var(--removed-text)]')}
+      />
+      {problem && (
+        <p id="prefix-problem" role="alert" className="mt-1 flex items-center gap-1 text-[11.5px] text-[var(--removed-text)]">
+          <CircleAlert size={12} strokeWidth={2} aria-hidden />
+          {problem}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function WorktreeLocation({ folder }: { folder: string | null }) {
+  const choose = async () => {
+    const picked = await window.gloom?.pickFolder()
+    if (picked) update({ worktreeFolder: picked })
+  }
+  return (
+    <div>
+      <Choice
+        label="Worktree location"
+        value={folder ? 'own' : 'project'}
+        options={[
+          { value: 'project', label: 'Inside the Project', detail: '<repo>/.claude/worktrees, as the Claude app does' },
+          { value: 'own', label: 'In a Folder of Your Own…', detail: '<folder>/<repository>/<name>' }
+        ]}
+        onChange={(v) => (v === 'project' ? update({ worktreeFolder: null }) : void choose())}
+      />
+      {folder && (
+        <div className="mt-1.5 flex items-center gap-2">
+          <p className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-label-secondary" title={folder}>
+            {folder}
+          </p>
+          <Button size="text" tone="secondary" onClick={() => void choose()}>
+            Change…
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Notifications() {
+  const settings = useLive((s) => s.settings)
+  return (
+    <div>
+      <Heading first>When Gloom is in the background</Heading>
+      <Row label="Permission requests" hint="Claude asks to use a tool, or has a plan for you to review.">
+        <Choice label="Permission requests" value={settings.notifyPermission} options={LEVELS} onChange={(notifyPermission) => update({ notifyPermission })} />
+      </Row>
+      <Row label="Questions" hint="Claude asks you to choose between options.">
+        <Choice label="Questions" value={settings.notifyQuestion} options={LEVELS} onChange={(notifyQuestion) => update({ notifyQuestion })} />
+      </Row>
+      <Row label="Claude finishes" hint="A turn ends, or stops with an error.">
+        <Choice label="Claude finishes" value={settings.notifyFinished} options={LEVELS.filter((l) => l.value !== 'badge')} onChange={(v) => update({ notifyFinished: v === 'off' ? 'off' : 'banner' })} />
+      </Row>
+      <Heading>Banners</Heading>
+      <Row label="Sound">
+        <Toggle checked={settings.notifySound} onChange={(notifySound) => update({ notifySound })} label="Play Windows’ notification sound" />
+      </Row>
+      <Row label="Taskbar">
+        <Toggle checked={settings.flashTaskbar} onChange={(flashTaskbar) => update({ flashTaskbar })} label="Flash Gloom’s taskbar button" />
+      </Row>
     </div>
   )
 }
@@ -191,7 +356,7 @@ function ShellPicker({ value, onChange }: { value: ShellId; onChange(shell: Shel
   const current = shells.find((s) => s.id === value) ?? shells[0]
   return (
     <MenuRoot>
-      <MenuTrigger className="no-drag flex h-8 w-full items-center gap-2 rounded-[var(--radius-control)] bg-[var(--field)] px-2.5 text-left text-[13px] text-label shadow-[inset_0_0_0_0.5px_var(--separator-strong)] outline-none hover:bg-fill-strong focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)] data-[popup-open]:bg-fill-strong">
+      <MenuTrigger className={FIELD}>
         <span className="flex-1 truncate">{current?.label ?? 'Windows PowerShell'}</span>
         <ChevronDown size={12} strokeWidth={2.25} aria-hidden className="shrink-0 opacity-60" />
       </MenuTrigger>
