@@ -163,7 +163,7 @@ function General() {
           onChange={(theme) => update({ theme })}
         />
       </Row>
-      <Row label="Glass" hint="Windows’ transparency effects are off on some PCs; this keeps Gloom’s glass anyway.">
+      <Row label="Glass" hint="Clear glass that lets the dusk show through, even when Windows’ transparency effects are off.">
         <Toggle checked={glass} onChange={() => runCommand('view.toggleGlass')} label="Always show glass" />
       </Row>
     </div>

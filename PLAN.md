@@ -356,8 +356,20 @@ terminal running `claude` to log in), no sessions yet, empty folder, no search r
   still reads.
 - **Accessibility states:** `prefers-reduced-transparency` makes the glass opaque (the sky stays: it
   is content); **View → Always Show Glass** overrides that for people who turned transparency off
-  for other reasons. `prefers-contrast` gives the glass a solid rim and stronger text. Text size
-  goes to 200%; chrome is sized in pixels so it holds its shape.
+  for other reasons, and switches to the clear glass below. `prefers-contrast` gives the glass a
+  solid rim and stronger text. Text size goes to 200%; chrome is sized in pixels so it holds its
+  shape.
+- **Clear glass (View → Always Show Glass; your ask, 2026-10-31):** Blissful's Apple glass, the
+  recipe its tooltips use: a 10% white tint (60% in light), a 12px blur, a short soft shadow
+  (Tailwind's shadow-lg), no rim and no sheen, so the dusk shows through the sidebar on any PC.
+  The search field takes Blissful's search bar tint as a fill (never glass on glass), lifted under
+  the pointer. Two departures, both for legibility: the sidebar's secondary ink is 0.76 in the dark
+  (the ember under clear glass took the usual 0.66 to 4.1:1 at the sidebar's foot; now 4.8:1), and
+  menus, popovers, tooltips and sheets even out the light behind them (`contrast()` and
+  `brightness()` in their backdrop filter): on the paper they match Blissful's panels exactly, and
+  over a white screenshot in the dark, or a black one in the light, secondary text still reads at
+  4.7:1 (Blissful's recipe puts white text on white at 1.9:1). Increase Contrast keeps the frosted
+  glass and its rim. Tokens: `tokens.css` › `:root[data-glass='on']`.
 - **Type:** the system font (Segoe UI Variable) with size-specific tracking (tight headings, body near 0).
   Hierarchy comes from weight, size and leading together. Tabular numerals for counts and times.
   Sizes in rem with an app text-size setting. Mono: Cascadia Code / `ui-monospace`.

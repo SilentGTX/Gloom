@@ -20,7 +20,7 @@ export type Renaming = { kind: 'folder' | 'session'; id: string } | null
 
 interface UiState extends ColumnPrefs {
   textScale: number
-  /** Glass even when Windows asks for reduced transparency. */
+  /** Clear glass (Blissful's Apple glass), even when Windows asks for reduced transparency. */
   glassAlways: boolean
   /** The sidebar slid in as a sheet over the chat, in a window too narrow for it. */
   sheet: boolean

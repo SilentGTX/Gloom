@@ -600,7 +600,7 @@ function SearchField({ onLeave }: { onLeave(): void }) {
   const setSearch = useUi((s) => s.setSearch)
   return (
     <div className="px-2.5 pt-1 pb-2">
-      <label className="flex h-7 items-center gap-2 rounded-[var(--radius-control)] bg-[var(--search-fill)] pr-0.5 pl-2.5 text-label-secondary focus-within:bg-[var(--field)] focus-within:outline-2 focus-within:outline-[var(--accent-ring)]">
+      <label className="flex h-7 items-center gap-2 rounded-[var(--radius-control)] bg-[var(--search-fill)] pr-0.5 pl-2.5 text-label-secondary transition-[background-color] duration-[var(--duration-press)] ease-out hover:not-focus-within:bg-[var(--search-hover)] focus-within:bg-[var(--search-focus)] focus-within:outline-2 focus-within:outline-[var(--accent-ring)]">
         <Search size={14} strokeWidth={1.75} aria-hidden className="shrink-0" />
         <input
           type="search"

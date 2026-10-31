@@ -46,6 +46,7 @@
   --glass-fill-strong: rgb(252 251 255 / 0.78);
   --glass-sheen: rgb(255 255 255 / 0.4);
   --glass-blur: blur(28px) saturate(1.7);
+  --glass-strong-blur: var(--glass-blur);
   /* Capsules float on white paper, so they carry a faint body, as Apple's toolbar glass does. */
   --capsule-fill: rgb(242 241 248 / 0.78);
   --capsule-blur: blur(16px) saturate(1.7);
@@ -79,8 +80,11 @@
   --destructive: #d70015;
   /* A field you type into, raised off the glass or paper. */
   --field: rgb(255 255 255 / 0.92);
-  /* The sidebar's search field at rest: pressed into the glass. */
+  /* The sidebar's search field at rest: pressed into the glass. Clear glass
+     lifts it under the pointer; here the pointer changes nothing. */
   --search-fill: rgb(22 18 38 / 0.06);
+  --search-hover: var(--search-fill);
+  --search-focus: var(--field);
 
   /* A session running in another app: a periwinkle from the dusk, lit softly. */
   --status-elsewhere: #6f7ff0;
@@ -296,6 +300,53 @@
     --glass-fill: #23212f;
     --glass-fill-strong: #262433;
     --capsule-fill: #2a2838;
+  }
+}
+
+/* With "Always Show Glass" on, the glass is Blissful's Apple glass, the recipe
+   its tooltips use: a 10% white tint (60% in light, where 10% vanishes), a 12px
+   blur, a short soft shadow, no rim and no sheen. Clear enough that the dusk
+   shows through the sidebar, whatever Windows' transparency setting says.
+   Menus, popovers, tooltips and sheets carry text over anything, a pasted
+   screenshot included, so their glass also evens out the light behind it, as
+   Apple's regular glass does: on the paper it gives what Blissful's panels
+   give (the dark tint over a 35% black dimming layer), and over a white
+   screenshot in the dark, or a black one in the light, secondary text keeps
+   4.5:1 or better (Blissful's would put white text on white at 1.9:1).
+   The search field is a fill in the sidebar's glass, never glass on glass:
+   Blissful's search bar tint, lifted under the pointer and while you type.
+   Increase Contrast keeps the frostier glass and its edge. */
+@media not (prefers-contrast: more) {
+  :root[data-glass='on'] {
+    --glass-fill: rgb(255 255 255 / 0.6);
+    --glass-fill-strong: rgb(255 255 255 / 0.6);
+    --capsule-fill: rgb(255 255 255 / 0.6);
+    --glass-sheen: transparent;
+    --glass-blur: blur(12px);
+    --glass-strong-blur: blur(12px) contrast(0.4) brightness(1.35);
+    --capsule-blur: blur(12px);
+    --glass-rim: none;
+    --glass-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --capsule-shadow: var(--glass-shadow);
+    --search-fill: rgb(255 255 255 / 0.6);
+    --search-hover: rgb(255 255 255 / 0.75);
+    --search-focus: var(--search-hover);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root[data-glass='on'] {
+      --glass-fill: rgb(255 255 255 / 0.1);
+      --glass-fill-strong: rgb(255 255 255 / 0.1);
+      --glass-strong-blur: blur(12px) contrast(0.57) brightness(0.21);
+      --capsule-fill: rgb(255 255 255 / 0.1);
+      --search-fill: rgb(255 255 255 / 0.1);
+      --search-hover: rgb(255 255 255 / 0.14);
+    }
+    /* The ember lights the sidebar's foot through the clear glass, so its
+       secondary ink is brighter there, as a vibrant label is on a material:
+       4.8:1 where the ember is brightest (the usual ink would give 4.1:1). */
+    :root[data-glass='on'] .glass {
+      --label-secondary: rgb(246 243 255 / 0.76);
+    }
   }
 }
 

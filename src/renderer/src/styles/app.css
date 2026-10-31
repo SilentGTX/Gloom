@@ -112,8 +112,8 @@
   }
   .glass-strong {
     background: linear-gradient(180deg, var(--glass-sheen), transparent 60%), var(--glass-fill-strong);
-    -webkit-backdrop-filter: var(--glass-blur);
-    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-strong-blur);
+    backdrop-filter: var(--glass-strong-blur);
     box-shadow: var(--glass-shadow);
   }
   .glass-capsule {
