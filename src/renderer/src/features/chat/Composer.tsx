@@ -12,6 +12,7 @@ import { isBusy, useElsewhere, useLive, type Draft, type DraftImage } from '../.
 import { ContextMeter } from './ContextMeter'
 import { EffortPicker, effortsFor, ModelPicker, ModePicker } from './pickers'
 import { PromptCards } from './PromptCards'
+import { EditBanner } from './Rewind'
 
 /** Images Claude can read, and how big one may be. */
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
@@ -92,6 +93,8 @@ export function Composer({ sessionId, meta }: { sessionId: string; meta: Session
   }, [])
 
   const cwd = summary?.cwd ?? meta?.cwd
+  // Asked again after the folder is made again.
+  const [recreated, setRecreated] = useState(0)
   useEffect(() => {
     let alive = true
     setCan(null)
@@ -99,7 +102,20 @@ export function Composer({ sessionId, meta }: { sessionId: string; meta: Session
     return () => {
       alive = false
     }
-  }, [sessionId, cwd, claude?.path, !!summary])
+  }, [sessionId, cwd, claude?.path, !!summary, recreated])
+  // Claude Code only finds a session from its own folder, so it carries on once the folder is back
+  // (a worktree comes back from its branch).
+  const recreate = async () => {
+    const ok = await window.gloom?.live.recreate(sessionId).catch(() => false)
+    if (ok) setRecreated((n) => n + 1)
+    else notify('Couldn’t make the folder again.')
+  }
+  const action = (kind: Extract<CanSend, { ok: false }>['kind']) =>
+    kind === 'not-installed'
+      ? { label: 'Settings…', run: () => useLive.getState().setSettingsOpen(true) }
+      : kind === 'missing-folder' && cwd
+        ? { label: 'Recreate Folder', run: () => void recreate() }
+        : undefined
 
   return (
     <div ref={stack} className="pointer-events-none absolute inset-x-0 bottom-0 z-[4] px-4 pb-4 @[560px]:px-6">
@@ -107,12 +123,13 @@ export function Composer({ sessionId, meta }: { sessionId: string; meta: Session
       <div className="pointer-events-auto relative mx-auto flex w-full max-w-[720px] flex-col gap-2">
         {summary && <PromptCards sessionId={sessionId} summary={summary} />}
         {can && !can.ok ? (
-          <Notice icon={<CircleAlert size={15} strokeWidth={1.75} />} text={can.reason} action={can.kind === 'not-installed' ? { label: 'Settings…', run: () => useLive.getState().setSettingsOpen(true) } : undefined} />
+          <Notice icon={<CircleAlert size={15} strokeWidth={1.75} />} text={can.reason} action={action(can.kind)} />
         ) : elsewhere ? (
           <Notice icon={<Lock size={15} strokeWidth={1.75} />} text="Running in another app. Messages wait until it’s been quiet for a minute." action={{ label: 'Take Over', run: () => useLive.getState().takeOver(sessionId) }} />
         ) : (
           <>
             {summary && <Problems summary={summary} />}
+            <EditBanner sessionId={sessionId} />
             <Box sessionId={sessionId} summary={summary} ready={can?.ok === true} />
           </>
         )}
@@ -273,6 +290,10 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
     } else if (e.key === 'Escape' && busy) {
       e.preventDefault()
       stop()
+    } else if (e.key === 'Escape' && useLive.getState().editing[sessionId]) {
+      // Esc stops rewording; what you were writing before comes back.
+      e.preventDefault()
+      useLive.getState().endEdit(sessionId, true)
     }
   }
 

@@ -96,6 +96,24 @@ export const IPC = {
   /** invoke(count, png data URL | null): the taskbar badge */
   setBadge: 'attention:badge',
 
+  /** invoke(sessionId, messageId) → RewindPreview: what rewinding to before a message can restore */
+  liveRewindPreview: 'live:rewind-preview',
+  /** invoke(sessionId, RewindRequest) → CodeRewind | null: rewinds; the code part's result */
+  liveRewind: 'live:rewind',
+  /** invoke(sessionId): takes back a conversation rewind nothing has been sent after */
+  liveRewindUndo: 'live:rewind-undo',
+  /** invoke(sessionId) → boolean: makes its missing working folder again (a worktree from its branch) */
+  liveRecreate: 'live:recreate',
+
+  /** invoke(folder) → RepoInfo | null: the git repository a folder is in */
+  gitRepo: 'git:repo',
+  /** invoke(sessionId) → WorktreeInfo | null: the worktree a session works in */
+  gitWorktree: 'git:worktree',
+  /** invoke(sessionId) → MergeResult: lands its worktree's branch on the branch it came from */
+  gitMerge: 'git:merge',
+  /** invoke(sessionId, force) → RemoveResult: removes its worktree (the branch stays) */
+  gitRemoveWorktree: 'git:remove-worktree',
+
   /** invoke(sessionId) → SessionDiff: Claude's edits in the session */
   diffSession: 'diff:session',
   /** invoke(sessionId) → TreeDiff: what git sees in its working folder */
@@ -235,6 +253,8 @@ export type WorkerRequest =
   | { type: 'blob'; reqId: number; file: string; ref: string }
   /** Claude's edits in a transcript, composed per file; paths shown relative to `cwd`. */
   | { type: 'edits'; reqId: number; file: string; cwd: string | null }
+  /** The entry before a line on the chain (its parentUuid): null for the first, undefined when the line isn't there. */
+  | { type: 'parent'; reqId: number; file: string; uuid: string }
   | { type: 'unfollow' }
 
 /** transcripts worker → main */

@@ -15,6 +15,7 @@ import {
   type ModelChoice,
   type NewSessionRequest,
   type Provisional,
+  type RewindPreview,
   type SetRequest,
   type Settings,
   type StreamState,
@@ -36,6 +37,18 @@ export interface Draft {
   images: DraftImage[]
 }
 
+/** One of your messages being reworded in the composer: sending rewinds to before it. */
+export interface Editing {
+  messageId: string
+  /** What the rewind can restore, once Claude Code has said. */
+  preview: RewindPreview | null
+  /** Put Claude's file changes since then back too. */
+  restoreCode: boolean
+  error: string | null
+  /** The draft it replaced, back if you stop editing. */
+  before: Draft
+}
+
 const EMPTY_DRAFT: Draft = { text: '', images: [] }
 /** Provisional entries kept per session; main sends two turns' worth at most. */
 const PROVISIONAL_MAX = 600
@@ -49,6 +62,8 @@ interface LiveState {
   /** Sessions you took over from another app. */
   takenOver: Record<string, true>
   drafts: Record<string, Draft>
+  /** Messages being reworded, by session. */
+  editing: Record<string, Editing>
   usage: UsageInfo | null
   models: ModelChoice[]
   settings: Settings
@@ -59,7 +74,12 @@ interface LiveState {
 
   draft(id: string): Draft
   setDraft(id: string, draft: Draft): void
-  /** Sends the draft. Resolves false (after saying why) when it couldn't go. */
+  /** Starts rewording one of your messages: its text in the composer. */
+  beginEdit(id: string, messageId: string, text: string): void
+  updateEdit(id: string, messageId: string, patch: Partial<Pick<Editing, 'preview' | 'restoreCode' | 'error'>>): void
+  /** Stops rewording; with `restore`, the draft from before comes back. */
+  endEdit(id: string, restore: boolean): void
+  /** Sends the draft (after rewinding, when it rewords a message). Resolves false (after saying why) when it couldn't go. */
   send(id: string): Promise<boolean>
   /** Sends this text (a command, say), leaving the draft alone. */
   sendText(id: string, text: string): Promise<boolean>
@@ -89,6 +109,7 @@ export const useLive = create<LiveState>()((set, get) => ({
   ranAt: {},
   takenOver: {},
   drafts: {},
+  editing: {},
   usage: null,
   models: DEFAULT_MODELS,
   settings: DEFAULT_SETTINGS,
@@ -99,10 +120,40 @@ export const useLive = create<LiveState>()((set, get) => ({
   draft: (id) => get().drafts[id] ?? EMPTY_DRAFT,
   setDraft: (id, draft) => set({ drafts: { ...get().drafts, [id]: draft } }),
 
+  beginEdit: (id, messageId, text) => {
+    const s = get()
+    const before = s.editing[id]?.before ?? s.draft(id)
+    set({ editing: { ...s.editing, [id]: { messageId, preview: null, restoreCode: false, error: null, before } }, drafts: { ...s.drafts, [id]: { text, images: [] } } })
+  },
+  updateEdit: (id, messageId, patch) => {
+    const edit = get().editing[id]
+    if (edit?.messageId === messageId) set({ editing: { ...get().editing, [id]: { ...edit, ...patch } } })
+  },
+  endEdit: (id, restore) => {
+    const { [id]: edit, ...editing } = get().editing
+    if (!edit) return
+    set({ editing, ...(restore ? { drafts: { ...get().drafts, [id]: edit.before } } : {}) })
+  },
+
   send: async (id) => {
     const api = window.gloom
     const draft = get().draft(id)
     if (!api || (!draft.text.trim() && !draft.images.length)) return false
+    // A reworded message: back to before the original first (it stays if the rewind can't happen).
+    const edit = get().editing[id]
+    if (edit) {
+      if (!edit.preview?.conversation) {
+        notify(edit.preview ? 'That’s where the conversation starts: it can’t be edited.' : 'Still asking Claude Code what it can restore. Try again in a moment.')
+        return false
+      }
+      try {
+        await api.live.rewind(id, { messageId: edit.messageId, conversation: true, code: edit.restoreCode })
+      } catch (error) {
+        notify(`Couldn’t go back to that message. ${failure(error)}`)
+        return false
+      }
+      get().endEdit(id, false)
+    }
     // Cleared at once, so the composer is ready for the next one; put back if it fails.
     get().setDraft(id, EMPTY_DRAFT)
     try {

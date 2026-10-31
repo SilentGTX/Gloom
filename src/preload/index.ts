@@ -49,7 +49,17 @@ const api: GloomApi = {
     set: (id, request) => ipcRenderer.invoke(IPC.liveSet, id, request),
     commands: (id) => ipcRenderer.invoke(IPC.liveCommands, id),
     models: () => ipcRenderer.invoke(IPC.liveModels),
-    usage: () => ipcRenderer.invoke(IPC.liveUsage)
+    usage: () => ipcRenderer.invoke(IPC.liveUsage),
+    rewindPreview: (id, messageId) => ipcRenderer.invoke(IPC.liveRewindPreview, id, messageId),
+    rewind: (id, request) => ipcRenderer.invoke(IPC.liveRewind, id, request),
+    undoRewind: (id) => ipcRenderer.invoke(IPC.liveRewindUndo, id),
+    recreate: (id) => ipcRenderer.invoke(IPC.liveRecreate, id)
+  },
+  git: {
+    repo: (folder) => ipcRenderer.invoke(IPC.gitRepo, folder),
+    worktree: (id) => ipcRenderer.invoke(IPC.gitWorktree, id),
+    merge: (id) => ipcRenderer.invoke(IPC.gitMerge, id),
+    removeWorktree: (id, force) => ipcRenderer.invoke(IPC.gitRemoveWorktree, id, force)
   },
   claude: {
     info: (options) => ipcRenderer.invoke(IPC.claudeInfo, options?.fresh === true),

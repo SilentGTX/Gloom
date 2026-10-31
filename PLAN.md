@@ -268,10 +268,11 @@ Stopped sessions resume on their next send.
   default; a folder Gloom hasn't seen asks for trust first; it's placed in the folder you're in.
 
 **2. Chat (right).**
-- **Toolbar:** the session's title with what it's doing beside it ("Active now"); trailing, one
-  capsule with the sidebar's show/hide, Resume in Terminal and ⓘ, which opens the session's
-  details as a card (working folder, folder, started, last active, started from, branch, session
-  ID, with Reveal Working Folder and Copy Session ID).
+- **Toolbar:** the session's title with what it's doing beside it ("Active now"), and a worktree
+  session's branch with Merge; trailing, one capsule with the sidebar's show/hide, the terminal
+  and diff panes and ⓘ, which opens the session's details as a card (working folder, folder,
+  started, last active, started from, branch, session ID, with Resume in Terminal, Reveal Working
+  Folder and Copy Session ID).
 - **Transcript:** virtualized and opens at the bottom; older pages load on scroll up, stopping at the
   last compaction. User messages, assistant markdown with shiki code blocks, thinking collapsed, and
   tool calls as compact rows (icon + summary such as "Edited `foo.ts` +12 −3", "Ran `npm test`")
@@ -386,8 +387,9 @@ sidebar's click and motion fixes are out as Gloom 0.6.2. **Updates that don't cl
 the cloud on a violet tile and the shimmering title of a running session are out as Gloom 0.6.3
 (Phase 1's notes and the sidebar's, "After 0.6.2"). Show More and a sidebar that keeps its order
 are out as Gloom 0.6.5, and a fix for clicks lost while a group opens as Gloom 0.6.6. **Phase 4,
-live chat, is out as Gloom 0.7.0** (2026-10-31). **Next: Phase 5**, the diff and terminal panes,
-on your OK.
+live chat, is out as Gloom 0.7.0** (2026-10-31). **Phases 5 and 6**, the diff and terminal panes,
+then rewind, edit and worktrees, were built the same night at your request and go out together
+as **Gloom 0.8.0**. **Next: Phase 7**, the polish pass, on your OK.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -791,6 +793,57 @@ disclosure pages; `apple-design` for motion).
 6. **Rewind, edit and worktrees.** Edit and rewind with the conversation / code / both choice;
    worktree sessions in git repos, Merge, cleanup on archive, and the missing-folder behaviour
    recorded in Phase 0.
+   **Done 2026-10-31**, straight after Phase 5 at your request ("do phase 6 and then push and make
+   new version"). Built with both Apple skills (`apple-hig`'s foundation pages, plus the alert,
+   modality, sheet and undo pages; `apple-design` for motion).
+   - **Checked first on your claude.exe (2.1.186):** a process started just for it can preview and
+     rewind files to a message an earlier process sent (the dry run takes about 1.3 s), and
+     `resumeSessionAt` set to the entry before a message carries on from there
+     (`npm run spike -- rewind-resume`; one opt-in real-CLI test drives it all through Gloom's own
+     runner). Every session Gloom runs now has checkpoints on (`enableFileCheckpointing`), so its
+     Write and Edit changes can go back; the UUID Gloom gives each message you send is its
+     checkpoint. Sessions run before 0.8 have none, and the sheet says so.
+   - **Rewind to Here** (hover one of your messages, or tab to it): a sheet asks what to restore,
+     Conversation and Code, Conversation Only or Code Only, with the files and lines the code part
+     would put back (Claude Code's own preview). The conversation part shows at once (your message
+     and what came after it leave the view) and your message comes back to the composer, as
+     Claude Code does; the next message carries on from before it, and the old turns stay in the
+     file as a branch. Until you send something, Undo (in the toast, or Edit › Undo Rewind) takes
+     it back. Newer CLIs also get `--resume-drops-turn`, and if one refuses the fork Gloom carries
+     on plainly and says so, as the SDK asks.
+   - **Edit** (the pencil beside Rewind): your message goes into the composer with a banner saying
+     what sending will do, and a checkbox to restore the code Claude changed since (on when there's
+     any). Sending rewinds, then sends your new words; Esc or × gives your draft back. The first
+     message of a conversation can't be edited (there's nothing before it), and says so.
+   - **Worktrees:** New Session in a git repository has "Work on a branch of its own", on by
+     default: `git worktree add` at `<repo>/.claude/worktrees/<two-words>` on `claude/<two-words>`,
+     from the checkout's last commit, with `.claude/worktrees/` added to `.git/info/exclude`
+     (`src/main/git/worktrees.ts`). The branch it came from is kept in the repository's own config
+     (`branch.claude/<name>.gloomBase`). A worktree session's toolbar shows its branch and
+     **Merge** (also File › Merge Worktree…): a sheet says how many commits go where, warns when
+     changes aren't committed (Ask Claude to Commit), and merges with a merge commit in the main
+     checkout, which must be on that branch. On conflicts it stops, puts the branch back as it
+     was, names the files and offers Ask Claude to Resolve (merge the base in, resolve, commit).
+     Working Tree in the diff pane shows a worktree's changes since it left its branch, committed
+     ones included: what Merge would bring.
+   - **Archiving** a worktree session removes its worktree once Undo has passed (the branch stays);
+     one with uncommitted changes asks first. A process still running there closes first; one
+     mid-turn keeps its folder.
+   - **A missing working folder** says so in the composer's place with **Recreate Folder**: a
+     worktree comes back from its branch, any other folder is made again, empty, and the session
+     carries on (Claude Code only finds a session from its own folder).
+   - **Review** with both skills. Fixes made: questions as sheet titles take sentence case, as
+     Apple's alerts do ("Rewind to before this message?"); Merge has a menu command, like every
+     toolbar item; a conversation rewind joins Edit › Undo rather than living only in a toast.
+   - **Departures**, deliberate: Edit happens in the composer rather than inside the bubble; the
+     rewind sheet's Rewind button isn't styled destructive, because you chose to rewind (Apple
+     keeps that style for what you didn't choose; removing a worktree with changes gets it).
+   - **Not covered:** the diff pane's This Session still lists edits a code rewind took back (the
+     transcript keeps them); Working Tree shows the truth.
+   - **Tests:** unit tests for worktrees against a real repository (make, exclude, merge, conflicts,
+     a checkout on another branch, remove, recreate, Working Tree since the base); end-to-end,
+     Rewind to Here with Undo, Edit with Esc, and a new session in a worktree with its branch and
+     Merge; the opt-in real-CLI test of rewind and edit.
 7. **Polish pass with the skills.** An `apple-hig` and `apple-design` review of every screen, then
    `review-animations`, `animation-performance`, and `break-ui` with worst-case data (500 sessions,
    folders 8 levels deep, 200-character titles, empty folders, your 496 MB transcript). Then reduced

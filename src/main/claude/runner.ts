@@ -17,6 +17,7 @@ import {
   type PermissionResult,
   type PermissionUpdate,
   type Query,
+  type Options,
   type SDKMessage,
   type SDKUserMessage,
   type SlashCommand,
@@ -45,7 +46,8 @@ import {
   type StreamState
 } from '@shared/live'
 import { lineEntries, resolveRef, type LineAt, type ToolResult, type TranscriptEntry } from '@shared/transcript'
-import { findClaude } from './binary'
+import type { CodeRewind } from '@shared/live'
+import { cliAtLeast, EXPECTED_VERSION, findClaude } from './binary'
 
 /** Streamed text reaches the window at most this often. */
 const STREAM_MS = 40
@@ -57,6 +59,10 @@ const KEEP_TURNS = 2
 const STDERR_TAIL = 4000
 /** A card shows strings up to this long; the answer goes back with the whole input. */
 const CARD_STRING = 6000
+/** A code rewind waits this long for the CLI (one started for it takes a second or two). */
+const REWIND_MS = 60_000
+/** How the CLI refuses a fork that would drop more than the turn named (newer CLIs). */
+const DROPS_REFUSED = 'Resume rejected by --resume-drops-turn:'
 
 export interface RunnerOptions {
   id: string
@@ -247,7 +253,16 @@ export class Runner {
   private stopping = false
   /** close() was asked for: its end isn't a failure. */
   private closing = false
+  /** Processes put away for a rewind: their end isn't news either. */
+  private retired = new WeakSet<Query>()
   private stderr = ''
+  /**
+   * A conversation rewind not yet sent after: the next process starts from
+   * `at` (the entry before the message rewound to, `drops`). It stays shown as
+   * rewound, so the old turns don't flash back while the file catches up.
+   */
+  private forkAt: { at: string; drops: string } | null = null
+  private rewound: string | null = null
 
   private stream: StreamState | null = null
   private streamTimer: ReturnType<typeof setTimeout> | null = null
@@ -302,7 +317,8 @@ export class Runner {
       context: this.context,
       error: this.error,
       lastActive: this.lastActive,
-      version: this.version
+      version: this.version,
+      rewoundTo: this.rewound
     }
   }
 
@@ -378,6 +394,26 @@ export class Runner {
 
   // ─── The process ───────────────────────────────────────────────────────────
 
+  /** What every process of this session starts with: Claude Code as it runs in a terminal, checkpoints on. */
+  private options(claude: string): Options {
+    return {
+      pathToClaudeCodeExecutable: claude,
+      cwd: this.cwd,
+      env: cleanEnv(),
+      // Without these the SDK skips your settings and CLAUDE.md, and isn't Claude Code.
+      settingSources: ['user', 'project', 'local'],
+      systemPrompt: { type: 'preset', preset: 'claude_code' },
+      includePartialMessages: true,
+      // So the mode picker can switch a running session into Bypass.
+      allowDangerouslySkipPermissions: true,
+      // Claude's Write and Edit changes can be rewound to any message you send (the message's UUID is its checkpoint).
+      enableFileCheckpointing: true,
+      permissionMode: this.mode,
+      ...(this.model ? { model: this.model } : {}),
+      ...(this.effort ? { effort: this.effort } : {})
+    }
+  }
+
   private start(): void {
     const claude = findClaude()
     if (!claude) throw new Error('Claude Code isn’t installed.')
@@ -387,24 +423,17 @@ export class Runner {
     this.stderr = ''
     this.state = 'starting'
     const canUseTool: CanUseTool = (toolName, input, options) => this.ask(toolName, input, options)
+    const fork = this.forkAt
     const q = query({
       prompt: inbox,
       options: {
-        pathToClaudeCodeExecutable: claude,
-        cwd: this.cwd,
-        env: cleanEnv(),
-        // Without these the SDK skips your settings and CLAUDE.md, and isn't Claude Code.
-        settingSources: ['user', 'project', 'local'],
-        systemPrompt: { type: 'preset', preset: 'claude_code' },
-        includePartialMessages: true,
-        // So the mode picker can switch a running session into Bypass.
-        allowDangerouslySkipPermissions: true,
-        permissionMode: this.mode,
-        ...(this.model ? { model: this.model } : {}),
-        ...(this.effort ? { effort: this.effort } : {}),
+        ...this.options(claude),
         ...(this.resume ? { resume: this.id } : { sessionId: this.id }),
+        // After a conversation rewind: carry on from the entry before the message rewound to. Newer
+        // CLIs also check that only that turn goes (older ones reject the flag outright).
+        ...(fork && this.resume ? { resumeSessionAt: fork.at, ...(cliAtLeast(EXPECTED_VERSION) ? { resumeDropsTurn: fork.drops } : {}) } : {}),
         canUseTool,
-        spawnClaudeCodeProcess: (options) => this.spawn(options)
+        spawnClaudeCodeProcess: (options) => this.spawn(options, (pid) => (this.pid = pid), true)
       }
     })
     this.q = q
@@ -412,18 +441,18 @@ export class Runner {
     void this.pump(q)
   }
 
-  /** Starts the CLI ourselves: hidden, its stderr kept, its PID known for the tree kill. */
-  private spawn(options: SpawnOptions): SpawnedProcess {
+  /** Starts the CLI ourselves: hidden, its stderr kept (for the session's own process), its PID known for the tree kill. */
+  private spawn(options: SpawnOptions, onPid: (pid: number | undefined) => void, keepStderr: boolean): SpawnedProcess {
     const child = spawn(options.command, options.args, {
       cwd: options.cwd,
       env: options.env as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true
     })
-    this.pid = child.pid
+    onPid(child.pid)
     // Read it, or a chatty CLI fills the pipe and stalls.
     child.stderr.on('data', (chunk: Buffer) => {
-      this.stderr = (this.stderr + chunk.toString('utf8')).slice(-STDERR_TAIL)
+      if (keepStderr) this.stderr = (this.stderr + chunk.toString('utf8')).slice(-STDERR_TAIL)
     })
     options.signal.addEventListener('abort', () => {
       if (child.exitCode === null) killTree(child.pid)
@@ -436,9 +465,105 @@ export class Runner {
       for await (const m of q) this.handle(m)
     } catch (error) {
       // A dead CLI rejects the iterator; nothing else is left waiting on it.
-      if (!this.closing) this.fail(error)
+      if (!this.closing && !this.retired.has(q)) this.fail(error)
     } finally {
       this.ended(q)
+    }
+  }
+
+  // ─── Rewinds ───────────────────────────────────────────────────────────────
+
+  /**
+   * The conversation goes back to before a message: what's shown stops before
+   * it, and the next message starts a process from `at`, the entry before it
+   * on the chain. The old turns stay in the file, as a branch.
+   */
+  rewindConversation(at: string, drops: string): void {
+    if (this.busy) throw new Error('Claude is working. Stop it first.')
+    this.forkAt = { at, drops }
+    this.rewound = drops
+    this.error = null
+    this.queued = []
+    // What the stream showed belongs to the turns going away.
+    this.turns = []
+    this.events.entries([], {}, true)
+    this.retire()
+    this.emit()
+  }
+
+  /** Takes back a conversation rewind, if nothing was sent after it; false when it's too late. */
+  undoRewind(): boolean {
+    if (!this.forkAt) return false
+    this.forkAt = null
+    this.rewound = null
+    this.emit()
+    return true
+  }
+
+  /** Puts the process away at once (a rewind needs a new one); the next send starts it. */
+  private retire(): void {
+    const q = this.q
+    if (!q) return
+    this.retired.add(q)
+    const pid = this.pid
+    this.q = null
+    this.inbox?.close()
+    this.inbox = null
+    this.pid = undefined
+    this.state = 'idle'
+    this.activity = null
+    this.turnStarted = null
+    q.close()
+    setTimeout(() => killTree(pid), 3000).unref()
+  }
+
+  /**
+   * Files back to how they were before a message, from Claude Code's
+   * checkpoints (Write and Edit only, as /rewind). With `dryRun`, only what it
+   * would change. Uses the running process, or starts one just for this.
+   */
+  async rewindCode(messageId: string, dryRun: boolean): Promise<CodeRewind> {
+    if (this.busy) throw new Error('Claude is working. Stop it first.')
+    let q = this.q
+    let temp: { q: Query; inbox: Inbox; pid?: number } | null = null
+    if (!q) {
+      const claude = findClaude()
+      if (!claude) throw new Error('Claude Code isn’t installed.')
+      const inbox = new Inbox()
+      const t: { q: Query; inbox: Inbox; pid?: number } = { q: null as unknown as Query, inbox }
+      t.q = query({ prompt: inbox, options: { ...this.options(claude), resume: this.id, spawnClaudeCodeProcess: (o) => this.spawn(o, (pid) => (t.pid = pid), false) } })
+      temp = t
+      q = t.q
+      // Nothing is sent to it; what it says is drained so its pipe never fills.
+      void (async () => {
+        try {
+          for await (const _ of t.q);
+        } catch {
+          // Closed under it.
+        }
+      })()
+    }
+    try {
+      const result = await Promise.race([
+        q.rewindFiles(messageId, { dryRun }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Claude Code didn’t answer.')), REWIND_MS).unref())
+      ])
+      return {
+        can: result.canRewind,
+        ...(result.error ? { reason: result.error } : {}),
+        files: result.filesChanged ?? [],
+        insertions: result.insertions ?? 0,
+        deletions: result.deletions ?? 0
+      }
+    } catch (error) {
+      return { can: false, reason: error instanceof Error ? error.message : String(error), files: [], insertions: 0, deletions: 0 }
+    } finally {
+      if (temp) {
+        temp.inbox.close()
+        temp.q.close()
+        const pid = temp.pid
+        setTimeout(() => killTree(pid), 3000).unref()
+      }
     }
   }
 
@@ -535,6 +660,8 @@ export class Runner {
 
   private onSystem(m: Record<string, unknown>): void {
     if (m.subtype === 'init') {
+      // A rewind's fork took: this process carries on from there (what's shown stays rewound until the file catches up).
+      this.forkAt = null
       if (typeof m.claude_code_version === 'string') this.version = m.claude_code_version
       if (isMode(m.permissionMode)) this.mode = m.permissionMode
       if (this.state === 'starting') this.state = 'working'
@@ -646,10 +773,18 @@ export class Runner {
       const status = num(m.api_error_status)
       const errors = Array.isArray(m.errors) ? m.errors.filter((e): e is string => typeof e === 'string') : []
       const said = (typeof m.result === 'string' ? m.result : '') || errors[0] || ''
-      this.error =
-        status === 401 || /log ?in|authenticat/i.test(said)
-          ? { kind: 'login', message: 'Claude Code needs you to log in again.', detail: said || undefined }
-          : { kind: 'failed', message: said.split('\n')[0] || 'The turn ended with an error.', detail: said.includes('\n') ? said : undefined }
+      if (said.startsWith(DROPS_REFUSED) || errors.some((e) => e.startsWith(DROPS_REFUSED))) {
+        // The CLI won't drop more than the rewound turn (something arrived in it meanwhile). As the SDK
+        // asks: give up the fork and carry on plainly, never retry it.
+        this.forkAt = null
+        this.rewound = null
+        this.error = { kind: 'failed', message: 'Something arrived in that turn after you rewound, so Claude can’t carry on from there. Send your message again to continue from the end.', detail: said }
+      } else {
+        this.error =
+          status === 401 || /log ?in|authenticat/i.test(said)
+            ? { kind: 'login', message: 'Claude Code needs you to log in again.', detail: said || undefined }
+            : { kind: 'failed', message: said.split('\n')[0] || 'The turn ended with an error.', detail: said.includes('\n') ? said : undefined }
+      }
     }
     // Stop hands the queue back to the composer first; anything still queued goes now.
     const next = this.queued.shift()

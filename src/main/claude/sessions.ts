@@ -12,6 +12,7 @@ import {
   isMode,
   type CanSend,
   type CardAnswer,
+  type CodeRewind,
   type CommandInfo,
   type ImageAttachment,
   type LiveEvent,
@@ -20,6 +21,8 @@ import {
   type NewSessionRequest,
   type PromptCard,
   type Queued,
+  type RewindPreview,
+  type RewindRequest,
   type SetRequest,
   type UsageInfo,
   type UsageWindow
@@ -63,7 +66,9 @@ export class Sessions {
   constructor(
     private readonly events: SessionsEvents,
     /** The index's entry for a session. */
-    private readonly lookup: (id: string) => SessionMeta | undefined
+    private readonly lookup: (id: string) => SessionMeta | undefined,
+    /** The entry before a line on a session's chain (null for its first line). */
+    private readonly chainParent: (id: string, uuid: string) => Promise<string | null>
   ) {}
 
   list(): LiveSummary[] {
@@ -147,6 +152,49 @@ export class Sessions {
     const runner = this.runners.get(id)
     if (!at || !runner) throw new Error('That part of the reply is in the transcript now. Reopen the session to see it.')
     return runner.blob(at.offset, at.path)
+  }
+
+  /** What rewinding to before a message can restore: the conversation (unless it's the first), and code from its checkpoint. */
+  async rewindPreview(id: string, messageId: string): Promise<RewindPreview> {
+    const runner = this.runnerFor(id)
+    const at = await this.chainParent(id, messageId)
+    return { conversation: at !== null, code: await runner.rewindCode(messageId, true) }
+  }
+
+  /**
+   * Rewinds to before a message: its code from Claude Code's checkpoint, the
+   * conversation by starting the next process from the entry before it. The
+   * fork point is found first, so a rewind that can't happen leaves files alone.
+   */
+  async rewind(id: string, request: RewindRequest): Promise<CodeRewind | null> {
+    const runner = this.runnerFor(id)
+    const at = request.conversation ? await this.chainParent(id, request.messageId) : null
+    if (request.conversation && at === null) throw new Error('That’s where the conversation starts: there’s nothing before it to go back to.')
+    let code: CodeRewind | null = null
+    if (request.code) {
+      code = await runner.rewindCode(request.messageId, false)
+      if (!code.can) throw new Error(code.reason ?? 'Claude Code kept no checkpoint for that message.')
+    }
+    if (request.conversation && at) runner.rewindConversation(at, request.messageId)
+    return code
+  }
+
+  undoRewind(id: string): boolean {
+    return this.runners.get(id)?.undoRewind() ?? false
+  }
+
+  /** Whether its process is running (an idle one closes before its worktree goes). */
+  alive(id: string): boolean {
+    return !!this.runners.get(id)?.alive
+  }
+
+  /** Closes an idle session's process now; false if it's working. */
+  closeIdle(id: string): boolean {
+    const runner = this.runners.get(id)
+    if (!runner?.alive) return true
+    if (runner.busy) return false
+    runner.close()
+    return true
   }
 
   /** Where a session works: its running process's folder, else the transcript's. */

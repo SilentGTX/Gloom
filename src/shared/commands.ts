@@ -30,6 +30,8 @@ export const COMMANDS = [
   { id: 'session.stop', label: 'Stop', group: 'file', accelerator: 'CmdOrCtrl+.', runs: 'renderer' },
   // Another shell in the terminal pane, in the open session's working folder.
   { id: 'terminal.new', label: 'New Terminal', group: 'file', accelerator: 'CmdOrCtrl+Shift+`', runs: 'renderer' },
+  // A worktree session's branch onto the branch it came from (the toolbar's Merge).
+  { id: 'session.merge', label: 'Merge Worktree…', group: 'file', runs: 'renderer' },
   { id: 'app.settings', label: 'Settings…', group: 'file', accelerator: 'CmdOrCtrl+,', runs: 'renderer' },
   { id: 'app.quit', label: 'Quit Gloom', group: 'file', accelerator: 'CmdOrCtrl+Q', runs: 'main' },
   // Undoes typing in a field, otherwise the last change to your folders and sessions.

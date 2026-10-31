@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ChevronDown, Folder as FolderGlyph, FolderOpen, Inbox, ShieldAlert } from 'lucide-react'
+import type { RepoInfo } from '@shared/git'
 import { flattenTree, folderDefaults, folderTrusted, normalizePath } from '@shared/library'
 import { isEffort, isMode, type Effort, type ModeId } from '@shared/live'
 import { Button } from '../../components/ui/Button'
@@ -133,6 +134,18 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
   const [mode, setMode] = useState<ModeId>(settings.mode)
   const [effort, setEffort] = useState<Effort | null>(settings.effort)
   const [busy, setBusy] = useState(false)
+  // In a git repository, a worktree of its own unless you switch it off (a worktree's own folder never gets one).
+  const [repo, setRepo] = useState<RepoInfo | null>(null)
+  const [worktree, setWorktree] = useState(true)
+  useEffect(() => {
+    let alive = true
+    setRepo(null)
+    if (cwd) void window.gloom?.git.repo(cwd).then((info) => alive && setRepo(info))
+    return () => {
+      alive = false
+    }
+  }, [cwd])
+  const offersWorktree = !!repo && !repo.worktree
 
   // The folder's defaults (or its parents'), else Settings', else your last working folder.
   useEffect(() => {
@@ -154,7 +167,7 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
     if (!cwd || busy) return
     setBusy(true)
     if (!trusted) await useLibrary.getState().apply({ type: 'trustFolder', path: cwd }, { record: false })
-    const id = await useLive.getState().create({ cwd, model, mode, effort: effort && efforts.includes(effort) ? effort : null }, place)
+    const id = await useLive.getState().create({ cwd, model, mode, effort: effort && efforts.includes(effort) ? effort : null, worktree: offersWorktree && worktree }, place)
     setBusy(false)
     if (!id) return
     onDone(true)
@@ -180,6 +193,20 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
       <Row label="Place in">
         <PlacePicker value={place} onChange={setPlace} />
       </Row>
+      {offersWorktree && (
+        <div className="grid grid-cols-[96px_1fr] items-start gap-x-3">
+          <span className="pt-[3px] text-right text-[13px] text-label-secondary">Worktree</span>
+          <label className="flex cursor-default items-start gap-2 text-[13px] text-label">
+            <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} className="mt-[3px] size-4 accent-[var(--accent)]" />
+            <span>
+              Work on a branch of its own
+              <span className="mt-0.5 block text-[11.5px] leading-snug text-label-secondary">
+                In .claude/worktrees, from the last commit{repo?.branch ? ` on ${repo.branch}` : ''}; uncommitted changes stay where they are. Merge brings the work back.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
 
       {!trusted && cwd && (
         <div role="note" className="mt-1 flex gap-2.5 rounded-[12px] bg-fill p-3 text-[12.5px] leading-snug">

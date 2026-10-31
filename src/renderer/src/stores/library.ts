@@ -9,11 +9,12 @@ import { emptyLibrary, type LibraryData, type LibraryOp, type SessionMeta } from
 import { notify } from '../lib/toast'
 import { useUi } from './ui'
 
-/** A change you can take back, named for the Edit menu ("Undo Archive"). */
+/** A change you can take back, named for the Edit menu ("Undo Archive"): a library operation, or another step (a rewind). */
 export interface UndoEntry {
   id: string
   label: string
-  op: LibraryOp
+  op?: LibraryOp
+  run?: () => void | Promise<void>
 }
 
 /** What each undoable change is called. Opening a folder and filing rules aren't undone. */
@@ -52,6 +53,8 @@ interface LibraryState {
   apply(op: LibraryOp, options?: { record?: boolean }): Promise<(ApplyResult & { entry?: UndoEntry }) | null>
   /** Takes back the last change, or the one a toast offers. */
   undo(id?: string): Promise<void>
+  /** Something outside the library that Edit › Undo can take back too. */
+  pushUndo(label: string, run: () => void | Promise<void>): UndoEntry
 }
 
 export const useLibrary = create<LibraryState>()((set, get) => ({
@@ -83,7 +86,13 @@ export const useLibrary = create<LibraryState>()((set, get) => ({
     if (!entry) return
     set({ undoStack: stack.filter((e) => e !== entry) })
     toast.dismiss(entry.id)
-    await get().apply(entry.op, { record: false })
+    if (entry.run) await entry.run()
+    else if (entry.op) await get().apply(entry.op, { record: false })
+  },
+  pushUndo: (label, run) => {
+    const entry: UndoEntry = { id: `undo-${++undoCount}`, label, run }
+    set({ undoStack: [...get().undoStack, entry].slice(-UNDO_DEPTH) })
+    return entry
   }
 }))
 

@@ -165,7 +165,11 @@ function DiffContent({ sessionId, tab }: { sessionId: string; tab: DiffTab }) {
   if (!tree.files.length) {
     return (
       <EmptyState icon={<GitBranch size={40} strokeWidth={1.25} />} title="No Changes">
-        {tree.branch ? (
+        {tree.since ? (
+          <>
+            Nothing has changed here since it left <span className="font-medium text-label">{tree.since}</span>.
+          </>
+        ) : tree.branch ? (
           <>
             Everything matches the last commit on <span className="font-medium text-label">{tree.branch}</span>.
           </>
@@ -175,7 +179,7 @@ function DiffContent({ sessionId, tab }: { sessionId: string; tab: DiffTab }) {
       </EmptyState>
     )
   }
-  return <DiffList tab="tree" files={tree.files} branch={tree.branch} truncated={tree.truncated} />
+  return <DiffList tab="tree" files={tree.files} branch={tree.branch} since={tree.since} truncated={tree.truncated} />
 }
 
 // ─── The list ────────────────────────────────────────────────────────────────
@@ -217,7 +221,7 @@ function layoutFiles(files: DiffFile[], folded: ReadonlySet<string>, tab: DiffTa
   return { counts, items }
 }
 
-function DiffList({ tab, files, branch, truncated }: { tab: DiffTab; files: DiffFile[]; branch?: string | null; truncated?: boolean }) {
+function DiffList({ tab, files, branch, since, truncated }: { tab: DiffTab; files: DiffFile[]; branch?: string | null; since?: string; truncated?: boolean }) {
   const folded = useDiff((s) => s.folded)
   const { counts, items } = useMemo(() => layoutFiles(files, folded, tab), [files, folded, tab])
   const [menu, setMenu] = useState<number | null>(null)
@@ -244,7 +248,7 @@ function DiffList({ tab, files, branch, truncated }: { tab: DiffTab; files: Diff
           className="scroll-edge diff-list"
           groupCounts={counts}
           increaseViewportBy={600}
-          context={{ files, branch: tab === 'tree' ? branch : undefined, truncated }}
+          context={{ files, branch: tab === 'tree' ? branch : undefined, since, truncated }}
           components={LIST_PARTS}
           groupContent={(f) => <FileHeader file={files[f]} index={f} folded={folded.has(keys[f])} keys={keys} />}
           itemContent={(i) => <ItemView item={items[i]} file={files[fileOf[i]]} index={fileOf[i]} />}
@@ -278,6 +282,8 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 interface SummaryProps {
   files: DiffFile[]
   branch?: string | null
+  /** A worktree's: the branch its changes are counted from. */
+  since?: string
   truncated?: boolean
 }
 
@@ -304,8 +310,8 @@ const LIST_PARTS = {
   Footer: () => <div className="h-6" />
 }
 
-/** Above the files: how many, the lines added and removed, and the branch. */
-function Summary({ files, branch, truncated }: SummaryProps) {
+/** Above the files: how many, the lines added and removed, and the branch (a worktree's, since it left its base). */
+function Summary({ files, branch, since, truncated }: SummaryProps) {
   const { added, removed } = totals(files)
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-1 pb-2.5 text-footnote text-label-secondary">
@@ -313,6 +319,7 @@ function Summary({ files, branch, truncated }: SummaryProps) {
         <span className="flex min-w-0 items-center gap-1 font-medium text-label">
           <GitBranch size={13} strokeWidth={2} aria-hidden className="shrink-0 text-label-secondary" />
           <span className="truncate">{branch}</span>
+          {since && <span className="shrink-0 font-normal text-label-secondary">since {since}</span>}
         </span>
       )}
       <span>{plural(files.length, 'file')} changed</span>

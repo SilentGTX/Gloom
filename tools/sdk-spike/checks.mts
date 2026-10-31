@@ -541,6 +541,66 @@ const rewind: Check = async () => {
   }
 }
 
+/** Settles with the promise, or rejects after `ms`. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timed out after ${ms} ms`)), ms).unref())])
+}
+
+// Phase 6: rewinding code from a process that didn't make the edits (Gloom's
+// rewind starts one just for that), and continuing from an earlier message.
+const rewindResume: Check = async () => {
+  const dir = sandbox('rewind-resume', { fresh: true })
+  const file = join(dir, 'a.txt')
+  writeFileSync(file, 'original\n')
+  const inbox = new Inbox()
+  const q = query({ prompt: inbox, options: baseOptions('rewind-resume-a', { cwd: dir, permissionMode: 'acceptEdits', enableFileCheckpointing: true }) })
+  const pump = new Pump(q, true)
+  const u1 = inbox.send('Use the Write tool to replace the entire contents of a.txt with the single line: changed once')
+  const r1 = await pump.result()
+  pump.mark()
+  const u2 = inbox.send('Use the Edit tool to append a second line to a.txt: changed twice')
+  await pump.result()
+  const afterTwo = readFileSync(file, 'utf8')
+  inbox.close()
+  await pump.done
+  const sid = r1.session_id
+
+  // A second process, resumed, with no prompt sent: only control requests.
+  const inboxB = new Inbox()
+  const qB = query({ prompt: inboxB, options: baseOptions('rewind-resume-b', { cwd: dir, permissionMode: 'acceptEdits', enableFileCheckpointing: true, resume: sid }) })
+  const pumpB = new Pump(qB, true)
+  const started = Date.now()
+  const dry = await withTimeout(qB.rewindFiles(u2.uuid!, { dryRun: true }), 60_000).catch((e) => ({ error: String(e) }))
+  const dryMs = Date.now() - started
+  const real = await withTimeout(qB.rewindFiles(u2.uuid!), 60_000).catch((e) => ({ error: String(e) }))
+  const afterRewind = readFileSync(file, 'utf8')
+  inboxB.close()
+  await pumpB.done
+
+  // A third: continue from the end of turn 1 (u2's parent on the chain), as Gloom's edit does.
+  const lines = readTranscript(dir, sid)
+  const transcriptFile = (lines as { file: string }).file
+  const raw = readFileSync(transcriptFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  const u2Line = raw.find((e) => e.uuid === u2.uuid)
+  const inboxC = new Inbox()
+  const pumpC = new Pump(query({ prompt: inboxC, options: baseOptions('rewind-resume-c', { cwd: dir, permissionMode: 'acceptEdits', enableFileCheckpointing: true, resume: sid, resumeSessionAt: u2Line?.parentUuid }) }), true)
+  inboxC.send('List every message I have sent you in this conversation so far, quoted, one per line. Nothing else.')
+  const rC = await pumpC.result().catch(() => null)
+  inboxC.close()
+  await pumpC.done
+  return {
+    userUuids: { u1: u1.uuid, u2: u2.uuid },
+    u2Parent: u2Line ? { uuid: u2Line.parentUuid, type: raw.find((e) => e.uuid === u2Line.parentUuid)?.type } : null,
+    file: { afterTwo, afterRewind },
+    dry,
+    dryMs,
+    real,
+    messagesB: pumpB.messages.map((m) => m.type),
+    errorB: pumpB.error ? String(pumpB.error) : null,
+    continued: { error: pumpC.error ? String(pumpC.error) : null, reply: lastAssistantText(pumpC.messages), subtype: rC?.subtype }
+  }
+}
+
 function git(cwd: string, ...args: string[]) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
 }
@@ -784,6 +844,7 @@ export const checks: Record<string, Check> = {
   question,
   switches,
   rewind,
+  "rewind-resume": rewindResume,
   worktree,
   'missing-cwd': missingCwd,
   prewarm,

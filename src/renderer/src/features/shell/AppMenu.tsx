@@ -16,6 +16,7 @@ import {
   MenuTrigger
 } from '../../components/ui/Menu'
 import { runCommand } from '../../lib/commands'
+import { useWorktrees } from '../chat/Worktree'
 import { useLibrary } from '../../stores/library'
 import { useTranscript } from '../../stores/transcript'
 import { useUi, type DiffTab, type SortOrder } from '../../stores/ui'
@@ -33,6 +34,7 @@ const DIFF_TABS: Record<string, DiffTab> = { 'view.diffSession': 'session', 'vie
 export function AppMenu({ shape = 'rounded' }: { shape?: 'rounded' | 'round' }) {
   const ui = useUi()
   const lastUndo = useLibrary((s) => s.undoStack.at(-1))
+  const worktree = useWorktrees((s) => (ui.selection.length === 1 ? !!s.info[ui.selection[0]] : false))
   const reading = useTranscript((s) => s.status === 'ready')
   const sidebarShown = computeLayout(window.innerWidth, ui).sidebarInline || ui.sheet
   // Toggles say what they will do; Undo says what it undoes ("Undo Archive").
@@ -68,7 +70,8 @@ export function AppMenu({ shape = 'rounded' }: { shape?: 'rounded' | 'round' }) 
           (c.id === 'edit.undo' && !lastUndo) ||
           (NEEDS_TRANSCRIPT.has(c.id) && !reading) ||
           ((c.id === 'session.info' || c.id === 'terminal.new') && ui.selection.length !== 1) ||
-          (c.id === 'view.refreshDiff' && !ui.diffOpen)
+          (c.id === 'view.refreshDiff' && !ui.diffOpen) ||
+          (c.id === 'session.merge' && !worktree)
         }
         note={c.arrivesIn}
         onClick={() => runCommand(c.id as CommandId)}

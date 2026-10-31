@@ -4,12 +4,13 @@ import { homedir, release } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { findCommand, type CommandId } from '@shared/commands'
 import type { TreeDiff } from '@shared/diff'
+import { worktreeOf, type RemoveResult } from '@shared/git'
 import { IPC, type AppInfo, type ResumeResult, type TerminalCreate } from '@shared/ipc'
 import { displayTitle } from '@shared/library'
 import { parseRef, type Cursor } from '@shared/transcript'
 import { attend, setBadge } from './attention'
 import { claudeInfo } from './claude/binary'
-import { parseAnswer, parseNewSession, parseSend, parseSet, sessionId } from './claude/parse'
+import { parseAnswer, parseNewSession, parseRewind, parseSend, parseSet, sessionId } from './claude/parse'
 import { Sessions } from './claude/sessions'
 import { knownModels, loadSettings, onSettings, settings, updateSettings } from './claude/settings'
 import { installApplicationMenu, runCommand } from './commands'
@@ -17,6 +18,7 @@ import { parseTakeover, takeOver } from './handover'
 import { LibraryService } from './library/service'
 import { runPtySmoke } from './smoke'
 import { workingTreeDiff } from './git/diff'
+import { createWorktree, mergeWorktree, recreateFolder, removeWorktree, repoInfo, worktreeInfo } from './git/worktrees'
 import { Terminals } from './pty/terminals'
 import { claudeInTerminal, resumeInTerminal } from './terminal'
 import { deferUpdatesWhile, finishStarting, installPending, launchCheck, onUpdateScreen, sessionsQuiet, showStarting, updateScreen } from './update-screen'
@@ -167,16 +169,54 @@ if (smokeArg) {
         attention: (id, kind, card) => attend(mainWindow, id, titleOf(id), kind, card),
         quiet: () => sessionsQuiet()
       },
-      (id) => library.session(id)
+      (id) => library.session(id),
+      (id, uuid) => library.chainParent(id, uuid)
     )
     deferUpdatesWhile(() => sessions.busy())
     app.on('before-quit', () => sessions.closeAll())
     handle(IPC.liveList, () => sessions.list())
     handle(IPC.liveSnapshot, (_event, id) => sessions.snapshot(sessionId(id)))
-    handle(IPC.liveCreate, (_event, raw) => {
+    handle(IPC.liveCreate, async (_event, raw) => {
       const request = parseNewSession(raw)
       if (!existsSync(request.cwd)) throw new Error('That folder doesn’t exist.')
+      // In a git repository, a worktree of its own (unless you switched it off); the session works there.
+      if (request.worktree && (await repoInfo(request.cwd))) {
+        try {
+          request.cwd = (await createWorktree(request.cwd)).cwd
+        } catch (error) {
+          throw new Error(`Couldn’t make a worktree: ${String((error as { stderr?: string }).stderr || (error as Error).message).trim().split('\n')[0]}`)
+        }
+      }
       return sessions.create(request)
+    })
+    handle(IPC.liveRewindPreview, (_event, id, messageId) => sessions.rewindPreview(sessionId(id), sessionId(messageId)))
+    handle(IPC.liveRewind, (_event, id, raw) => sessions.rewind(sessionId(id), parseRewind(raw)))
+    handle(IPC.liveRewindUndo, (_event, id) => sessions.undoRewind(sessionId(id)))
+    handle(IPC.liveRecreate, async (_event, id) => {
+      const cwd = sessions.cwdOf(sessionId(id))
+      if (!cwd || existsSync(cwd)) return false
+      await recreateFolder(cwd)
+      return existsSync(cwd)
+    })
+
+    // ─── Worktrees ─────────────────────────────────────────────────────────
+    handle(IPC.gitRepo, (_event, folder) => (typeof folder === 'string' && isAbsolute(folder) ? repoInfo(folder) : null))
+    handle(IPC.gitWorktree, (_event, id) => {
+      const cwd = sessions.cwdOf(sessionId(id))
+      return cwd ? worktreeInfo(cwd) : null
+    })
+    handle(IPC.gitMerge, (_event, id) => {
+      const cwd = sessions.cwdOf(sessionId(id))
+      return cwd ? mergeWorktree(cwd) : { ok: false, reason: 'Gloom doesn’t know where this session works.' }
+    })
+    handle(IPC.gitRemoveWorktree, (_event, id, force): Promise<RemoveResult> | RemoveResult => {
+      const sid = sessionId(id)
+      const cwd = sessions.cwdOf(sid)
+      if (!cwd) return { removed: false, reason: 'Gloom doesn’t know where this session works.' }
+      if (!worktreeOf(cwd)) return { removed: false, reason: 'It doesn’t work in a worktree.' }
+      // A working session keeps its folder; an idle one's process closes first.
+      if (!sessions.closeIdle(sid)) return { removed: false, reason: 'Claude is working in it.' }
+      return removeWorktree(cwd, force === true)
     })
     handle(IPC.liveDiscard, (_event, id) => sessions.discard(sessionId(id)))
     handle(IPC.liveCheck, (_event, id) => sessions.check(sessionId(id)))

@@ -8,6 +8,7 @@ import { lstat, readFile } from 'node:fs/promises'
 import { join, normalize } from 'node:path'
 import { promisify } from 'node:util'
 import { addedFile, parseGitDiff, untrackedPaths, type DiffFile, type TreeDiff } from '@shared/diff'
+import { worktreeOf } from '@shared/git'
 
 const run = promisify(execFile)
 
@@ -63,7 +64,10 @@ async function read(cwd: string): Promise<TreeDiff> {
       ok(git(root, ['rev-parse', '--verify', '-q', 'HEAD'])),
       git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all'], 32 * 1024 * 1024)
     ])
-    const base = head?.trim() ? 'HEAD' : EMPTY_TREE
+    // A session's worktree compares against where its branch left the one it came from, so
+    // what Claude committed shows too: what Merge would bring.
+    const since = head?.trim() && worktreeOf(root) ? await worktreeBase(root, branch?.trim() ?? '') : null
+    const base = since?.commit ?? (head?.trim() ? 'HEAD' : EMPTY_TREE)
     let files: Omit<DiffFile, 'abs'>[]
     let truncated = false
     try {
@@ -76,10 +80,21 @@ async function read(cwd: string): Promise<TreeDiff> {
     const untracked = untrackedPaths(status)
     for (const [i, path] of untracked.entries()) files.push(i < UNTRACKED_MAX_FILES ? await untrackedFile(root, path) : { path, status: 'untracked', added: 0, removed: 0, hunks: [], note: TOO_LARGE })
     const all = files.map((f) => ({ ...f, abs: join(root, f.path) })).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
-    return { kind: 'ok', root, branch: branch?.trim() || null, files: all, ...(truncated ? { truncated } : {}) }
+    return { kind: 'ok', root, branch: branch?.trim() || null, ...(since ? { since: since.branch } : {}), files: all, ...(truncated ? { truncated } : {}) }
   } catch (error) {
     return { kind: 'error', message: firstLine(error) }
   }
+}
+
+/** Where a worktree's branch left the branch it came from (recorded at creation, else the main checkout's). */
+async function worktreeBase(root: string, branch: string): Promise<{ branch: string; commit: string } | null> {
+  const recorded = branch ? await ok(git(root, ['config', `branch.${branch}.gloomBase`])) : null
+  const common = await ok(git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']))
+  const main = common ? normalize(join(common.trim(), '..')) : null
+  const from = recorded?.trim() || (main ? (await ok(git(main, ['symbolic-ref', '--short', '-q', 'HEAD'])))?.trim() : null)
+  if (!from || from === branch) return null
+  const commit = (await ok(git(root, ['merge-base', from, 'HEAD'])))?.trim()
+  return commit ? { branch: from, commit } : null
 }
 
 /** A file git doesn't track yet, as all added; too big or binary ones by name only. */

@@ -22,8 +22,9 @@ import {
 import { Folder as FolderIcon, MessageSquareText } from 'lucide-react'
 import { create } from 'zustand'
 import { childrenOf, subtreeIds, type LibraryOp } from '@shared/library'
-import { applyWithUndo, useLibrary } from '../../stores/library'
+import { useLibrary } from '../../stores/library'
 import { useUi } from '../../stores/ui'
+import { archiveSessions } from '../sessions/SessionMenu'
 
 export type DragData = { kind: 'sessions'; ids: string[]; title: string } | { kind: 'folder'; id: string; name: string }
 
@@ -93,7 +94,6 @@ const MEASURING = { droppable: { strategy: MeasuringStrategy.Always } }
 /** Hovering inside a closed folder this long opens it (spring loading). */
 const SPRING_MS = 700
 
-const sessionsLabel = (n: number) => (n === 1 ? '1 session' : `${n} sessions`)
 
 /** Where `active` would land on `over`, or null where it can't (or where it already is). */
 function landing(active: DragData, over: DropData, pointerY: number, rect: { top: number; height: number }): Zone | null {
@@ -222,7 +222,7 @@ export function LibraryDnd({ children }: { children: ReactNode }) {
     useDrag.setState({ active: null, target: null, landed })
     if (landed) setTimeout(() => useDrag.getState().landed === landed && useDrag.setState({ landed: null }), 700)
     if (!op) return
-    if (op.type === 'setArchived' && data.kind === 'sessions') void applyWithUndo(op, `Archived ${sessionsLabel(data.ids.length)}`)
+    if (op.type === 'setArchived' && data.kind === 'sessions') archiveSessions(data.ids)
     else void useLibrary.getState().apply(op)
   }
 

@@ -255,3 +255,25 @@ export class Follower {
     return { type: 'reload', page: read.page }
   }
 }
+
+/**
+ * The entry before a line on the chain (its parentUuid), read back from the
+ * end: where a rewind to before that line carries on from. Null for a
+ * conversation's first line; undefined when the line isn't in the file.
+ */
+export function readParent(file: string, uuid: string): string | null | undefined {
+  const fd = openSync(file, 'r')
+  try {
+    let found: string | null | undefined
+    readLinesBackward(fd, fstatSync(fd).size, (line) => {
+      if (!line.includes(uuid)) return false
+      const e = parse(line)
+      if (e?.uuid !== uuid) return false
+      found = typeof e.parentUuid === 'string' ? e.parentUuid : null
+      return true
+    })
+    return found
+  } finally {
+    closeSync(fd)
+  }
+}

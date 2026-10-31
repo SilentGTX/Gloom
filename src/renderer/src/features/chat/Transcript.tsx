@@ -12,6 +12,7 @@ import { isBusy, useLive } from '../../stores/live'
 import { useTranscript } from '../../stores/transcript'
 import { clearMatches, findMatches, paintMatches, popMatch, useFind } from './find'
 import { FindBar } from './FindBar'
+import { cutAt, RewindAllowed } from './Rewind'
 import { buildRows, liveRows, type Row } from './rows'
 import { RowView } from './RowView'
 
@@ -40,11 +41,13 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
   const busy = running && summary?.state !== 'waiting'
   const since = busy ? (summary?.turnStarted ?? null) : null
   const activity = summary?.activity ?? null
+  // After a rewind the conversation stops before the message rewound to, until the file catches up.
+  const rewoundTo = summary?.rewoundTo ?? null
   // The transcript's rows keep their identity while the stream moves; only the live tail is rebuilt.
   const base = useMemo(() => {
-    const merged = mergeProvisional(entries, results, provisional)
+    const merged = mergeProvisional(cutAt(entries, rewoundTo), results, provisional)
     return buildRows(merged.entries, merged.results, { live: live || running })
-  }, [entries, results, provisional, live, running])
+  }, [entries, results, provisional, live, running, rewoundTo])
   const rows = useMemo(() => {
     const tail = liveRows(base.at(-1), busy ? stream : null, since ? { since, activity } : null)
     return tail.length ? [...base, ...tail] : base
@@ -79,7 +82,11 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
       </EmptyState>
     )
   }
-  return <TranscriptList key={`${sessionId}:${epoch}`} sessionId={sessionId} rows={rows} />
+  return (
+    <RewindAllowed.Provider value={!live && !running}>
+      <TranscriptList key={`${sessionId}:${epoch}`} sessionId={sessionId} rows={rows} />
+    </RewindAllowed.Provider>
+  )
 }
 
 /** Keeps each row's position steady as older rows arrive above it (Virtuoso's firstItemIndex). */

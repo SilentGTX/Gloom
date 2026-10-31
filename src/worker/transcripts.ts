@@ -9,7 +9,7 @@ import type { WorkerReply, WorkerRequest } from '@shared/ipc'
 import { composeEdits } from '@shared/diff'
 import { readEdits } from './edits'
 import { collectSessions, INDEX_VERSION, indexAll, indexAppended, indexFile, isTranscript, samePath, type FileIndex, type IndexCache } from './indexer'
-import { Follower, readBlob, readPage } from './reader'
+import { Follower, readBlob, readPage, readParent } from './reader'
 
 /** Changes are batched: a session streaming in the Claude app writes several lines a second. */
 const BATCH_MS = 150
@@ -107,10 +107,16 @@ function flush(): void {
 
 // ─── Reading for the chat ────────────────────────────────────────────────────
 
-function answer(request: Extract<WorkerRequest, { type: 'page' | 'blob' | 'edits' }>): void {
+function answer(request: Extract<WorkerRequest, { type: 'page' | 'blob' | 'edits' | 'parent' }>): void {
   try {
     if (request.type === 'blob') {
       post({ type: 'answer', reqId: request.reqId, value: readBlob(request.file, request.ref) })
+      return
+    }
+    if (request.type === 'parent') {
+      // undefined doesn't survive the message; 'missing' stands for it.
+      const parent = readParent(request.file, request.uuid)
+      post({ type: 'answer', reqId: request.reqId, value: parent === undefined ? 'missing' : parent })
       return
     }
     if (request.type === 'edits') {
@@ -172,6 +178,7 @@ port.on('message', ({ data }: { data: WorkerRequest }) => {
     case 'page':
     case 'blob':
     case 'edits':
+    case 'parent':
       return answer(data)
     case 'unfollow':
       follower = null

@@ -3,13 +3,25 @@ import { ContextMenuPopup, MenuGroup, MenuGroupLabel, MenuItem, MenuSeparator, M
 import { notify } from '../../lib/toast'
 import { applyWithUndo, useLibrary } from '../../stores/library'
 import { useUi } from '../../stores/ui'
+import { removeArchivedWorktrees } from '../chat/Worktree'
 import { MoveTargets } from '../folders/FolderMenu'
 
 const sessionsLabel = (n: number) => (n === 1 ? '1 session' : `${n} sessions`)
 
-/** Archives sessions, with an Undo toast. Nothing is ever deleted. */
+/** How long Undo is offered before an archived session's worktree goes. */
+const WORKTREE_GRACE_MS = 9_000
+
+/**
+ * Archives sessions, with an Undo toast. Transcripts are never deleted; a
+ * worktree session's worktree goes once Undo has passed (its branch stays).
+ */
 export function archiveSessions(ids: string[]): void {
-  if (ids.length) void applyWithUndo({ type: 'setArchived', ids, archived: true }, `Archived ${sessionsLabel(ids.length)}`)
+  if (!ids.length) return
+  void applyWithUndo({ type: 'setArchived', ids, archived: true }, `Archived ${sessionsLabel(ids.length)}`)
+  setTimeout(() => {
+    const still = ids.filter((id) => useLibrary.getState().library.sessions[id]?.archived)
+    if (still.length) void removeArchivedWorktrees(still)
+  }, WORKTREE_GRACE_MS)
 }
 
 /** Opens a session's working folder in Explorer, or says why it can't. */

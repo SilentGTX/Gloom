@@ -112,6 +112,15 @@ export class LibraryService {
     return this.ask({ type: 'edits', file: meta.file, cwd }) as Promise<SessionDiff>
   }
 
+  /** The entry before a line on its session's chain: null for the first line; throws when the line isn't there. */
+  async chainParent(id: string, uuid: string): Promise<string | null> {
+    const meta = this.index.get(id)
+    if (!meta?.file) throw new LibraryError('That session has no transcript yet.')
+    const parent = (await this.ask({ type: 'parent', file: meta.file, uuid })) as string | null
+    if (parent === 'missing') throw new LibraryError('That message isn’t in the transcript (yet). Try again in a moment.')
+    return parent
+  }
+
   unfollow(): void {
     const request: WorkerRequest = { type: 'unfollow' }
     this.worker?.postMessage(request)

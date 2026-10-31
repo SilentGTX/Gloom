@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { COMMANDS, findCommand, matchesAccelerator, type CommandId, type CommandSpec } from '@shared/commands'
 import { useFind } from '../features/chat/find'
+import { useWorktrees } from '../features/chat/Worktree'
 import { newFolder } from '../features/folders/folders'
 import { resumeSession } from '../features/sessions/SessionMenu'
 import { screenHasFocus } from '../features/terminal/registry'
@@ -12,6 +13,7 @@ import { isBusy, useLive } from '../stores/live'
 import { newTerminal, wantFocus } from '../stores/terminals'
 import { useTranscript } from '../stores/transcript'
 import { useUi } from '../stores/ui'
+import { notify } from './toast'
 
 /** Runs once the sidebar has rendered, wherever it was. */
 function inSidebar(viaKeyboard: boolean, then: () => void) {
@@ -72,6 +74,12 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
     if (!ui.terminalOpen) wantFocus()
     else if (screenHasFocus()) document.querySelector<HTMLTextAreaElement>('textarea[data-composer]')?.focus()
     ui.toggleTerminal(k)
+  },
+  'session.merge': () => {
+    const { selection } = useUi.getState()
+    const id = selection.length === 1 ? selection[0] : null
+    if (id && useWorktrees.getState().info[id]) useWorktrees.setState({ merging: { id, result: null, working: false } })
+    else notify('This session doesn’t work in a worktree.')
   },
   'terminal.new': (k) => {
     const { selection } = useUi.getState()

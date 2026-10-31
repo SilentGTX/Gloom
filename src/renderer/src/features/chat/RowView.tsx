@@ -1,4 +1,4 @@
-import { memo, useState, type ReactNode } from 'react'
+import { memo, useContext, useState, type ReactNode } from 'react'
 import { ArrowLeftRight, Bell, ChevronRight, CircleAlert, ClipboardType, Hand, Info, MessageSquareQuote, Webhook } from 'lucide-react'
 import type { CompactEntry, NoticeEntry, NoticeIcon, OutputEntry, PromptEntry, SummaryEntry, TextEntry, ThinkingEntry } from '@shared/transcript'
 import { cn } from '../../lib/cn'
@@ -6,6 +6,7 @@ import { useTranscript } from '../../stores/transcript'
 import { StreamRow, WorkingRow } from './LiveRows'
 import { Markdown } from './Markdown'
 import { ImageStrip, ShowAll, useFullText } from './media'
+import { PromptActions, RewindAllowed } from './Rewind'
 import type { Row } from './rows'
 import { formatDuration, ToolRow } from './ToolRow'
 import { modelName } from './tools'
@@ -78,22 +79,29 @@ function TimeRow({ time }: { time: number }) {
 
 // ─── What you sent ───────────────────────────────────────────────────────────
 
-/** Your message, in a bubble on the trailing side; images ride above it. */
+/**
+ * Your message, in a bubble on the trailing side; images ride above it.
+ * Hovering it (or tabbing into it) offers Edit and Rewind to Here beside it.
+ */
 function PromptRow({ sessionId, entry }: { sessionId: string; entry: PromptEntry }) {
   const { full, loading, load } = useFullText(sessionId, entry.more)
   const text = full ?? entry.text
+  const rewind = useContext(RewindAllowed) && !entry.queued
   return (
-    <div className="flex flex-col items-end gap-1.5 pl-[12%]">
+    <div className="group/prompt flex flex-col items-end gap-1.5 pl-[12%]">
       {entry.queued && <span className="text-caption text-label-secondary">Sent while Claude was working</span>}
       {entry.images.length > 0 && <ImageStrip sessionId={sessionId} images={entry.images} height={132} label="Attached image" />}
       {(entry.command || text) && (
-        <div className="max-w-full rounded-[18px] bg-[var(--bubble)] px-3.5 py-2 text-[0.9375rem] leading-[1.5] shadow-[var(--bubble-shadow)] select-text">
-          {entry.command ? <span className="font-mono text-[0.875rem]">{entry.command}</span> : <PromptText text={text} />}
-          {entry.more && !full && (
-            <div className="-mb-0.5 -ml-1.5">
-              <ShowAll onClick={load} loading={loading} />
-            </div>
-          )}
+        <div className="flex max-w-full items-center gap-2">
+          {rewind && <PromptActions sessionId={sessionId} entry={entry} />}
+          <div className="min-w-0 rounded-[18px] bg-[var(--bubble)] px-3.5 py-2 text-[0.9375rem] leading-[1.5] shadow-[var(--bubble-shadow)] select-text">
+            {entry.command ? <span className="font-mono text-[0.875rem]">{entry.command}</span> : <PromptText text={text} />}
+            {entry.more && !full && (
+              <div className="-mb-0.5 -ml-1.5">
+                <ShowAll onClick={load} loading={loading} />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

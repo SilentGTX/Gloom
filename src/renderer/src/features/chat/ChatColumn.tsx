@@ -19,6 +19,7 @@ import { UpdateButton } from '../update/UpdateButton'
 import { Composer } from './Composer'
 import { SessionInfo } from './SessionInfo'
 import { Transcript } from './Transcript'
+import { WorktreeCapsule } from './Worktree'
 
 /** What the session is doing, beside its title: Gloom's own state first, then the file's. */
 function status(summary: LiveSummary | undefined, updated: number, elsewhere: boolean, now: number): string {
@@ -79,6 +80,7 @@ export function ChatColumn({ session, sidebarShown, clearCaptionButtons }: { ses
             {title}
           </BarTitle>
         )}
+        {session && <WorktreeCapsule id={session.id} />}
         <div className="flex-1" />
         <UpdateButton />
         <GlassCapsule label="Session">

@@ -18,10 +18,12 @@ import type {
 import type { SessionDiff, TreeDiff } from '../shared/diff'
 import type { ShellInfo, TerminalAttach, TerminalData, TerminalExit, TerminalInfo } from '../shared/terminal'
 import type { LibraryOp } from '../shared/library'
+import type { MergeResult, RemoveResult, RepoInfo, WorktreeInfo } from '../shared/git'
 import type {
   CanSend,
   CardAnswer,
   ClaudeInfo,
+  CodeRewind,
   CommandInfo,
   LiveEvent,
   LiveSnapshot,
@@ -29,6 +31,8 @@ import type {
   ModelChoice,
   NewSessionRequest,
   Queued,
+  RewindPreview,
+  RewindRequest,
   SendRequest,
   SetRequest,
   Settings,
@@ -56,6 +60,26 @@ export interface LiveApi {
   commands(id: string): Promise<CommandInfo[]>
   models(): Promise<ModelChoice[]>
   usage(): Promise<UsageInfo | null>
+  /** What rewinding to before one of your messages can restore. */
+  rewindPreview(id: string, messageId: string): Promise<RewindPreview>
+  /** Rewinds; resolves to what the code part restored. Rejects with the reason when it can't. */
+  rewind(id: string, request: RewindRequest): Promise<CodeRewind | null>
+  /** Takes back a conversation rewind nothing was sent after; false when a message has gone since. */
+  undoRewind(id: string): Promise<boolean>
+  /** Makes a session's missing working folder again; false if it couldn't. */
+  recreate(id: string): Promise<boolean>
+}
+
+/** Worktree sessions. */
+export interface GitApi {
+  /** The repository a folder is in, or null. */
+  repo(folder: string): Promise<RepoInfo | null>
+  /** The worktree a session works in, or null. */
+  worktree(id: string): Promise<WorktreeInfo | null>
+  /** Lands its branch on the branch it came from. */
+  merge(id: string): Promise<MergeResult>
+  /** Removes its worktree; one with uncommitted changes only when `force`. Its branch stays. */
+  removeWorktree(id: string, force: boolean): Promise<RemoveResult>
 }
 
 export interface GloomApi {
@@ -114,6 +138,7 @@ export interface GloomApi {
   pathForFile(file: File): string
   diff: DiffApi
   terminal: TerminalApi
+  git: GitApi
 }
 
 /** The diff pane's two sources. */

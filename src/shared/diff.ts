@@ -40,6 +40,8 @@ export type TreeDiff =
       root: string
       /** The branch checked out; null when HEAD is detached. */
       branch: string | null
+      /** A worktree session's: the branch it came from, compared against where it left it (what Merge brings). */
+      since?: string
       files: DiffFile[]
       /** The patch was too big to read: files are listed with their counts only. */
       truncated?: boolean

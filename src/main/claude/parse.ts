@@ -1,6 +1,6 @@
 // Checks what the window sends about live sessions before it reaches a
 // process. The window is our own page, but nothing malformed goes to the CLI.
-import { isEffort, isMode, type CardAnswer, type ImageAttachment, type NewSessionRequest, type SendRequest, type SetRequest } from '@shared/live'
+import { isEffort, isMode, type CardAnswer, type ImageAttachment, type NewSessionRequest, type RewindRequest, type SendRequest, type SetRequest } from '@shared/live'
 
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 
@@ -33,7 +33,14 @@ export function parseNewSession(raw: unknown): NewSessionRequest {
   if (!isRecord(raw)) throw new Error('bad request')
   if (!isMode(raw.mode)) throw new Error('bad mode')
   if (raw.effort !== null && !isEffort(raw.effort)) throw new Error('bad effort')
-  return { cwd: str(raw.cwd, 'folder', 1024), model: model(raw.model), mode: raw.mode, effort: raw.effort }
+  return { cwd: str(raw.cwd, 'folder', 1024), model: model(raw.model), mode: raw.mode, effort: raw.effort, worktree: raw.worktree === true }
+}
+
+/** A rewind: the message (a UUID, its checkpoint), and what goes back. */
+export function parseRewind(raw: unknown): RewindRequest {
+  if (!isRecord(raw)) throw new Error('bad rewind')
+  if (raw.conversation !== true && raw.code !== true) throw new Error('nothing to rewind')
+  return { messageId: sessionId(raw.messageId), conversation: raw.conversation === true, code: raw.code === true }
 }
 
 export function parseSend(raw: unknown): SendRequest {

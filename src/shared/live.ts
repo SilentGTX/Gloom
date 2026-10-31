@@ -171,6 +171,35 @@ export interface LiveSummary {
   lastActive: number
   /** The CLI's version, once it has said. */
   version: string | null
+  /**
+   * The message you rewound the conversation to before: it and everything after
+   * it don't show, and the next message carries on from before it.
+   */
+  rewoundTo: string | null
+}
+
+/** What restoring code to before a message would do, or did. */
+export interface CodeRewind {
+  /** Claude Code kept a checkpoint there. */
+  can: boolean
+  /** Why it can't, when it can't. */
+  reason?: string
+  files: string[]
+  insertions: number
+  deletions: number
+}
+
+/** What a rewind to before a message can restore. */
+export interface RewindPreview {
+  /** The conversation can go back (not before the first message). */
+  conversation: boolean
+  code: CodeRewind
+}
+
+export interface RewindRequest {
+  messageId: string
+  conversation: boolean
+  code: boolean
 }
 
 // ─── The reply as it streams ─────────────────────────────────────────────────
@@ -347,6 +376,8 @@ export interface NewSessionRequest {
   model: string | null
   mode: ModeId
   effort: Effort | null
+  /** In a git repository: work in a worktree of its own, on a claude/<name> branch. */
+  worktree?: boolean
 }
 
 export interface ImageAttachment {
