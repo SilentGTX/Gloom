@@ -66,6 +66,8 @@ export interface LiveApi {
   usage(): Promise<UsageInfo | null>
   /** Who Claude Code is signed in as, from its config (or a session's process). */
   account(): Promise<AccountSummary | null>
+  /** Asks for your plan's usage when what's known is older than this; the answer comes as a `usage` event. */
+  refreshUsage(maxAgeMs?: number): Promise<void>
   /** What rewinding to before one of your messages can restore. */
   rewindPreview(id: string, messageId: string): Promise<RewindPreview>
   /** Rewinds; resolves to what the code part restored. Rejects with the reason when it can't. */

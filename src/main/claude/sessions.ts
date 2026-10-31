@@ -25,18 +25,19 @@ import {
   type RewindRequest,
   type SetRequest,
   type UsageInfo,
-  type AccountSummary,
-  type UsageWindow
+  type AccountSummary
 } from '@shared/live'
 import { parseRef } from '@shared/transcript'
-import { readAccount } from './account'
-import { findClaude } from './binary'
-import { Runner, type RunnerEvents } from './runner'
-import { knownModels, rememberModels, settings } from './settings'
+import { readAccount, usageFromRateLimits } from './account'
+import { claudeInfo, findClaude } from './binary'
+import { askModels, askUsage, Runner, type RunnerEvents } from './runner'
+import { knownModels, learnedModels, modelsFrom, rememberModels, settings } from './settings'
 
 const MAX_PROCESSES = 6
 /** The plan's usage is asked for at most this often. */
 const USAGE_EVERY_MS = 5 * 60 * 1000
+/** Whether the CLI has changed (and has new models) is checked at most this often. */
+const MODELS_CHECK_MS = 5 * 60 * 1000
 
 export type AttentionKind = 'waiting' | 'finished' | 'failed'
 
@@ -50,11 +51,6 @@ export interface SessionsEvents {
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
-function usageWindow(raw: unknown): UsageWindow | null {
-  if (!isObj(raw)) return null
-  const resets = typeof raw.resets_at === 'string' ? Date.parse(raw.resets_at) : NaN
-  return { percent: num(raw.utilization), resetsAt: Number.isFinite(resets) ? resets : null }
-}
 
 export class Sessions {
   private readonly runners = new Map<string, Runner>()
@@ -64,6 +60,7 @@ export class Sessions {
   private modelsAsked = false
   /** The CLI version the models were last asked of. */
   private modelsFrom: string | null = null
+  private modelsCheckedAt = 0
   private usageInfo: UsageInfo | null = null
   private accountInfo: AccountSummary | null = null
   private usageAt = 0
@@ -97,6 +94,29 @@ export class Sessions {
 
   account(): AccountSummary | null {
     return this.accountInfo
+  }
+
+  /**
+   * At launch, and when you come back to Gloom (every few minutes at most): a
+   * CLI that isn't the one the kept model list came from (you updated it) is
+   * asked for its models (runner.ts › askModels), rather than waiting for a
+   * session to start. A list never learned from a CLI waits for the first
+   * session, as it always has.
+   */
+  async checkModels(): Promise<void> {
+    if (!learnedModels() || Date.now() - this.modelsCheckedAt < MODELS_CHECK_MS) return
+    this.modelsCheckedAt = Date.now()
+    const { path, version } = await claudeInfo({ fresh: true })
+    if (!path || !version || version === modelsFrom()) return
+    const models = await askModels().catch((error: unknown) => {
+      console.warn('Gloom: asking Claude Code for its models:', error)
+      return []
+    })
+    if (!models.length) return
+    rememberModels(models, version)
+    this.modelsAsked = true
+    this.modelsFrom = version
+    this.events.event({ type: 'models', models: knownModels() })
   }
 
   list(): LiveSummary[] {
@@ -266,7 +286,7 @@ export class Sessions {
       attention: (kind, card) => this.events.attention(id, kind, card),
       rateLimit: (info) => this.rateLimit(info),
       models: (models) => {
-        rememberModels(models)
+        rememberModels(models, this.modelsFrom)
         this.events.event({ type: 'models', models: knownModels() })
       },
       // Claude Code's config says more (your name, the plan as the organisation has it); the SDK fills in without it.
@@ -331,15 +351,26 @@ export class Sessions {
   }
 
   private readUsage(raw: unknown): void {
-    if (!isObj(raw) || raw.rate_limits_available === false || !isObj(raw.rate_limits)) return
-    const limits = raw.rate_limits
-    this.usageInfo = {
-      fiveHour: usageWindow(limits.five_hour),
-      weekly: usageWindow(limits.seven_day),
-      status: this.usageInfo?.status ?? null,
-      updated: Date.now()
-    }
+    if (!isObj(raw) || raw.rate_limits_available === false) return
+    const usage = usageFromRateLimits(raw.rate_limits, Date.now())
+    if (!usage) return
+    this.usageInfo = { ...usage, status: this.usageInfo?.status ?? null }
     this.events.event({ type: 'usage', usage: this.usageInfo })
+  }
+
+  /**
+   * Your plan's usage, fresh: from a running session's process when there is
+   * one, else from one asked just that (runner.ts › askUsage). At launch, when
+   * you come back to Gloom, and as the usage panel opens: at most every
+   * `maxAge` (five minutes unless the panel asks for fresher). Only once
+   * you're known to be signed in.
+   */
+  async refreshUsage(maxAge = USAGE_EVERY_MS): Promise<void> {
+    if (!this.accountInfo || Date.now() - this.usageAt < maxAge) return
+    this.usageAt = Date.now()
+    const alive = [...this.runners.values()].find((r) => r.alive)
+    const raw = await (alive ? alive.usage() : askUsage()).catch(() => null)
+    this.readUsage(raw)
   }
 
   /** Every turn says whether your plan's limit let it through, and when the window resets. */

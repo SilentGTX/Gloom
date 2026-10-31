@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { AnimatePresence, motion, MotionConfig, Reorder, useDragControls, useReducedMotion } from 'motion/react'
-import { ChevronRight, Copy, Folder, GitBranch, Globe, Laptop, PanelRight, Plug, SquareChevronRight } from 'lucide-react'
+import { ChevronRight, Copy, Folder, GitBranch, GitMerge, Globe, Laptop, PanelRight, Plug, SquareChevronRight } from 'lucide-react'
 import { totals, type DiffFile, type SessionDiff, type TreeDiff } from '@shared/diff'
 import { EFFORT_LABELS, modeInfo, modelLabel, type McpServer, type UsageWindow } from '@shared/live'
 import type { SessionMeta } from '@shared/library'
@@ -447,6 +447,17 @@ function EnvironmentPart({ session, onMove }: PartProps) {
             <GitBranch size={15} strokeWidth={1.75} aria-hidden className="shrink-0 text-label-secondary" />
             <span className="min-w-0 truncate font-mono text-[12px] text-label">{branch}</span>
             {worktree && <span className="shrink-0 text-[12px] text-label-secondary">worktree</span>}
+          </li>
+        )}
+        {worktree && (
+          <li>
+            <button type="button" onClick={() => useWorktrees.setState({ merging: { id: session.id, result: null, working: false } })} className="concept-panel-row no-drag">
+              <GitMerge size={15} strokeWidth={1.75} aria-hidden className="shrink-0 text-label-secondary" />
+              <span className="min-w-0 flex-1 truncate text-left text-label">{worktree.base ? `Merge into ${worktree.base}…` : 'Merge…'}</span>
+              <span className="shrink-0 text-[12px] text-label-secondary tabular">
+                {[worktree.ahead ? `${worktree.ahead} ahead` : 'nothing new', worktree.dirty ? `${worktree.dirty} uncommitted` : null].filter(Boolean).join(' · ')}
+              </span>
+            </button>
           </li>
         )}
         {!session.remote && session.file && (

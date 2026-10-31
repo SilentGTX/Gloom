@@ -33,11 +33,12 @@ async function openDemo(theme: 'light' | 'dark') {
   demoSession(cwd, minutesAgo(50)).write(join(claudeDir, 'projects'))
   // Claude Code's own config, as it keeps the account and the usage it last fetched: made up.
   const resets = new Date(Date.now() + 3 * 86_400_000).toISOString()
+  const soon = new Date(Date.now() + 2 * 3600_000).toISOString()
   writeFileSync(
     join(claudeDir, '.claude.json'),
     JSON.stringify({
       oauthAccount: { emailAddress: 'sam@example.com', displayName: 'Sam', organizationName: 'Synergy', organizationType: 'claude_max' },
-      cachedUsageUtilization: { fetchedAtMs: Date.now() - 60_000, utilization: { seven_day: { utilization: 38, resets_at: resets } } }
+      cachedUsageUtilization: { fetchedAtMs: Date.now() - 60_000, utilization: { five_hour: { utilization: 12, resets_at: soon }, seven_day: { utilization: 38, resets_at: resets } } }
     })
   )
   ;({ app, page } = await launch({ claudeDir, design: 'concept' }))
@@ -66,6 +67,18 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(sidebar(page)).toContainText('Synergy')
     await expect(sidebar(page)).toContainText('Max plan · 38% of weekly limit')
     await capture(`conversation-${theme}`)
+
+    // A click on it: every limit, when it resets, and claude.ai's own page a click away.
+    await sidebar(page).getByRole('button', { name: /^Synergy Max plan/ }).click()
+    const usage = page.getByRole('dialog', { name: 'Usage limits' })
+    await expect(usage).toContainText('Your usage limits · Max')
+    await expect(usage.getByRole('meter', { name: '5-hour limit' })).toHaveAttribute('aria-valuenow', '12')
+    await expect(usage.getByRole('meter', { name: 'Weekly · all models' })).toHaveAttribute('aria-valuenow', '38')
+    await expect(usage).toContainText(/Resets at \d/)
+    await expect(usage.getByRole('button', { name: 'See All' })).toBeVisible()
+    await capture(`usage-${theme}`)
+    await page.keyboard.press('Escape')
+    await expect(usage).toHaveCount(0)
 
     await views.getByRole('tab', { name: 'Changes' }).click()
     const changes = page.getByRole('region', { name: 'Changes' }).first()

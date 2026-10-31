@@ -13,6 +13,8 @@ export interface LaunchOptions {
   claudeDir?: string
   /** The look to test. The suite was written for the classic one; concept.spec.ts tests the concept, Gloom's default. */
   design?: 'concept' | 'classic'
+  /** Let Gloom ask your real Claude Code its models and usage at launch (it never does in tests otherwise). */
+  askClaude?: boolean
 }
 
 /** Launches the built app with a throwaway profile, so tests never see your real state. */
@@ -23,7 +25,7 @@ export async function launch(options: LaunchOptions = {}): Promise<{ app: Electr
     args: ['.', `--user-data-dir=${userData}`],
     cwd: join(__dirname, '..', '..'),
     // Closing mid-turn would ask first; the tests close whenever they're done.
-    env: { ...process.env, CLAUDE_CONFIG_DIR: claudeDir, GLOOM_QUIT_WITHOUT_ASKING: '1' },
+    env: { ...process.env, CLAUDE_CONFIG_DIR: claudeDir, GLOOM_QUIT_WITHOUT_ASKING: '1', ...(options.askClaude ? {} : { GLOOM_NO_CLAUDE_ASKS: '1' }) },
     // Playwright forces a light colour scheme by default; follow nativeTheme like the real app.
     colorScheme: null
   })

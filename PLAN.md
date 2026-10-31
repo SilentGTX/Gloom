@@ -1315,6 +1315,35 @@ disclosure pages; `apple-design` for motion).
        models on the first session of a launch and keeps the answer; yours was kept from the CLI
        you had before updating to 2.1.316, which lists the 5.5 models. It asks again now whenever
        a session's process is another CLI version.
+     - **Still the older models in 0.13.1** (your report): it asked again only when a session's
+       process started, and none had since you updated. Gloom now checks at launch, and when it
+       comes to the front (every five minutes at most): when the installed CLI isn't the version
+       the kept list came from (`settings.json` › `modelsFrom`, new), it asks that CLI for its
+       models from a process sent no message, in an empty folder, so no turn, no usage and no
+       session (`runner.ts` › `askModels`; your CLI answers in under a second). A list never
+       learned from a CLI (a new install, the tests) still waits for the first session. Opt-in
+       checks against your real CLI: `GLOOM_REAL_CLI=1 npx vitest run test/unit/real-cli.test.ts
+       -t models` and `GLOOM_REAL_CLI=1 npx playwright test test/e2e/models.spec.ts` (a profile
+       holding your old 4.8 list gets Opus 5.5, Sonnet 5.5, Haiku 5.5 and Fable 5.1 at launch).
+     - **Your limits at the sidebar's foot, and the usage panel** (your ask, with the Claude
+       app's panel as the model): the foot showed no figure because the usage Claude Code had kept
+       was from a week that had reset, and Gloom asked only after a turn. It now asks at launch,
+       when it comes to the front (every five minutes at most) and as the panel opens (a minute),
+       of a running session's process when there is one, else the same way as the models, without
+       a message (`runner.ts` › `askUsage`, about a second); only once you're known to be signed
+       in. A click on the foot opens the panel: "Your usage limits · Team", each limit the service
+       names (5-hour limit, Weekly · all models, a model's own weekly limit), when it resets
+       ("Resets at 8:30 PM", "Resets Sat 7:00 AM"), its share and a bar (amber when the service
+       warns, red when it's critical), when it was read, and See All, which opens claude.ai's
+       usage page. The service's list of limits is read when it sends one, else its two windows.
+     - **A squeezed toolbar in a worktree session** (your report): the worktree's capsule (its
+       branch and Merge) crowded the title and ran into the segments, and said the branch the
+       subtitle already says. The concept's toolbar drops it: the subtitle names the project by
+       the checkout the worktree came from, with the branch, and Merge is in the inspector's
+       Environment, with how far ahead the branch is (File › Merge Worktree… as before). A new
+       session's "New" pill went too: its title says it.
+     - The tests never start your real CLI at launch (`GLOOM_NO_CLAUDE_ASKS`, set by
+       `launch()`); `launch({ askClaude: true })` lets them.
      - Released as **Gloom 0.13.1** at your "Ship 0.13.1". The packaged check and `--smoke-pty`
        passed on the local build and again on the build that went out; the published
        `update.json` checks out against the release key, and its hashes match the installer and

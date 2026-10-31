@@ -4,7 +4,7 @@ import { GlassCapsule } from '../../components/ui/Glass'
 import { cn } from '../../lib/cn'
 import { runCommand } from '../../lib/commands'
 import { useUi, type ChatView } from '../../stores/ui'
-import { useWorktrees, WorktreeCapsule } from '../chat/Worktree'
+import { useWorktree } from '../chat/Worktree'
 import { inspectorFits } from '../shell/layout'
 import { PaneToolbar, SidebarStandIns } from '../shell/Toolbar'
 import { UpdateButton } from '../update/UpdateButton'
@@ -42,20 +42,23 @@ export function ConceptToolbar({
   const view = useUi((s) => s.view)
   const setView = useUi((s) => s.setView)
   const inspectorShown = useUi((s) => (inspectorFits(window.innerWidth, s) ? s.inspectorOpen : s.inspectorSheet))
-  const branch = useWorktrees((s) => (session ? s.info[session.id]?.branch : undefined)) ?? (session?.gitBranch && session.gitBranch !== 'HEAD' ? session.gitBranch : null)
+  // A worktree session names its project by the checkout it came from, not its worktree's folder;
+  // its branch and Merge live in the inspector's Environment (and File › Merge Worktree…).
+  const worktree = useWorktree(session?.id ?? null)
+  const project = worktree ? worktree.main.replace(/[\\/]+$/, '').split(/[\\/]/).pop() : session ? projectName(session) : ''
+  const branch = worktree?.branch ?? (session?.gitBranch && session.gitBranch !== 'HEAD' ? session.gitBranch : null)
   return (
     <PaneToolbar clearCaptionButtons={clearCaptionButtons} className="concept-toolbar">
       {!sidebarShown && <SidebarStandIns withToggle />}
       {session && title && (
         <div className="flex min-w-[96px] shrink flex-col px-1 leading-[1.25]">
           <h1 className="truncate font-display text-[14px] font-bold tracking-[-0.01em] text-label">{title}</h1>
-          <p className="truncate text-[11.5px] text-label-secondary">
-            {projectName(session)}
+          <p className="truncate text-[11.5px] text-label-secondary" title={branch ? `${project} · ${branch}` : project}>
+            {project}
             {branch && ` · ${branch}`}
           </p>
         </div>
       )}
-      {session && <WorktreeCapsule id={session.id} />}
       <div className="min-w-2 flex-1" />
       {session && (
         <Track

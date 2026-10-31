@@ -272,8 +272,17 @@ if (smokeArg) {
     handle(IPC.liveModels, () => knownModels())
     handle(IPC.liveUsage, () => sessions.usage())
     handle(IPC.liveAccount, () => sessions.account())
-    // Claude Code may have fetched your usage meanwhile (in a terminal, in the Claude app).
-    app.on('browser-window-focus', () => sessions.readConfig())
+    // The usage panel asks for fresher than five minutes, never more often than every ten seconds.
+    handle(IPC.liveRefreshUsage, (_event, maxAge) => sessions.refreshUsage(typeof maxAge === 'number' && Number.isFinite(maxAge) ? Math.max(10_000, maxAge) : undefined))
+    // Your plan's use as it is now, and Claude Code may have been updated (with new models) or have
+    // fetched your usage meanwhile (in a terminal, in the Claude app).
+    void sessions.refreshUsage()
+    void sessions.checkModels()
+    app.on('browser-window-focus', () => {
+      sessions.readConfig()
+      void sessions.refreshUsage()
+      void sessions.checkModels()
+    })
     handle(IPC.claudeInfo, (_event, fresh) => claudeInfo({ fresh: fresh === true }))
     handle(IPC.claudeTerminal, (_event, what) => (what === 'login' || what === 'update' ? claudeInTerminal(what) : false))
     handle(IPC.claudeLocate, async (event) => {

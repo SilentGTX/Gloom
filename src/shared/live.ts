@@ -345,10 +345,22 @@ export function planName(raw: string | null | undefined): string | null {
   return plan ? plan.replace(/\b\w/g, (c) => c.toUpperCase()) : null
 }
 
+/** One of your plan's limits, as Claude Code's usage panel lists them: "5-hour limit", "Weekly · all models", "Weekly · Fable". */
+export interface UsageLimit {
+  label: string
+  /** 0–100. */
+  percent: number | null
+  resetsAt: number | null
+  /** "normal", "warning", "critical", as the service rates it. */
+  severity: string
+}
+
 /** Your plan's limits, as the CLI reports them. */
 export interface UsageInfo {
   fiveHour: UsageWindow | null
   weekly: UsageWindow | null
+  /** Every limit, in the service's order, when it says them (newer CLIs). */
+  limits?: UsageLimit[]
   /** From the last turn: whether the limit let it through. */
   status: 'allowed' | 'warning' | 'rejected' | null
   updated: number

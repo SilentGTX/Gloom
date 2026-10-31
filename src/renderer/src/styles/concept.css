@@ -680,6 +680,57 @@ button.concept-panel-row:focus-visible {
   user-select: text;
 }
 
+/* The sidebar's foot: your account and the week's use; a click opens the usage panel. */
+.concept-account {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  outline: none;
+  transition: transform var(--duration-press) var(--curve-out);
+}
+.concept-account:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+.concept-account:active {
+  transform: scale(0.98);
+}
+@media (hover: hover) {
+  .concept-account:hover,
+  .concept-account[data-popup-open] {
+    background: var(--fill);
+  }
+}
+.concept-see-all {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: 6px;
+  color: var(--label);
+  font-size: 12.5px;
+  font-weight: 500;
+  outline: none;
+}
+.concept-see-all:focus-visible {
+  outline: 2px solid var(--accent-ring);
+}
+@media (hover: hover) {
+  .concept-see-all:hover {
+    background: var(--fill-strong);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .concept-account:active {
+    transform: none;
+  }
+}
+
 /* "Tell Claude What to Do…": a text button in the accent's ink. */
 .concept-ask .concept-tell {
   color: var(--accent-text);

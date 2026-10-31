@@ -26,9 +26,11 @@ import { SessionInfo } from './SessionInfo'
 import { Transcript } from './Transcript'
 import { WorktreeCapsule } from './Worktree'
 
-/** The concept's status pill: amber while Claude waits for you, the spinner while it works, else when it was last active. */
-function conceptStatus(summary: LiveSummary | undefined, updated: number, elsewhere: boolean, now: number): Status {
+/** The concept's status pill: amber while Claude waits for you, the spinner while it works, else when it was last active (a new session's title says it's new). */
+function conceptStatus(summary: LiveSummary | undefined, updated: number, elsewhere: boolean, now: number): Status | null {
   switch (summary?.state) {
+    case 'new':
+      return null
     case 'waiting':
       return { kind: 'waiting', text: 'Waiting for you' }
     case 'starting':

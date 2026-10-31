@@ -2,14 +2,38 @@
 // process. It spends a little of your plan's usage, so it only runs when asked:
 //   GLOOM_REAL_CLI=1 npx vitest run test/unit/real-cli.test.ts
 // The session it makes lives under ~/.claude/projects/*gloom-spike-real* (safe to delete).
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { LiveSummary } from '../../src/shared/live'
 import type { TranscriptEntry } from '../../src/shared/transcript'
-import { Runner } from '../../src/main/claude/runner'
+import { usageFromRateLimits } from '../../src/main/claude/account'
+import { askModels, askUsage, Runner } from '../../src/main/claude/runner'
+
+// Asking for the models sends no message, so it spends nothing and writes no session:
+//   GLOOM_REAL_CLI=1 npx vitest run test/unit/real-cli.test.ts -t models
+describe.skipIf(!process.env.GLOOM_REAL_CLI)('your real claude.exe’s models', () => {
+  it('lists the installed CLI’s models from a process sent no message, which leaves no session', async () => {
+    delete process.env.GLOOM_CLAUDE_EXE
+    const projects = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects')
+    const before = existsSync(projects) ? readdirSync(projects).length : 0
+    const models = await askModels()
+    console.log(models.map((m) => `${m.value}: ${m.label} (${m.description})`).join('\n'))
+    expect(models.map((m) => m.value)).toContain('default')
+    expect(models.every((m) => m.label && Array.isArray(m.efforts))).toBe(true)
+    expect(existsSync(projects) ? readdirSync(projects).length : 0).toBe(before)
+  }, 90_000)
+
+  it('tells your plan’s usage the same way, every limit with when it resets', async () => {
+    delete process.env.GLOOM_CLAUDE_EXE
+    const raw = (await askUsage()) as { rate_limits?: unknown } | null
+    const usage = usageFromRateLimits(raw?.rate_limits, Date.now())
+    console.log(usage?.limits?.map((l) => `${l.label}: ${l.percent}% (resets ${l.resetsAt && new Date(l.resetsAt).toLocaleString()})`).join('\n'))
+    expect(usage?.limits?.map((l) => l.label)).toContain('5-hour limit')
+  }, 90_000)
+})
 
 describe.skipIf(!process.env.GLOOM_REAL_CLI)('against your real claude.exe (spends a little usage)', () => {
   it('runs a turn, writes the transcript under the same UUIDs, and resumes in a new process', async () => {

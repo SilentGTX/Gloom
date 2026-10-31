@@ -10,6 +10,9 @@
 // with it, so the whole tree (MCP servers included) is killed.
 import { execFile, execFileSync, spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   query,
   type CanUseTool,
@@ -62,6 +65,8 @@ const BLOB_LINES = 200
 const KEEP_TURNS = 2
 /** What's kept of the CLI's stderr, for an error's details. */
 const STDERR_TAIL = 4000
+/** How long a process asked only a question (its models, the usage) may take to answer. */
+const ASK_IDLE_MS = 60_000
 /** A card shows strings up to this long; the answer goes back with the whole input. */
 const CARD_STRING = 6000
 /** A code rewind waits this long for the CLI (one started for it takes a second or two). */
@@ -154,6 +159,73 @@ export function killTree(pid: number | undefined, sync = false): void {
     else execFile(systemExe('taskkill.exe'), args, { windowsHide: true }, () => {})
   } catch {
     // Already gone.
+  }
+}
+
+/** A model as the CLI offers it, as Gloom's pickers list it. */
+function modelChoice(m: ModelInfo): ModelChoice {
+  return {
+    value: m.value,
+    label: m.displayName || m.value,
+    description: m.description ?? '',
+    efforts: m.supportsEffort === false ? [] : (m.supportedEffortLevels ?? [...EFFORTS]).filter(isEffort)
+  }
+}
+
+/**
+ * The models the installed Claude Code offers. Gloom asks when the CLI has
+ * changed since its list was made, so a new model doesn't wait for a session
+ * to start.
+ */
+export async function askModels(): Promise<ModelChoice[]> {
+  return (await askIdle((q) => q.supportedModels()))?.map(modelChoice) ?? []
+}
+
+/** Your plan's usage, as Claude Code answers it (`rate_limits`), for the usage panel before any session runs. */
+export function askUsage(): Promise<unknown> {
+  return askIdle((q) => q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }))
+}
+
+/**
+ * Asks a Claude Code process of its own, sent no message (so no turn, no
+ * transcript, no usage spent), in an empty folder, then lets it go: what a
+ * session would otherwise have to start for. Never a script (the tests' fake
+ * claude), and never while the tests say so (GLOOM_NO_CLAUDE_ASKS).
+ */
+async function askIdle<T>(ask: (q: Query) => Promise<T>): Promise<T | null> {
+  const claude = findClaude()
+  if (!claude || /\.(mjs|js)$/i.test(claude) || process.env.GLOOM_NO_CLAUDE_ASKS) return null
+  const cwd = mkdtempSync(join(tmpdir(), 'gloom-ask-'))
+  let release = () => {}
+  const idle = (async function* (): AsyncGenerator<SDKUserMessage> {
+    await new Promise<void>((resolve) => (release = resolve))
+  })()
+  const q = query({
+    prompt: idle,
+    options: {
+      pathToClaudeCodeExecutable: claude,
+      cwd,
+      env: cleanEnv(),
+      // Your settings narrow the list (availableModels), as they do a session's.
+      settingSources: ['user', 'project', 'local'],
+      spawnClaudeCodeProcess: (o) => {
+        const child = spawn(o.command, o.args, { cwd: o.cwd, env: o.env as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+        child.stderr.on('data', () => {})
+        o.signal.addEventListener('abort', () => child.exitCode === null && killTree(child.pid))
+        return child as unknown as SpawnedProcess
+      }
+    }
+  })
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const late = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error('Claude Code didn’t answer')), ASK_IDLE_MS)))
+    return await Promise.race([ask(q), late])
+  } finally {
+    clearTimeout(timer)
+    release()
+    q.close()
+    // Once the process has let go of it.
+    setTimeout(() => rmSync(cwd, { recursive: true, force: true, maxRetries: 3 }), 5000)
   }
 }
 
@@ -712,15 +784,7 @@ export class Runner {
     if (!this.askedForModels && this.wantModels(this.version)) {
       this.askedForModels = true
       q.supportedModels().then(
-        (list: ModelInfo[]) =>
-          this.events.models(
-            list.map((m) => ({
-              value: m.value,
-              label: m.displayName || m.value,
-              description: m.description ?? '',
-              efforts: m.supportsEffort === false ? [] : (m.supportedEffortLevels ?? [...EFFORTS]).filter(isEffort)
-            }))
-          ),
+        (list: ModelInfo[]) => this.events.models(list.map(modelChoice)),
         () => {}
       )
     }

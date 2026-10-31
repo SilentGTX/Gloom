@@ -13,6 +13,8 @@ import { isShell } from '@shared/terminal'
 interface SettingsFile {
   settings: Settings
   models: ModelChoice[]
+  /** The CLI version the list came from: another version (an update) is asked again. */
+  modelsFrom?: string | null
 }
 
 const listeners = new Set<(settings: Settings) => void>()
@@ -52,7 +54,7 @@ export function loadSettings(): void {
   try {
     if (existsSync(file)) {
       const raw = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
-      current = { settings: cleanSettings(raw.settings), models: cleanModels(raw.models) }
+      current = { settings: cleanSettings(raw.settings), models: cleanModels(raw.models), modelsFrom: typeof raw.modelsFrom === 'string' ? raw.modelsFrom : null }
     }
   } catch {
     // Unreadable: the defaults, and the next change writes a good file.
@@ -93,9 +95,20 @@ export function knownModels(): ModelChoice[] {
   return current.models
 }
 
-/** What a session reported; kept for the next New Session. */
-export function rememberModels(models: ModelChoice[]): void {
-  if (!models.length || JSON.stringify(models) === JSON.stringify(current.models)) return
-  current = { ...current, models }
+/** The CLI version the kept list came from (null before Gloom 0.13.2 kept it). */
+export function modelsFrom(): string | null {
+  return current.modelsFrom ?? null
+}
+
+/** Whether the list was learned from a CLI (else it's Gloom's own, until the first session). */
+export function learnedModels(): boolean {
+  return current.models !== DEFAULT_MODELS
+}
+
+/** What a session (or the CLI, asked at launch) reported, and which CLI said it; kept for the next New Session. */
+export function rememberModels(models: ModelChoice[], version: string | null = null): void {
+  const from = version ?? current.modelsFrom ?? null
+  if (!models.length || (JSON.stringify(models) === JSON.stringify(current.models) && from === current.modelsFrom)) return
+  current = { ...current, models, modelsFrom: from }
   save()
 }

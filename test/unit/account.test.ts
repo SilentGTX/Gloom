@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { accountFrom, readAccount, usageFrom } from '../../src/main/claude/account'
+import { accountFrom, readAccount, usageFrom, usageFromRateLimits } from '../../src/main/claude/account'
 import { accountName, planName } from '../../src/shared/live'
 
 const NOW = Date.parse('2026-10-31T12:00:00Z')
@@ -51,9 +51,39 @@ describe('the plan’s use', () => {
     expect(usage).toEqual({
       fiveHour: { percent: 4, resetsAt: Date.parse(later(2)) },
       weekly: { percent: 38, resetsAt: Date.parse(later(60)) },
+      // An answer without its own list: the two windows are the list.
+      limits: [
+        { label: '5-hour limit', percent: 4, resetsAt: Date.parse(later(2)), severity: 'normal' },
+        { label: 'Weekly · all models', percent: 38, resetsAt: Date.parse(later(60)), severity: 'normal' }
+      ],
       status: null,
       updated: NOW - 60_000
     })
+  })
+
+  it('lists the limits the service names, as Claude Code’s usage panel does', () => {
+    const usage = usageFromRateLimits(
+      {
+        five_hour: { utilization: 44, resets_at: later(3) },
+        seven_day: { utilization: 19, resets_at: later(100) },
+        limits: [
+          { kind: 'session', group: 'session', percent: 44, resets_at: later(3), severity: 'normal', scope: null },
+          { kind: 'weekly_all', group: 'weekly', percent: 91, resets_at: later(100), severity: 'critical', scope: null },
+          { kind: 'weekly_scoped', group: 'weekly', percent: 0, resets_at: later(100), severity: 'normal', scope: { model: { display_name: 'Fable', id: null }, surface: null } },
+          { kind: 'weekly_scoped', percent: 50, resets_at: later(-1), scope: { model: { display_name: 'Gone' } } },
+          { kind: 'monthly_spend', percent: 12 }
+        ]
+      },
+      NOW,
+      NOW
+    )
+    expect(usage?.limits?.map((l) => [l.label, l.percent, l.severity])).toEqual([
+      ['5-hour limit', 44, 'normal'],
+      ['Weekly · all models', 91, 'critical'],
+      ['Weekly · Fable', 0, 'normal'],
+      ['Monthly spend', 12, 'normal']
+    ])
+    expect(usage?.weekly?.percent).toBe(19)
   })
 
   it('leaves out a window that has reset since', () => {

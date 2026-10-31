@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { accountName, planName, type AccountSummary, type UsageInfo, type UsageWindow } from '@shared/live'
+import { accountName, planName, type AccountSummary, type UsageInfo, type UsageLimit, type UsageWindow } from '@shared/live'
 
 /** Claude Code's config: in CLAUDE_CONFIG_DIR when it's set, as the CLI keeps it, else ~/.claude.json. */
 export function configFile(): string {
@@ -27,20 +27,55 @@ export function accountFrom(config: unknown): AccountSummary | null {
 
 /**
  * The usage Claude Code last fetched. A window that has reset since says
- * nothing about the one running now, so it's left out (and with neither,
+ * nothing about the one running now, so it's left out (and with none,
  * there's nothing to say).
  */
 export function usageFrom(config: unknown, now = Date.now()): UsageInfo | null {
   const cached = isObj(config) && isObj(config.cachedUsageUtilization) ? config.cachedUsageUtilization : null
-  if (!cached || !isObj(cached.utilization) || typeof cached.fetchedAtMs !== 'number') return null
-  const window = (raw: unknown): UsageWindow | null => {
-    if (!isObj(raw) || typeof raw.utilization !== 'number' || typeof raw.resets_at !== 'string') return null
-    const resetsAt = Date.parse(raw.resets_at)
-    return Number.isFinite(resetsAt) && resetsAt > now ? { percent: raw.utilization, resetsAt } : null
+  if (!cached || typeof cached.fetchedAtMs !== 'number') return null
+  return usageFromRateLimits(cached.utilization, cached.fetchedAtMs, now)
+}
+
+/** The service's names for its limits, as Claude Code's usage panel says them. */
+const LIMIT_LABELS: Record<string, string> = { session: '5-hour limit', weekly_all: 'Weekly · all models' }
+
+/** How full a share is when the service doesn't say: past three quarters it warns, near the end it's critical. */
+const severityOf = (percent: number | null) => (percent === null ? 'normal' : percent >= 90 ? 'critical' : percent >= 75 ? 'warning' : 'normal')
+
+/**
+ * Your plan's limits from Claude Code's usage answer (`rate_limits`), or the
+ * copy of it Claude Code keeps: its list of limits when it has one, else its
+ * 5-hour and 7-day windows. Limits that have reset by `now` are left out.
+ */
+export function usageFromRateLimits(raw: unknown, updated: number, now = Date.now()): UsageInfo | null {
+  if (!isObj(raw)) return null
+  const resetAt = (value: unknown) => (typeof value === 'string' ? Date.parse(value) : NaN)
+  const window = (w: unknown): UsageWindow | null => {
+    if (!isObj(w) || typeof w.utilization !== 'number') return null
+    const resetsAt = resetAt(w.resets_at)
+    return !Number.isFinite(resetsAt) || resetsAt > now ? { percent: w.utilization, resetsAt: Number.isFinite(resetsAt) ? resetsAt : null } : null
   }
-  const fiveHour = window(cached.utilization.five_hour)
-  const weekly = window(cached.utilization.seven_day)
-  return fiveHour || weekly ? { fiveHour, weekly, status: null, updated: cached.fetchedAtMs } : null
+  const fiveHour = window(raw.five_hour)
+  const weekly = window(raw.seven_day)
+  const listed = (Array.isArray(raw.limits) ? raw.limits : []).flatMap((l): UsageLimit[] => {
+    if (!isObj(l)) return []
+    const resetsAt = resetAt(l.resets_at)
+    if (Number.isFinite(resetsAt) && resetsAt <= now) return []
+    const kind = str(l.kind) ?? ''
+    const scope = isObj(l.scope) ? l.scope : {}
+    const scoped = (isObj(scope.model) ? str(scope.model.display_name) : null) ?? (isObj(scope.surface) ? str(scope.surface.display_name) : null)
+    const label = LIMIT_LABELS[kind] ?? (scoped ? `${kind.startsWith('weekly') ? 'Weekly' : 'Limit'} · ${scoped}` : kind.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()))
+    const percent = typeof l.percent === 'number' ? l.percent : null
+    return label ? [{ label, percent, resetsAt: Number.isFinite(resetsAt) ? resetsAt : null, severity: str(l.severity) ?? severityOf(percent) }] : []
+  })
+  // An older answer has only the two windows: they're the list.
+  const limits = listed.length
+    ? listed
+    : [
+        ...(fiveHour ? [{ label: LIMIT_LABELS.session, ...fiveHour, severity: severityOf(fiveHour.percent) }] : []),
+        ...(weekly ? [{ label: LIMIT_LABELS.weekly_all, ...weekly, severity: severityOf(weekly.percent) }] : [])
+      ]
+  return fiveHour || weekly || limits.length ? { fiveHour, weekly, limits, status: null, updated } : null
 }
 
 /** Both, from the config file; nothing when it can't be read. */

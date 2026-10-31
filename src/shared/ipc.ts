@@ -91,6 +91,8 @@ export const IPC = {
   liveUsage: 'live:usage',
   /** invoke → AccountSummary | null: who Claude Code is signed in as */
   liveAccount: 'live:account',
+  /** invoke(maxAgeMs): asks for your plan's usage when what's known is older; it arrives as a LiveEvent */
+  liveRefreshUsage: 'live:refresh-usage',
   /** invoke → ClaudeInfo */
   claudeInfo: 'claude:info',
   /** invoke('login' | 'update') → boolean: runs it in a terminal window */
