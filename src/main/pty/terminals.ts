@@ -159,7 +159,11 @@ export class Terminals {
     if (term.unacked < LOW_WATER) this.resume(term)
   }
 
-  /** Ends the shell and what it started (taskkill /T: ConPTY would end the shell alone), and forgets the terminal. */
+  /**
+   * Ends the shell and what it started (taskkill /T: ConPTY would end the shell
+   * alone), and forgets the terminal. Never node-pty's kill(): on Windows it forks
+   * a Node helper, which the RunAsNode fuse turns into a second Gloom.
+   */
   close(id: string): void {
     const term = this.terms.get(id)
     if (!term) return

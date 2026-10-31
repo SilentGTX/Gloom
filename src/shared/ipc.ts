@@ -52,6 +52,8 @@ export const IPC = {
   handoverWait: 'handover:wait',
   /** invoke: the app is drawn under the update screen, which can go */
   handoverDone: 'handover:done',
+  /** invoke → [key, value][] | null: the settings kept under file://, once, for the page to take over */
+  storageToMove: 'storage:to-move',
 
   /** invoke → LiveSummary[]: every session Gloom runs */
   liveList: 'live:list',

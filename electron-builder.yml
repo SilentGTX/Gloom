@@ -24,6 +24,22 @@ asarUnpack:
   - '**/node_modules/node-pty/**'
 # node-pty ships prebuilt N-API binaries; rebuilding would need MSVC and isn't required.
 npmRebuild: false
+# Electron's fuses, flipped in Gloom.exe itself as it's packed: it can't be run as
+# plain Node (ELECTRON_RUN_AS_NODE), NODE_OPTIONS and --inspect are ignored, it
+# only runs the app from its archive and checks the archive against the hash
+# built into the exe, and file:// pages get no more than a browser gives them
+# (the page is served from app://gloom, src/main/protocol.ts). Playwright can't
+# use its Electron driver on such a build; test/e2e/packaged.spec.ts connects to
+# Chromium's DevTools port instead.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false
 win:
   # The installer for a first install; the zip is the app itself, which updates
   # unpack beside the running copy (src/main/versions.ts).

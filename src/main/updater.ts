@@ -10,9 +10,12 @@
 //   { "version": "1.2.3", "installer": "Gloom-Setup-1.2.3.exe", "sha256": "…", "size": 123,
 //     "zip": "Gloom-1.2.3-win.zip", "zipSha256": "…", "zipSize": 456 }
 // (scripts/release.mjs makes them; older versions of Gloom read only the installer's
-// fields). The repo is private, so requests carry your `gh` login's token, or
+// fields), and update.json.sig, update.json's signature by Gloom's release key: a
+// newer release installs only when it's there and right (release-key.ts). The
+// repo is private, so requests carry your `gh` login's token, or
 // GLOOM_GITHUB_TOKEN when set. GLOOM_UPDATE_FROM=<folder> reads update.json and
-// its files from a folder instead, to try an update without publishing it.
+// its files from a folder instead, to try an update without publishing it
+// (`npm run release -- --local` makes one).
 import { app } from 'electron'
 import { execFile, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -24,9 +27,12 @@ import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import type { UpdateState } from '@shared/ipc'
 import { isNewer } from '@shared/version'
 import { onPath } from './exec'
+import { signedByReleaseKey } from './release-key'
 
 const REPO = 'SilentGTX/Gloom'
 const MANIFEST = 'update.json'
+/** update.json's signature by the release key, base64. */
+const SIGNATURE = 'update.json.sig'
 const CHECK_EVERY_MS = 30 * 60 * 1000
 /** A download that receives nothing for this long has stalled. */
 const STALL_MS = 30_000
@@ -137,21 +143,40 @@ function releaseFrom(manifest: Manifest, idOf: (name: string) => number | undefi
   return release
 }
 
-/** The latest release, if it's newer than this Gloom. Throws when GitHub can't be asked. */
+/**
+ * update.json's contents when they name a newer version than this one; null
+ * when they don't. A newer one must carry the release key's signature of the
+ * very bytes downloaded: an older one is ignored either way, so only it is checked.
+ */
+async function newerManifest(bytes: Buffer, signature: () => Promise<string | null>): Promise<Manifest | null> {
+  const manifest = JSON.parse(bytes.toString('utf8')) as Manifest
+  if (!isNewer(String(manifest.version), app.getVersion())) return null
+  const signed = await signature()
+  if (signed === null) throw new Error(`Gloom ${String(manifest.version).slice(0, 40)} isn’t signed, so it won’t be installed.`)
+  if (!signedByReleaseKey(bytes, signed)) throw new Error(`Gloom ${String(manifest.version).slice(0, 40)} isn’t signed with Gloom’s release key, so it won’t be installed.`)
+  return manifest
+}
+
+/** The latest release, if it's newer than this Gloom. Throws when GitHub can't be asked, or the release isn't signed. */
 export async function findUpdate(timeoutMs: number): Promise<Release | null> {
   const source = localSource()
   if (source) {
-    const manifest = JSON.parse(readFileSync(join(source, MANIFEST), 'utf8')) as Manifest
-    return isNewer(manifest.version, app.getVersion()) ? releaseFrom(manifest, (name) => (existsSync(join(source, name)) ? 0 : undefined)) : null
+    const sig = join(source, SIGNATURE)
+    const manifest = await newerManifest(readFileSync(join(source, MANIFEST)), async () => (existsSync(sig) ? readFileSync(sig, 'utf8') : null))
+    return manifest && releaseFrom(manifest, (name) => (existsSync(join(source, name)) ? 0 : undefined))
   }
   const signal = AbortSignal.timeout(timeoutMs)
   const token = await githubToken()
   const release = (await (await github(`/repos/${REPO}/releases/latest`, token, signal)).json()) as { assets: ReleaseAsset[] }
-  const manifestAsset = release.assets.find((a) => a.name === MANIFEST)
+  const asset = (name: string) => release.assets.find((a) => a.name === name)
+  const manifestAsset = asset(MANIFEST)
   if (!manifestAsset) throw new Error(`The latest release has no ${MANIFEST}.`)
-  const manifest = (await (await github(`/repos/${REPO}/releases/assets/${manifestAsset.id}`, token, signal, 'application/octet-stream')).json()) as Manifest
-  if (!isNewer(manifest.version, app.getVersion())) return null
-  return releaseFrom(manifest, (name) => release.assets.find((a) => a.name === name)?.id)
+  const fetchAsset = async (id: number) => (await github(`/repos/${REPO}/releases/assets/${id}`, token, signal, 'application/octet-stream')).arrayBuffer()
+  const signatureAsset = asset(SIGNATURE)
+  const manifest = await newerManifest(Buffer.from(await fetchAsset(manifestAsset.id)), async () =>
+    signatureAsset ? Buffer.from(await fetchAsset(signatureAsset.id)).toString('utf8') : null
+  )
+  return manifest && releaseFrom(manifest, (name) => asset(name)?.id)
 }
 
 async function sha256Of(file: string): Promise<string> {

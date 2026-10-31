@@ -76,7 +76,7 @@ that use a Claude.ai login first.
 | Watching transcript files | chokidar | not on the list |
 | Tests | vitest; Playwright's Electron driver for end-to-end tests | not on the list |
 | Installer | electron-builder (NSIS, one-click) | your Sync app |
-| Updates | Sync's updater (check, download with sha256, silent NSIS `/S --force-run`), reading GitHub releases of the private repo | your Sync app |
+| Updates | Sync's updater (check, download with sha256, silent NSIS `/S --force-run`), reading GitHub releases of the private repo; `update.json` signed with an Ed25519 release key | your Sync app |
 
 ## Architecture
 
@@ -93,6 +93,9 @@ D:\JS\Gloom
 │  ├─ commands.ts               every command + shortcut in one registry (menu, accelerators, later the palette)
 │  ├─ notify.ts                 toasts, taskbar flash and badge
 │  ├─ updater.ts                GitHub releases check, download, silent install (Sync's updater)
+│  ├─ release-key.ts            the public half of the key every release is signed with
+│  ├─ protocol.ts               app://gloom/, the page's own scheme
+│  ├─ storage.ts                settings kept under file:// move to app://gloom, once
 │  ├─ update-screen.ts          the update screen's steps: launch check, download, install, relaunch
 │  ├─ versions.ts               updates unpacked beside the running copy; the newest runs at launch
 │  ├─ handover.ts               the new version takes the window over from the old one
@@ -206,7 +209,9 @@ as `.bak` and used if the current one is corrupt.
 
 **Security.** Model output and transcripts are untrusted. contextIsolation and sandbox on, no
 nodeIntegration, a strict CSP, IPC checks the sender, markdown never renders raw HTML, links open
-in the browser only for http(s), and in-app navigation is blocked.
+in the browser only for http(s), and in-app navigation is blocked. The page comes from Gloom's own
+`app://gloom`, and Electron's fuses are set (Phase 8): no running as Node, no `--inspect`, the app
+archive checked against Gloom.exe. Updates install only when signed with Gloom's release key.
 
 ## Screens
 
@@ -391,7 +396,8 @@ live chat, is out as Gloom 0.7.0** (2026-10-31). **Phases 5 and 6**, the diff an
 then rewind, edit and worktrees, were built the same night at your request and are out together
 as **Gloom 0.8.0** (2026-10-31), and a fix for the blank window the Effort menu left as Gloom 0.8.1
 (Phase 4's notes). **Phase 7, the polish pass, is out as Gloom 0.9.0** (2026-10-31; its notes
-below). **Next: Phase 8**, packaging, on your OK.
+below). **Phase 8, packaging, is built** (fuses, Gloom's own protocol, signed updates, installer
+fixes; its notes below) and waits for your OK to ship as Gloom 0.10.0.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -956,7 +962,81 @@ disclosure pages; `apple-design` for motion).
      build, and again on the build that went out (`--smoke-pty` too). Its first run found one more
      thing: F6 from a toolbar's button went to the first pane rather than the next; fixed before
      the release.
-8. **Package.** Installer polish (the app icon came in 0.3.0).
+8. **Package.** Installer polish (the app icon came in 0.3.0), and what Phase 7 left for it:
+   Electron's fuses, signing, and the page served from Gloom's own protocol.
+   **Built 2026-10-31** at your "Phase 8"; not released yet.
+   - **Fuses** (`electron-builder.yml`, flipped in Gloom.exe as it's packed): it can't be run as
+     plain Node (`ELECTRON_RUN_AS_NODE`), ignores `NODE_OPTIONS` and `--inspect`, runs the app only
+     from its archive, and checks the archive against a hash built into Gloom.exe: a copy with one
+     letter of its code changed doesn't start. Cookies are encrypted too (Gloom keeps none worth
+     anything; it's Electron's advice). Found on the way: node-pty's `kill()` forks a Node helper
+     on Windows, which without RunAsNode would start a second Gloom. Gloom already ended shells
+     with taskkill; the smoke test's timeout now does too.
+   - **Gloom's own protocol:** the page comes from `app://gloom/` (`src/main/protocol.ts`), not
+     `file://`, which had powers no web page has (fetching any file on the PC); the fuse that
+     granted them is off. Only the renderer's folder is served, and IPC and navigation trust
+     `app://gloom/index.html` alone.
+   - **Your settings come along.** A new origin starts with an empty localStorage, which is where
+     the window keeps its settings (sidebar width, sort, open groups, text size), when Gloom last
+     ran each session, and the version it last ran (for the "Updated" note). The first time 0.10
+     starts in a profile an earlier Gloom ran in, it copies them across before the app reads them
+     (`src/main/storage.ts`, `lib/storage.ts`), from a blank page under `file://` that nothing
+     shows. With the fuse off, `file://` can't load from inside the archive and has no storage at
+     all, so that one page is written to a temp folder and runs with web security off: it's
+     Gloom's own and runs one line. An entry the page already has wins, and the old ones stay, so
+     an older version still finds its own. Taking over from 0.9, it waits for 0.9 to quit first.
+   - **Signed releases.** Windows code signing needs a certificate from a certificate authority,
+     paid every year with an identity check, so Gloom isn't signed for Windows; electron-builder
+     signs on its own once one is given (`WIN_CSC_LINK`). What's signed instead is the updates:
+     every release's `update.json` carries a signature by Gloom's release key (Ed25519), and Gloom
+     installs a newer release only when it matches the public key Gloom carries
+     (`src/main/release-key.ts`). `update.json` names the SHA-256 of the installer and the zip, so
+     the signature covers them too: someone with your GitHub account or token could publish a
+     release, but not one Gloom would install.
+     - The private key is `C:\Users\origi\.gloom\release-key.pem`, never in the repo. **Keep a
+       copy somewhere safe:** a new key means installing the first release signed with it by
+       hand, with its installer.
+     - `scripts/release-key.mjs` made it; `scripts/manifest.mjs` signs, and refuses a key that
+       isn't the one Gloom carries; `npm run release -- --local` builds and signs without
+       publishing.
+     - The release script now refuses a version that's out already: a `--dir` build at 0.9.0
+       overwrote 0.9.0's unpacked folder on the way (restored from its zip, which matches
+       update.json).
+     - 0.9 doesn't check signatures, so it installs 0.10 as before; from 0.10 on, an unsigned
+       release isn't installed. An older one on GitHub is ignored either way, so only a newer
+       one is checked.
+   - **Installer polish:**
+     - Windows' Apps list says Gloom 0.2.0 on your PC: updates arrive without the installer,
+       which is what writes that entry. A version that came as an update now writes its own
+       version there, when the entry is its install folder's.
+     - Installing Gloom again over an update remakes the Start menu and desktop shortcuts but not
+       a taskbar pin, which went on starting the old version from `versions\`. The installer's
+       copy now takes back any shortcut still pointing there.
+     - The rest held up: one click, per user, the cloud on the installer and uninstaller, the
+       uninstaller takes `versions\` with the rest and keeps your library. Sizes are unchanged
+       (installer 116.5 MB, zip 145.9 MB).
+   - **The packaged check** (`test/e2e/packaged.spec.ts`): Playwright's Electron driver needs
+     `--inspect`, so the check starts Gloom.exe itself and connects to Chromium's DevTools port.
+     It adds the fuses in the exe, `--inspect` ignored, the page on `app://gloom`, settings moving
+     from `file://`, code colouring (a module worker from `app://gloom`), no errors in the page,
+     and the changed copy refusing to start.
+   - **Checked on real builds:** the shipped 0.9.0 (unpacked from its zip) updated itself in place
+     to 0.10.0 on a throwaway copy and profile, the way your copy will; the text size set in 0.9.0
+     was there in 0.10.0, moved during the handover itself. Then 0.10.0 refused a 0.10.1 whose
+     update.json had gained one space, and one with no signature, and installed the signed 0.10.1.
+   - **Departures**, deliberate:
+     - Chromium's `--remote-debugging-port` still works in released builds: Electron has no fuse
+       for it, the packaged check needs it, and using it means starting Gloom yourself, which is
+       already running code as you (as Phase 7 said of the Developer menu and test variables);
+     - node-pty's files in `app.asar.unpacked` (its .node, OpenConsole.exe, winpty-agent.exe)
+       aren't covered by the hash, which only covers the archive;
+     - no Windows code signing, so a first install from the installer meets SmartScreen once;
+       updates don't (Gloom downloads them itself).
+   - **No screen changed**, so the Apple skills weren't loaded for this phase.
+   - **Tests:** `test/unit/protocol.test.ts` (paths that leave the renderer's folder, the one
+     trusted page), `test/unit/release-key.test.ts` (signatures, and what `manifest.mjs` signs is
+     what Gloom accepts), `test/e2e/storage.spec.ts` (settings from `file://`, once, never over
+     newer ones), and the packaged check above. 114 unit tests and 60 end-to-end tests pass.
 
 ## Verification
 

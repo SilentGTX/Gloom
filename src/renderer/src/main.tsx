@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { UpdateScreenAlone } from './features/update/UpdateScreen'
 import { installOverflowTitles } from './lib/overflow-title'
+import { takeMovedStorage } from './lib/storage'
 import { loadUpdateScreen } from './lib/update'
 
 installOverflowTitles()
@@ -26,6 +27,8 @@ if (handover) {
   )
   await window.gloom?.handoverWait()
 }
+// The settings kept under file:// move over the first time, before a store reads them.
+await takeMovedStorage()
 const { App } = await import('./App')
 flushSync(() =>
   root.render(

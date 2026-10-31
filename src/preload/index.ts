@@ -23,6 +23,7 @@ const api: GloomApi = {
   onUpdateScreen: (listener) => subscribe<UpdateScreen | null>(IPC.updateScreenChanged, listener),
   handoverWait: () => ipcRenderer.invoke(IPC.handoverWait),
   handoverDone: () => ipcRenderer.invoke(IPC.handoverDone),
+  storageToMove: () => ipcRenderer.invoke(IPC.storageToMove),
   getLibrary: () => ipcRenderer.invoke(IPC.library),
   applyLibrary: (op) => ipcRenderer.invoke(IPC.libraryApply, op),
   onLibrary: (listener) => subscribe<LibraryChange>(IPC.libraryChanged, listener),

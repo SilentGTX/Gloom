@@ -101,6 +101,8 @@ export interface GloomApi {
   handoverWait(): Promise<void>
   /** The app is drawn under the update screen, which can go. */
   handoverDone(): Promise<void>
+  /** The page's localStorage entries from when it was a file:// page, the first time a profile asks; else null. */
+  storageToMove(): Promise<[string, string][] | null>
   getLibrary(): Promise<LibrarySnapshot>
   /** Rejects with the reason when the library refuses (e.g. a folder moved inside itself). */
   applyLibrary(op: LibraryOp): Promise<ApplyResult>

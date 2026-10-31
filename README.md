@@ -17,10 +17,19 @@ npm run dist       # one-click NSIS installer in release/<version>/
 
 ```bash
 npm run release -- "What changed"   # builds the installer from HEAD, publishes v<version> to GitHub releases
+npm run release -- --local          # the same build and signature, published nowhere
 ```
 
-Bump `version` in package.json, commit and push first: the release is tagged at HEAD. Updates
-work like Sync's (and Discord's): at launch Gloom's window shows the update screen while it checks
+Bump `version` in package.json, commit and push first: the release is tagged at HEAD, and the
+script refuses a version that's out already. Every release's `update.json` is signed with Gloom's
+release key, an Ed25519 key in `~/.gloom/release-key.pem` (or `GLOOM_RELEASE_KEY`) that never goes
+in the repo; keep a copy of it somewhere safe. Gloom installs a newer release only when its
+`update.json.sig` matches the public key in `src/main/release-key.ts`, and `update.json` names the
+SHA-256 of everything it installs. `scripts/manifest.mjs` writes and signs the manifest;
+`scripts/release-key.mjs` made the key, once. A new key would mean installing the first release
+signed with it by hand.
+
+Updates work like Sync's (and Discord's): at launch Gloom's window shows the update screen while it checks
 the latest release, through your `gh` login since the repo is private. A newer one downloads there
 with progress and is checked against its SHA-256. It unpacks beside the running copy, in
 `versions\<version>` in Gloom's install folder, and the new version takes the window over without
@@ -33,7 +42,13 @@ clicking it turns the window into the same screen. Help → Check for Updates…
 and Developer → Preview Update Screen plays the screen's steps without installing anything.
 `GLOOM_UPDATE_DRY_RUN=1` makes a packaged build do everything but install, and
 `GLOOM_UPDATE_FROM=<folder>` reads `update.json` and its files from a folder instead of GitHub,
-to try an update without publishing it.
+to try an update without publishing it (`release/<version>` after `npm run release -- --local`).
+
+The packaged app is hardened with Electron's fuses (`electron-builder.yml`): it can't run as
+plain Node, ignores `NODE_OPTIONS` and `--inspect`, loads only its own archive and checks it
+against the hash in `Gloom.exe`, and serves its page from `app://gloom` rather than `file://`
+(`src/main/protocol.ts`). Gloom isn't code-signed for Windows: that takes a paid certificate.
+electron-builder signs on its own when one is given (`WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD`).
 
 Gloom's cloud is `update.png` (a square PNG, at least 256 px). The app icon is the cloud on a
 violet tile, which `scripts/make-icons.mts` draws; the update screen shows the cloud on its own.
@@ -57,7 +72,11 @@ The viewer's tests and captures read a made-up session built in `test/support/de
 foreground, and sends nothing unless Gloom is the foreground window.
 
 The packaged app has a headless smoke test: `Gloom.exe --smoke-pty=<file.json>` starts PowerShell
-through node-pty, writes the result and exits.
+through node-pty, writes the result and exits. Every release is checked first with
+`GLOOM_PACKAGED_EXE=release\<version>\win-unpacked\Gloom.exe npx playwright test packaged`: its
+fuses, a session, the panes, the keyboard and the settings moving over from `file://`, through
+Chromium's DevTools port (the fuses refuse the `--inspect` Playwright's Electron driver needs),
+and a copy with one byte of its archive changed, which mustn't start.
 
 ## Claude Code tools
 

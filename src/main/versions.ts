@@ -12,6 +12,7 @@ import { basename, dirname, join } from 'node:path'
 // would lock a version's folder against moving and removing; this one doesn't.
 import { existsSync, mkdirSync, promises, readdirSync, writeFileSync } from 'original-fs'
 import { isNewer } from '@shared/version'
+import { systemExe } from './exec'
 
 /** Written into a version's folder once it has shown its window. */
 const STARTED = '.started'
@@ -110,22 +111,46 @@ export function discard(exe: string): void {
 
 /**
  * This version has its window up: from now on it may be started at launch,
- * and Gloom's shortcuts start it directly.
+ * Gloom's shortcuts start it directly, and Windows' Apps list shows its
+ * version. The installer's copy runs only when nothing newer has, so it takes
+ * back any shortcut still pointing into versions\ (after Gloom was installed
+ * again over an update, the installer remakes its own shortcuts, not a taskbar pin).
  */
 export function markStarted(): void {
+  if (!app.isPackaged) return
   const here = dirname(process.execPath)
-  if (installRoot() === here) return
-  try {
-    writeFileSync(join(here, STARTED), `${new Date().toISOString()}\n`)
-  } catch {
-    // Without the mark, the next launch runs the installer's copy, which updates again.
-    return
+  const beside = installRoot() !== here
+  if (beside) {
+    try {
+      writeFileSync(join(here, STARTED), `${new Date().toISOString()}\n`)
+    } catch {
+      // Without the mark, the next launch runs the installer's copy, which updates again.
+      return
+    }
   }
   for (const { lnk, target } of shortcuts()) {
     if (target.toLowerCase() === process.execPath.toLowerCase()) continue
     // Only where it points: the taskbar's app ID and the icon stay.
     shell.writeShortcutLink(lnk, 'update', { target: process.execPath, cwd: here })
   }
+  if (beside) recordVersion()
+}
+
+/** The installer's entry in Windows' Apps list: electron-builder names it after the appId (a UUID v5 of com.silentgtx.gloom). */
+const UNINSTALL_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\7857a7ac-fcb6-542d-b7b9-563b6edab5cf'
+
+/**
+ * Updates arrive without the installer, so the Apps list went on naming the
+ * version it installed (0.2.0, with 0.9 running). A version that came
+ * as an update writes its own into the entry, when the entry is this install
+ * folder's: the uninstaller still removes it, and the rest of it stays as it was.
+ */
+function recordVersion(): void {
+  const reg = systemExe('reg.exe')
+  execFile(reg, ['query', UNINSTALL_KEY, '/v', 'UninstallString'], { windowsHide: true }, (error, stdout) => {
+    if (error || !stdout.toLowerCase().includes(`${installRoot().toLowerCase()}\\`)) return
+    execFile(reg, ['add', UNINSTALL_KEY, '/v', 'DisplayVersion', '/t', 'REG_SZ', '/d', app.getVersion(), '/f'], { windowsHide: true }, () => {})
+  })
 }
 
 /** Gloom's shortcuts (Start menu, desktop, pinned to the taskbar) that start a copy in this install folder. */

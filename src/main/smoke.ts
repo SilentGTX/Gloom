@@ -1,6 +1,7 @@
 // Packaging smoke test: start PowerShell through node-pty, so a broken native
 // module or a helper exe stuck inside the asar shows up on day one.
 import { homedir } from 'node:os'
+import { killTree } from './claude/runner'
 
 export interface SmokeResult {
   ok: boolean
@@ -35,7 +36,8 @@ export async function runPtySmoke(timeoutMs = 15_000): Promise<SmokeResult> {
       return
     }
     const timer = setTimeout(() => {
-      term.kill()
+      // Not term.kill(): on Windows that forks a Node helper, which the RunAsNode fuse turns into a second Gloom.
+      killTree(term.pid)
       resolve({ ok: false, output: clean(output), error: 'timed out', ms: elapsed() })
     }, timeoutMs)
     term.onData((data) => (output += data))

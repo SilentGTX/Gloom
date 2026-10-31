@@ -16,7 +16,9 @@ import { knownModels, loadSettings, onSettings, settings, updateSettings } from 
 import { installApplicationMenu, runCommand } from './commands'
 import { parseTakeover, takeOver } from './handover'
 import { LibraryService } from './library/service'
+import { registerAppScheme, serveApp } from './protocol'
 import { runPtySmoke } from './smoke'
+import { storageToMove } from './storage'
 import { workingTreeDiff } from './git/diff'
 import { createWorktree, mergeWorktree, recreateFolder, removeWorktree, repoInfo, worktreeInfo } from './git/worktrees'
 import { Terminals } from './pty/terminals'
@@ -28,6 +30,8 @@ import { createMainWindow, isRendererUrl, windowState } from './window'
 
 /** Started by the version it takes the window over from (handover.ts). */
 const takeover = parseTakeover(process.argv)
+// The page's own scheme has to be known before the app is ready.
+registerAppScheme()
 /** Older versions are removed once this one has settled in. */
 const TIDY_AFTER_MS = 10_000
 
@@ -60,6 +64,7 @@ if (smokeArg) {
 
   void app.whenReady().then(() => {
     app.setAppUserModelId('com.silentgtx.gloom')
+    serveApp()
     loadSettings()
     installApplicationMenu()
 
@@ -322,6 +327,11 @@ if (smokeArg) {
     ipcMain.handle(IPC.handoverDone, (event) => {
       if (!trusted(event)) throw new Error('untrusted sender')
       finishStarting()
+    })
+    // Asked once the previous version has quit (handoverWait), since it holds the storage until then.
+    ipcMain.handle(IPC.storageToMove, (event) => {
+      if (!trusted(event)) throw new Error('untrusted sender')
+      return storageToMove()
     })
     mainWindow.on('closed', () => {
       mainWindow = null

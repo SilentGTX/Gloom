@@ -6,8 +6,8 @@
 import { app, BrowserWindow, nativeTheme, screen, shell, systemPreferences } from 'electron'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { IPC, type WindowState } from '@shared/ipc'
+import { APP_PAGE, APP_SCHEME } from './protocol'
 
 export const TITLE_BAR_HEIGHT = 48
 const DEFAULT_SIZE = { width: 1280, height: 820 }
@@ -91,17 +91,19 @@ export function windowState(win: BrowserWindow): WindowState {
   }
 }
 
-/** The renderer's own URL, which IPC senders and navigations must match. */
+/** The renderer's own URL, which IPC senders and navigations must match: app://gloom/ (protocol.ts), or the development server. */
 export function rendererUrl(): string {
-  return process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(join(__dirname, '../renderer/index.html')).href
+  return process.env.ELECTRON_RENDERER_URL ?? APP_PAGE
 }
 
-/** Whether a URL is the renderer's own page: its file, or (in development) its server's origin, not just a prefix of it. */
+/** Whether a URL is the renderer's own page: app://gloom/index.html, or (in development) its server's origin, not just a prefix of it. */
 export function isRendererUrl(url: string): boolean {
   try {
     const page = new URL(url)
     const own = new URL(rendererUrl())
-    return page.protocol === 'file:' ? own.protocol === 'file:' && page.pathname === own.pathname : page.origin === own.origin
+    // A scheme URL doesn't know has no origin of its own ('null' for all of them), so it's compared part by part.
+    if (own.protocol === `${APP_SCHEME}:`) return page.protocol === own.protocol && page.host === own.host && page.pathname === own.pathname
+    return page.origin === own.origin
   } catch {
     return false
   }
@@ -190,8 +192,6 @@ export function createMainWindow({ handover = false, onShown }: { handover?: boo
   win.webContents.session.setPermissionRequestHandler((_contents, permission, grant) => grant(allowed(permission)))
   win.webContents.session.setPermissionCheckHandler((_contents, permission) => allowed(permission))
 
-  const query = handover ? '?handover' : ''
-  if (process.env.ELECTRON_RENDERER_URL) void win.loadURL(`${process.env.ELECTRON_RENDERER_URL}${query}`)
-  else void win.loadFile(join(__dirname, '../renderer/index.html'), handover ? { search: 'handover' } : undefined)
+  void win.loadURL(`${rendererUrl()}${handover ? '?handover' : ''}`)
   return win
 }
