@@ -4,7 +4,12 @@ import type {
   AppInfo,
   ApplyResult,
   CommandDispatch,
+  BrowserState,
   ExportResult,
+  FileRead,
+  PreviewList,
+  PreviewServerInfo,
+  RoutineList,
   TranscriptSearch,
   LibraryChange,
   LibrarySnapshot,
@@ -43,6 +48,8 @@ import type {
   UsageInfo
 } from '../shared/live'
 import type { BlobRef, TranscriptPage } from '../shared/transcript'
+import type { PrStatus } from '../shared/pr'
+import type { Routine } from '../shared/routines'
 
 /** The sessions Gloom runs. */
 export interface LiveApi {
@@ -65,6 +72,8 @@ export interface LiveApi {
   toggleMcp(id: string, name: string, enabled: boolean): Promise<void>
   /** Connects one of a running session's MCP servers again. */
   reconnectMcp(id: string, name: string): Promise<void>
+  /** Stops one of a session's background tasks. */
+  stopTask(id: string, taskId: string): Promise<void>
   commands(id: string): Promise<CommandInfo[]>
   /** The files and folders `@` offers, from the session's working folder. */
   files(id: string): Promise<FileListing>
@@ -135,12 +144,15 @@ export interface GloomApi {
   readTranscript(request: TranscriptRequest): Promise<TranscriptPage>
   /** What a page left in the file: an image's data URL, a long text, a whole diff. */
   transcriptBlob(id: string, ref: BlobRef): Promise<unknown>
-  unfollowTranscript(): Promise<void>
+  /** Stops reporting a transcript's changes (every one, without an ID). */
+  unfollowTranscript(id?: string): Promise<void>
   onTranscript(listener: (change: TranscriptChange) => void): () => void
   /** Opens `claude --resume` in a terminal window; with `check`, only says whether it can. */
   resumeSession(id: string, options?: { check?: boolean }): Promise<ResumeResult>
   /** Writes a zip of the session's transcripts to Downloads; rejects with the reason when it can't. */
   exportSession(id: string): Promise<ExportResult>
+  /** A file inside the session's folders (its working folder and the ones added to it), for the File pane. */
+  readFile(id: string, path: string): Promise<FileRead>
   /** Sessions whose conversations say `query` (2 characters or more), newest first. */
   searchTranscripts(query: string, includeArchived: boolean): Promise<TranscriptSearch>
   live: LiveApi
@@ -163,8 +175,47 @@ export interface GloomApi {
   diff: DiffApi
   terminal: TerminalApi
   git: GitApi
+  /** Cloud sessions (claude --cloud): Gloom starts them and opens them on claude.ai. */
+  cloud: {
+    start(folder: string, task: string): Promise<{ url: string; title: string; cwd: string; created: number }>
+    list(): Promise<{ url: string; title: string; cwd: string; created: number }[]>
+  }
+  /** Routines: prompts Gloom runs on a schedule, each in a new session. */
+  routines: {
+    list(): Promise<RoutineList>
+    /** Adds or changes a routine; rejects with what's wrong with it. */
+    save(routine: Partial<Routine>): Promise<Routine>
+    remove(id: string): Promise<boolean>
+    /** Runs it now; resolves to the new session's ID. */
+    run(id: string): Promise<string>
+    onChanged(listener: (list: RoutineList) => void): () => void
+  }
+  /** The session's pull request (through gh): read it, link one, merge, auto-merge, and its monitor. */
+  pr: {
+    status(id: string, maxAgeMs?: number): Promise<PrStatus | null>
+    bind(id: string, url: string | null): Promise<PrStatus | null>
+    merge(id: string, method: 'squash' | 'merge' | 'rebase'): Promise<void>
+    autoMerge(id: string, enabled: boolean, method: 'squash' | 'merge' | 'rebase'): Promise<void>
+    monitor(id: string, switches: { autoFix?: boolean; autoArchive?: boolean }): Promise<void>
+  }
+  /** Opens a pane (diff, terminal, file, plan, tasks, browser, artifacts) in a window of its own, for the session. */
+  popOut(pane: 'diff' | 'terminal' | 'file' | 'plan' | 'tasks' | 'browser' | 'artifacts' | 'pr', id: string): Promise<void>
   /** An inline widget's page (show_widget): the URL its sandboxed frame loads. */
   widget(id: string, code: string, title: string, theme: { dark: boolean; accent: string }): Promise<string>
+  /** The Browser pane: a page per session, laid over the pane's place; and the project's dev servers. */
+  browser: {
+    show(id: string, bounds: { x: number; y: number; width: number; height: number }): Promise<void>
+    hide(): Promise<void>
+    navigate(id: string, address: string): Promise<BrowserState>
+    go(id: string, where: 'back' | 'forward' | 'reload'): Promise<void>
+    state(id: string): Promise<BrowserState>
+    onChanged(listener: (state: BrowserState) => void): () => void
+    /** Claude is using a session's Browser pane. */
+    onOpen(listener: (sessionId: string) => void): () => void
+    previews(id: string): Promise<PreviewList>
+    startPreview(id: string, name: string): Promise<PreviewServerInfo>
+    stopPreview(serverId: string): Promise<void>
+  }
   /** Sessions Claude proposed or offered (side sessions). */
   side: {
     /** Starts a proposal; resolves to the new session's ID. Rejects with the reason when it can't. */

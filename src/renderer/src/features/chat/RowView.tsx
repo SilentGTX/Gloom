@@ -2,7 +2,7 @@ import { memo, useContext, useId, useState, type ReactNode } from 'react'
 import { ArrowLeftRight, Bell, ChevronRight, CircleAlert, ClipboardType, Hand, Info, MessageSquareQuote, Webhook } from 'lucide-react'
 import type { CompactEntry, MentionEntry, NoticeEntry, NoticeIcon, OutputEntry, PromptEntry, SummaryEntry, TextEntry, ThinkingEntry } from '@shared/transcript'
 import { cn } from '../../lib/cn'
-import { useTranscript } from '../../stores/transcript'
+import { useColumnTranscript } from '../../stores/transcript'
 import { useConcept } from '../concept/parts'
 import { StreamRow, WorkingRow } from './LiveRows'
 import { Markdown } from './Markdown'
@@ -332,8 +332,8 @@ function OutputRow({ entry }: { entry: OutputEntry }) {
 
 /** "Conversation compacted", with the summary Claude carried on from, and Show Earlier above it. */
 function CompactRow({ rowKey, entry, summary }: { rowKey: string; entry: CompactEntry; summary: SummaryEntry | null }) {
-  const earlier = useTranscript((s) => s.earlier[rowKey])
-  const showEarlier = useTranscript((s) => s.showEarlier)
+  const earlier = useColumnTranscript((s) => s.earlier[rowKey])
+  const showEarlier = useColumnTranscript((s) => s.showEarlier)
   const [open, flip] = useOpen(rowKey, 'tools')
   const setExpanded = (_key: string, _open: boolean) => flip()
   const tokens = entry.preTokens ? ` · ${Math.round(entry.preTokens / 1000).toLocaleString()}K tokens` : ''
@@ -377,7 +377,7 @@ function CompactRow({ rowKey, entry, summary }: { rowKey: string; entry: Compact
 }
 
 function SummaryText({ entry }: { entry: SummaryEntry }) {
-  const sessionId = useTranscript((s) => s.id) ?? ''
+  const sessionId = useColumnTranscript((s) => s.id) ?? ''
   const { full, loading, load } = useFullText(sessionId, entry.more)
   return (
     <div className="mt-2">

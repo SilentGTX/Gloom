@@ -26,7 +26,7 @@ export const IPC = {
   readTranscript: 'transcript:read',
   /** invoke(sessionId, BlobRef) → an image's data URL, a long text, a whole diff */
   transcriptBlob: 'transcript:blob',
-  /** invoke: stops reporting the open transcript's changes */
+  /** invoke(sessionId?): stops reporting that transcript's changes (every one, without an ID) */
   unfollowTranscript: 'transcript:unfollow',
   /** main → renderer: TranscriptChange, as the open transcript grows */
   transcriptChanged: 'transcript:changed',
@@ -89,6 +89,10 @@ export const IPC = {
   liveToggleMcp: 'live:toggle-mcp',
   /** invoke(sessionId, serverName): connects one of its MCP servers again */
   liveReconnectMcp: 'live:reconnect-mcp',
+  /** invoke(sessionId, taskId): stops one of its background tasks */
+  liveStopTask: 'live:stop-task',
+  /** invoke(sessionId, path) → FileRead: a file inside the session's folders, for the File pane */
+  fileRead: 'file:read',
   /** invoke(sessionId) → CommandInfo[]: its slash commands */
   liveCommands: 'live:commands',
   /** invoke(sessionId) → FileListing: what `@` offers, from its working folder */
@@ -170,7 +174,53 @@ export const IPC = {
   /** invoke(sessionId, taskId): withdraws a proposal */
   sideDismiss: 'side:dismiss',
   /** invoke(taskId) → boolean: whether a proposal still waits */
-  sidePending: 'side:pending'
+  sidePending: 'side:pending',
+  /** invoke(sessionId, {x, y, width, height}): the Browser pane shows the session's page there */
+  browserShow: 'browser:show',
+  /** invoke: the Browser pane went away, or something covers it */
+  browserHide: 'browser:hide',
+  /** invoke(sessionId, address) → BrowserState */
+  browserNavigate: 'browser:navigate',
+  /** invoke(sessionId, 'back' | 'forward' | 'reload') */
+  browserGo: 'browser:go',
+  /** invoke(sessionId) → BrowserState */
+  browserState: 'browser:state',
+  /** main → renderer: BrowserState, as a page loads or changes */
+  browserChanged: 'browser:changed',
+  /** main → renderer: sessionId, whose Browser pane Claude is using (it comes up if that session shows) */
+  browserOpen: 'browser:open',
+  /** invoke(sessionId) → PreviewList: the dev servers .claude/launch.json defines, and the ones running */
+  previewList: 'preview:list',
+  /** invoke(sessionId, name) → PreviewServer */
+  previewStart: 'preview:start',
+  /** invoke(serverId) */
+  previewStop: 'preview:stop',
+  /** invoke(pane, sessionId): opens a pane in a window of its own */
+  popOut: 'window:pop-out',
+  /** invoke(sessionId, maxAgeMs?) → PrStatus | null: the session's pull request */
+  prStatus: 'pr:status',
+  /** invoke(sessionId, url | null): links a pull request by hand (null: found from the branch again) */
+  prBind: 'pr:bind',
+  /** invoke(sessionId, 'squash' | 'merge' | 'rebase') */
+  prMerge: 'pr:merge',
+  /** invoke(sessionId, enabled, method) */
+  prAutoMerge: 'pr:auto-merge',
+  /** invoke(sessionId, { autoFix?, autoArchive? }) */
+  prMonitor: 'pr:monitor',
+  /** invoke → RoutineList */
+  routinesList: 'routines:list',
+  /** invoke(routine) → Routine: adds or changes one */
+  routinesSave: 'routines:save',
+  /** invoke(id) */
+  routinesDelete: 'routines:delete',
+  /** invoke(id) → string: runs it now; the new session's ID */
+  routinesRun: 'routines:run',
+  /** main → renderer: RoutineList, as routines change or run */
+  routinesChanged: 'routines:changed',
+  /** invoke(folder, task) → CloudSession: starts a cloud session (claude --cloud) and opens it on claude.ai */
+  cloudStart: 'cloud:start',
+  /** invoke → CloudSession[]: the cloud sessions Gloom started */
+  cloudList: 'cloud:list'
 } as const
 
 /** A new terminal: in the session's working folder (your home folder without one), sized to the pane. */
@@ -264,6 +314,43 @@ export interface TranscriptChange {
 /** Whether a session can be opened in a terminal, and if not, why. */
 export type ResumeResult = { ok: true; command: string } | { ok: false; reason: string }
 
+/** A file the File pane shows: its text (cut past a size), or why it can't. */
+export type FileRead = { ok: true; path: string; text: string; size: number; truncated: boolean } | { ok: false; path: string; reason: string }
+
+/** The Browser pane's page: where it is and whether it can go back. */
+export interface BrowserState {
+  sessionId: string
+  url: string
+  title: string
+  loading: boolean
+  canGoBack: boolean
+  canGoForward: boolean
+}
+
+/** A dev server from .claude/launch.json. */
+export interface PreviewServerInfo {
+  id: string
+  name: string
+  cwd: string
+  url: string | null
+  status: 'starting' | 'running' | 'exited' | 'failed'
+  exitCode: number | null
+  started: number
+}
+
+export interface PreviewList {
+  file: string
+  problem: string | null
+  configurations: { name: string; port: number | null; url: string | null }[]
+  running: PreviewServerInfo[]
+}
+
+/** The routines, and when each runs next (ms, or null). */
+export interface RoutineList {
+  routines: import('./routines').Routine[]
+  next: Record<string, number | null>
+}
+
 /** Where an exported session's zip went. */
 export interface ExportResult {
   path: string
@@ -299,7 +386,8 @@ export type WorkerRequest =
   | { type: 'parent'; reqId: number; file: string; uuid: string }
   /** Which of these transcripts say `query` (newest first), with a snippet each; a newer search ends this one. */
   | { type: 'search'; reqId: number; query: string; files: { id: string; file: string }[]; limit: number }
-  | { type: 'unfollow' }
+  /** Stops following a transcript (every one, without a file). */
+  | { type: 'unfollow'; file?: string }
 
 /** transcripts worker → main */
 export type WorkerReply =

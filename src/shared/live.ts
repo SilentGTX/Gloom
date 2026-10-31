@@ -206,6 +206,27 @@ export interface LiveSummary {
   folders?: string[]
   /** Its process is running now (connectors can be switched only then). */
   alive?: boolean
+  /** Background work its process reported: shells, subagents, monitors, workflows (the Tasks pane). */
+  tasks?: BackgroundTask[]
+}
+
+/** A background task a session's process runs (or ran): a shell, a subagent, a monitor. */
+export interface BackgroundTask {
+  id: string
+  /** "local_bash", "local_agent", "monitor", "workflow"… as the CLI names it. */
+  type: string
+  description: string
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped' | 'paused'
+  started: number
+  ended: number | null
+  /** A subagent's latest summary of what it's doing, or its final one. */
+  summary: string | null
+  lastTool: string | null
+  tokens: number | null
+  toolUses: number | null
+  /** Where its output was written, once it ended. */
+  outputFile: string | null
+  error: string | null
 }
 
 /** An MCP server a session's process loaded: "connected", "failed", "needs-auth", "pending", "disabled"… */
@@ -428,9 +449,22 @@ export function branchPrefixProblem(prefix: string): string | null {
   return null
 }
 
+/** Another machine a session can run on, over your own ssh (its config and keys). */
+export interface SshHost {
+  id: string
+  /** What Gloom calls it. */
+  name: string
+  /** What ssh connects to: a Host from ~/.ssh/config, or user@host. */
+  host: string
+  /** Claude Code there, when it isn't `claude` on its PATH. */
+  claude: string | null
+}
+
 export interface Settings {
   /** Your claude.exe, when it isn't where Gloom looks. */
   claudePath: string | null
+  /** Machines sessions can run on over ssh. */
+  sshHosts: SshHost[]
   /** New sessions' model (null: Claude Code's default), mode and effort. */
   model: string | null
   mode: ModeId
@@ -447,6 +481,8 @@ export interface Settings {
   idleMinutes: number
   /** Sessions with no activity for this many days are archived; 0 never. */
   archiveAfterDays: number
+  /** A session is archived once its pull request merges or closes. */
+  archiveOnPrClose: boolean
   /** The computer doesn't idle-sleep while a session works. */
   keepAwake: boolean
   /** …on battery power too. */
@@ -472,6 +508,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   claudePath: null,
+  sshHosts: [],
   model: null,
   mode: 'default',
   effort: null,
@@ -481,6 +518,7 @@ export const DEFAULT_SETTINGS: Settings = {
   transcriptView: 'normal',
   idleMinutes: 10,
   archiveAfterDays: 0,
+  archiveOnPrClose: false,
   keepAwake: true,
   keepAwakeOnBattery: true,
   branchPrefix: 'claude',
@@ -532,6 +570,8 @@ export interface NewSessionRequest {
   worktree?: boolean
   /** A side session forked from this one (main only; the window never sends it). */
   forkFrom?: string
+  /** Runs on another machine: one of Settings' SSH connections, by id (`cwd` is a folder there). */
+  ssh?: string
 }
 
 export interface ImageAttachment {
@@ -605,3 +645,5 @@ export type LiveEvent =
   | { type: 'completed'; ids: string[] }
   /** Claude switched how a conversation shows (set_transcript_view). */
   | { type: 'view'; id: string; view: TranscriptView }
+  /** A session's pull request, as Gloom last read it (null: it has none). */
+  | { type: 'pr'; id: string; status: import('./pr').PrStatus | null }

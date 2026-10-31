@@ -3,12 +3,14 @@ import { ChevronRight, Circle, CircleCheck, CircleDot, LoaderCircle } from 'luci
 import type { Hunk, Part, TextPart, ToolEntry, ToolResult } from '@shared/transcript'
 import { hunksOf } from '@shared/transcript'
 import { cn } from '../../lib/cn'
-import { useTranscript } from '../../stores/transcript'
+import { useColumnTranscript, useColumnTranscriptApi } from '../../stores/transcript'
 import { Spinner, useConcept } from '../concept/parts'
 import { Markdown } from './Markdown'
 import { ImageStrip, ShowAll, useBlob, useFullText } from './media'
 import { describeTool, type ToolView } from './tools'
 import { FurnitureRow, isFurniture, ProposalCard } from './Furniture'
+import { FileCode2 } from 'lucide-react'
+import { useUi } from '../../stores/ui'
 
 /**
  * A tool call as one line, "Edited foo.ts +12 −3", with a disclosure triangle
@@ -113,9 +115,10 @@ export const OpenByDefault = createContext<{ thinking: boolean; tools: boolean }
  * (Verbose: every tool call and event; Thinking and Verbose: thinking).
  */
 export function useOpen(rowKey: string, kind: 'tools' | 'thinking'): [boolean, () => void] {
-  const toggled = useTranscript((s) => s.expanded.has(rowKey))
+  const transcriptApi = useColumnTranscriptApi()
+  const toggled = useColumnTranscript((s) => s.expanded.has(rowKey))
   const open = useContext(OpenByDefault)[kind] !== toggled
-  return [open, () => useTranscript.getState().setExpanded(rowKey, !toggled)]
+  return [open, () => transcriptApi.getState().setExpanded(rowKey, !toggled)]
 }
 
 type Todo = { content?: unknown; status?: unknown }
@@ -177,7 +180,27 @@ function Summary({ view }: { view: ToolView }) {
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
-function Details({ sessionId, call, result, view, running }: { sessionId: string; call: ToolEntry; result: ToolResult | undefined; view: ToolView; running: boolean }) {
+function Details(props: { sessionId: string; call: ToolEntry; result: ToolResult | undefined; view: ToolView; running: boolean }) {
+  // A step on a file (Read, Edit, Write) opens that file in the side pane, at the line it read from.
+  const path = typeof props.call.input.file_path === 'string' ? props.call.input.file_path : typeof props.call.input.notebook_path === 'string' ? props.call.input.notebook_path : null
+  if (!path) return <DetailsBody {...props} />
+  const line = typeof props.call.input.offset === 'number' ? props.call.input.offset : null
+  return (
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={() => useUi.getState().openFile(path, line)}
+        className="no-drag inline-flex items-center gap-1 rounded-[6px] px-1 text-footnote font-medium text-accent-text outline-none hover:bg-fill-strong focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)]"
+      >
+        <FileCode2 size={12} strokeWidth={1.75} aria-hidden />
+        Open File
+      </button>
+      <DetailsBody {...props} />
+    </div>
+  )
+}
+
+function DetailsBody({ sessionId, call, result, view, running }: { sessionId: string; call: ToolEntry; result: ToolResult | undefined; view: ToolView; running: boolean }) {
   const input = call.input
   const failed = result?.isError === true
   const nothing = !result && <Caption>{running ? 'Running…' : 'No result was recorded.'}</Caption>

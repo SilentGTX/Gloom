@@ -44,6 +44,8 @@ export const COMMANDS = [
   { id: 'session.markCompleted', label: 'Mark as Completed', group: 'file', runs: 'renderer', keywords: 'done acknowledge' },
   // A zip of the open session's transcripts in Downloads, as the Claude app's Export.
   { id: 'session.export', label: 'Export Session…', group: 'file', runs: 'renderer', keywords: 'zip save download transcript' },
+  // Prompts Gloom runs on a schedule, each in a new session (the Claude app's scheduled tasks and Routines).
+  { id: 'session.routines', label: 'Routines…', group: 'file', runs: 'renderer', keywords: 'schedule cron scheduled tasks recurring' },
   { id: 'app.settings', label: 'Settings…', group: 'file', accelerator: 'CmdOrCtrl+,', runs: 'renderer', keywords: 'preferences options' },
   { id: 'app.quit', label: 'Quit Gloom', group: 'file', accelerator: 'CmdOrCtrl+Q', runs: 'main', keywords: 'exit close' },
   // Undoes typing in a field, otherwise the last change to your folders and sessions.
@@ -72,6 +74,13 @@ export const COMMANDS = [
   { id: 'view.transcriptNormal', label: 'Normal', group: 'view', submenu: 'Transcript View', runs: 'renderer', keywords: 'conversation folded' },
   { id: 'view.transcriptThinking', label: 'Thinking', group: 'view', submenu: 'Transcript View', runs: 'renderer', keywords: 'conversation reasoning' },
   { id: 'view.transcriptVerbose', label: 'Verbose', group: 'view', submenu: 'Transcript View', runs: 'renderer', keywords: 'conversation details expanded' },
+  // The side pane, on the trailing side, as the Claude app's panes: shows the tab, or puts the pane away.
+  { id: 'view.paneFile', label: 'File', group: 'view', submenu: 'Pane', runs: 'renderer', keywords: 'file viewer code open' },
+  { id: 'view.panePlan', label: 'Plan', group: 'view', submenu: 'Pane', runs: 'renderer', keywords: 'plan mode' },
+  { id: 'view.paneTasks', label: 'Tasks', group: 'view', submenu: 'Pane', runs: 'renderer', keywords: 'background shells agents todo' },
+  { id: 'view.paneBrowser', label: 'Browser', group: 'view', submenu: 'Pane', accelerator: 'CmdOrCtrl+Shift+O', runs: 'renderer', keywords: 'preview web dev server localhost' },
+  { id: 'view.paneArtifacts', label: 'Artifacts', group: 'view', submenu: 'Pane', runs: 'renderer', keywords: 'claude.ai pages published' },
+  { id: 'view.panePr', label: 'Pull Request', group: 'view', submenu: 'Pane', runs: 'renderer', keywords: 'pr github checks ci merge' },
   // Reads the diff pane's changes again (they also refresh as the session works).
   { id: 'view.refreshDiff', label: 'Refresh Diff', group: 'view', accelerator: 'F5', runs: 'renderer' },
   // The keyboard moves between the sidebar, the transcript, the composer and the panes, as F6 does in

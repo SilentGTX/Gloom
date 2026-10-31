@@ -29,15 +29,32 @@ if (handover) {
 }
 // The settings kept under file:// move over the first time, before a store reads them.
 await takeMovedStorage()
-const { App } = await import('./App')
-flushSync(() =>
-  root.render(
-    <StrictMode>
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>
-    </StrictMode>
+// A pane popped out into a window of its own shows only that pane.
+const params = new URLSearchParams(location.search)
+const popOut = params.get('popout')
+const popOutSession = params.get('session')
+if (popOut && popOutSession) {
+  const { PopOut } = await import('./PopOut')
+  flushSync(() =>
+    root.render(
+      <StrictMode>
+        <ErrorBoundary>
+          <PopOut pane={popOut} sessionId={popOutSession} />
+        </ErrorBoundary>
+      </StrictMode>
+    )
   )
-)
+} else {
+  const { App } = await import('./App')
+  flushSync(() =>
+    root.render(
+      <StrictMode>
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
+      </StrictMode>
+    )
+  )
+}
 // Painted: the screen can go.
 if (handover) requestAnimationFrame(() => requestAnimationFrame(() => void window.gloom?.handoverDone()))

@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, CircleCheck, CircleDot, Copy, FileArchive, FolderInput, FolderOpen, FolderPlus, MailOpen, Pencil, Pin, PinOff, SquareChevronRight } from 'lucide-react'
+import { Archive, ArchiveRestore, CircleCheck, CircleDot, Columns2, Copy, FileArchive, FolderInput, FolderOpen, FolderPlus, MailOpen, Pencil, Pin, PinOff, SquareChevronRight } from 'lucide-react'
 import { ContextMenuPopup, MenuGroup, MenuGroupLabel, MenuItem, MenuSeparator, MenuSubmenu } from '../../components/ui/Menu'
 import { notify } from '../../lib/toast'
 import { applyWithUndo, useLibrary } from '../../stores/library'
@@ -85,6 +85,12 @@ export function SessionMenu({ ids }: { ids: string[] }) {
             {!single.remote && <MenuItem label="Add Folder to Session…" icon={<FolderPlus />} onClick={() => void addFolder(single.id)} />}
             <MenuItem label="Copy Session ID" icon={<Copy />} onClick={() => void copySessionId(single.id)} />
             {single.file && <MenuItem label="Export…" icon={<FileArchive />} onClick={() => void exportSession(single.id)} />}
+            <MenuItem
+              label="Open in Split View"
+              icon={<Columns2 />}
+              disabled={useUi.getState().selection.length === 1 && useUi.getState().selection[0] === single.id}
+              onClick={() => useUi.getState().setSplit(single.id)}
+            />
           </>
         )}
       </MenuGroup>

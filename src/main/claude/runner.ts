@@ -11,7 +11,7 @@
 import { execFile, execFileSync, spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   query,
@@ -37,6 +37,7 @@ import {
   planName,
   type AccountSummary,
   type Activity,
+  type BackgroundTask,
   type CardAnswer,
   type CommandInfo,
   type ContextInfo,
@@ -54,6 +55,7 @@ import {
 } from '@shared/live'
 import { lineEntries, resolveRef, type LineAt, type ToolResult, type TranscriptEntry } from '@shared/transcript'
 import type { CodeRewind } from '@shared/live'
+import { forwardedEnv, remoteCommand } from '@shared/ssh'
 import { systemExe } from '../exec'
 import { cliAtLeast, EXPECTED_VERSION, findClaude } from './binary'
 import { GLOOM_PROMPT, QUIET_TOOLS } from './gloom-tools'
@@ -90,6 +92,8 @@ export interface RunnerOptions {
   remoteControl?: boolean
   /** A side session forked from this one: its first process starts from that conversation, under this session's ID. */
   forkFrom?: string
+  /** It runs on another machine, over ssh (`cwd` is a folder there). */
+  ssh?: { exe: string; host: string; claude: string }
 }
 
 export interface RunnerEvents {
@@ -392,6 +396,9 @@ export class Runner {
   private remoteControl: boolean
   private folders: string[]
   private forkFrom: string | null
+  private readonly ssh: RunnerOptions['ssh'] | null
+  /** Background tasks, newest last; the oldest ended ones go past 40. */
+  private tasks: BackgroundTask[] = []
 
   constructor(
     options: RunnerOptions,
@@ -409,6 +416,12 @@ export class Runner {
     this.folders = options.folders ?? []
     this.remoteControl = options.remoteControl === true
     this.forkFrom = options.forkFrom ?? null
+    this.ssh = options.ssh ?? null
+  }
+
+  /** Where it runs: over ssh, the connection (for the transcript's copy). */
+  get remote(): RunnerOptions['ssh'] | null {
+    return this.ssh
   }
 
   /** Whether its process is running. */
@@ -452,7 +465,8 @@ export class Runner {
       suggestion: this.suggestion,
       remoteControl: this.remoteControl,
       folders: this.folders,
-      alive: this.q !== null
+      alive: this.q !== null,
+      tasks: this.tasks
     }
   }
 
@@ -544,7 +558,8 @@ export class Runner {
     }
     return {
       pathToClaudeCodeExecutable: claude,
-      cwd: this.cwd,
+      // Over ssh the folder is the other machine's (spawnOverSsh goes there); the SDK keeps one of this computer's.
+      cwd: this.ssh ? homedir() : this.cwd,
       env: cleanEnv(),
       // Without these the SDK skips your settings and CLAUDE.md, and isn't Claude Code.
       settingSources: ['user', 'project', 'local'],
@@ -567,7 +582,8 @@ export class Runner {
   }
 
   private start(): void {
-    const claude = findClaude()
+    // Over ssh, Claude Code is the other machine's; the SDK starts it through ssh (spawnOverSsh).
+    const claude = this.ssh ? 'claude' : findClaude()
     if (!claude) throw new Error('Claude Code isn’t installed.')
     const inbox = new Inbox()
     this.inbox = inbox
@@ -591,7 +607,7 @@ export class Runner {
         // CLIs also check that only that turn goes (older ones reject the flag outright).
         ...(fork && this.resume ? { resumeSessionAt: fork.at, ...(cliAtLeast(EXPECTED_VERSION) ? { resumeDropsTurn: fork.drops } : {}) } : {}),
         canUseTool,
-        spawnClaudeCodeProcess: (options) => this.spawn(options, (pid) => (this.pid = pid), true)
+        spawnClaudeCodeProcess: (options) => (this.ssh ? this.spawnOverSsh(options) : this.spawn(options, (pid) => (this.pid = pid), true))
       }
     })
     this.q = q
@@ -612,6 +628,21 @@ export class Runner {
     child.stderr.on('data', (chunk: Buffer) => {
       if (keepStderr) this.stderr = (this.stderr + chunk.toString('utf8')).slice(-STDERR_TAIL)
     })
+    options.signal.addEventListener('abort', () => {
+      if (child.exitCode === null) killTree(child.pid)
+    })
+    return child as unknown as SpawnedProcess
+  }
+
+  /** Starts Claude Code on the other machine: ssh runs it in the session's folder there, with the SDK's arguments. */
+  private spawnOverSsh(options: SpawnOptions): SpawnedProcess {
+    const ssh = this.ssh!
+    // The SDK may start the CLI through a runtime (node script.js …): the CLI's own arguments follow the script.
+    const args = options.command === 'claude' || /claude(\.exe)?$/i.test(options.command) ? options.args : options.args.slice(options.args.findIndex((a) => /\.(m?js|cjs)$/i.test(a)) + 1)
+    const command = remoteCommand(this.cwd, ssh.claude, args, forwardedEnv(options.env as Record<string, string | undefined>))
+    const child = spawn(ssh.exe, ['-T', '-o', 'BatchMode=yes', '-o', 'ServerAliveInterval=30', ssh.host, command], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    this.pid = child.pid
+    child.stderr.on('data', (chunk: Buffer) => (this.stderr = (this.stderr + chunk.toString('utf8')).slice(-STDERR_TAIL)))
     options.signal.addEventListener('abort', () => {
       if (child.exitCode === null) killTree(child.pid)
     })
@@ -841,6 +872,16 @@ export class Runner {
       this.learn()
       return
     }
+    if (typeof m.subtype === 'string' && m.subtype.startsWith('task_')) return this.onTask(m)
+    if (m.subtype === 'background_tasks_changed' && Array.isArray(m.tasks)) {
+      // The running background tasks, as the CLI lists them: any it no longer lists has ended.
+      const running = new Set(m.tasks.flatMap((t: unknown) => (isObj(t) && typeof t.task_id === 'string' ? [t.task_id] : [])))
+      let changed = false
+      for (const t of m.tasks) if (isObj(t) && typeof t.task_id === 'string' && !this.tasks.some((x) => x.id === t.task_id)) changed = this.addTask(t) || changed
+      this.tasks = this.tasks.map((t) => (t.status === 'running' && !running.has(t.id) && t.type !== 'local_agent' ? ((changed = true), { ...t, status: 'completed' as const, ended: t.ended ?? Date.now() }) : t))
+      if (changed) this.emit()
+      return
+    }
     if (m.subtype === 'status') {
       const before = `${this.activity}/${this.mode}`
       if (m.status === 'compacting') this.activity = 'compacting'
@@ -858,6 +899,76 @@ export class Runner {
       const reason = typeof m.fast_mode_disabled_reason === 'string' && m.fast_mode_disabled_reason !== 'pending' ? m.fast_mode_disabled_reason : null
       this.fastUnavailable = reason ? (FAST_BLOCKED[reason] ?? FAST_BLOCKED.unknown) : null
     }
+  }
+
+  /** A task the CLI started, as the Tasks pane lists it; false when it's already listed. */
+  private addTask(m: Record<string, unknown>): boolean {
+    const id = typeof m.task_id === 'string' ? m.task_id : null
+    if (!id || this.tasks.some((t) => t.id === id)) return false
+    this.tasks = [
+      ...this.tasks,
+      {
+        id,
+        type: typeof m.task_type === 'string' ? m.task_type : typeof m.subagent_type === 'string' ? 'local_agent' : 'task',
+        description: typeof m.description === 'string' ? m.description.slice(0, 300) : 'Background task',
+        status: 'running',
+        started: Date.now(),
+        ended: null,
+        summary: null,
+        lastTool: null,
+        tokens: null,
+        toolUses: null,
+        outputFile: null,
+        error: null
+      }
+    ]
+    const ended = this.tasks.filter((t) => t.status !== 'running')
+    if (this.tasks.length > 40 && ended.length) this.tasks = this.tasks.filter((t) => t !== ended[0])
+    return true
+  }
+
+  /** task_started, task_progress, task_updated, task_notification: the Tasks pane follows them. */
+  private onTask(m: Record<string, unknown>): void {
+    const id = typeof m.task_id === 'string' ? m.task_id : null
+    if (!id) return
+    if (m.subtype === 'task_started') {
+      if (this.addTask(m)) this.emit()
+      return
+    }
+    if (!this.tasks.some((t) => t.id === id)) this.addTask(m)
+    const usage = isObj(m.usage) ? m.usage : null
+    this.tasks = this.tasks.map((t) => {
+      if (t.id !== id) return t
+      const next = { ...t }
+      if (usage) {
+        next.tokens = num(usage.total_tokens) ?? next.tokens
+        next.toolUses = num(usage.tool_uses) ?? next.toolUses
+      }
+      if (typeof m.summary === 'string' && m.summary.trim()) next.summary = m.summary.slice(0, 500)
+      if (typeof m.last_tool_name === 'string') next.lastTool = m.last_tool_name
+      if (typeof m.description === 'string' && m.description.trim()) next.description = m.description.slice(0, 300)
+      if (m.subtype === 'task_updated' && isObj(m.patch)) {
+        const p = m.patch
+        if (p.status === 'killed') next.status = 'stopped'
+        else if (p.status === 'pending' || p.status === 'running' || p.status === 'completed' || p.status === 'failed' || p.status === 'paused') next.status = p.status
+        if (typeof p.end_time === 'number') next.ended = p.end_time
+        if (typeof p.error === 'string') next.error = p.error.slice(0, 500)
+        if (typeof p.description === 'string') next.description = p.description.slice(0, 300)
+      }
+      if (m.subtype === 'task_notification') {
+        next.status = m.status === 'failed' ? 'failed' : m.status === 'stopped' ? 'stopped' : 'completed'
+        next.ended = next.ended ?? Date.now()
+        if (typeof m.output_file === 'string') next.outputFile = m.output_file
+      }
+      return next
+    })
+    this.emit()
+  }
+
+  /** Stops a background task (the Tasks pane's Stop). */
+  async stopTask(taskId: string): Promise<void> {
+    if (!this.q) throw new Error('The session isn’t running.')
+    await this.q.stopTask(taskId)
   }
 
   /** What its first process can tell us: slash commands, the models on your plan, and the account. */

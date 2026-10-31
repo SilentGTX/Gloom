@@ -23,13 +23,14 @@ export interface SessionItem {
 }
 
 /** The library's groups, in the order the sidebar lists them. Archived sits apart, at the bottom. */
-export const LIBRARY_GROUPS: SmartFolder[] = ['all', 'recent', 'pinned', 'unfiled']
+export const LIBRARY_GROUPS: SmartFolder[] = ['all', 'recent', 'pinned', 'unfiled', 'routines']
 
 export const SMART_LABELS: Record<SmartFolder, string> = {
   all: 'All Sessions',
   recent: 'Recent',
   pinned: 'Pinned',
   unfiled: 'Unfiled',
+  routines: 'Routines',
   archived: 'Archived'
 }
 
@@ -181,10 +182,12 @@ export function buildTree(input: TreeInput): Tree {
     sections.push({ key: 'archive', label: 'Archived', count: archived.length, rows: sessionRows(archived, 'archive', [], null) })
   } else {
     const rows: TreeRow[] = []
-    LIBRARY_GROUPS.forEach((smart, i) => {
+    // Routines shows once a routine has made a session; the rest always show.
+    const groups = LIBRARY_GROUPS.filter((smart) => smart !== 'routines' || items.some((item) => inSmartFolder('routines', item.meta, item.entry, folderExists, now)))
+    groups.forEach((smart, i) => {
       const list = items.filter((item) => inSmartFolder(smart, item.meta, item.entry, folderExists, now))
       const open = input.openSmart.includes(smart)
-      rows.push({ kind: 'smart', key: `smart:${smart}`, smart, count: list.length, open, hasChildren: list.length > 0, depth: 0, posInSet: i + 1, setSize: LIBRARY_GROUPS.length })
+      rows.push({ kind: 'smart', key: `smart:${smart}`, smart, count: list.length, open, hasChildren: list.length > 0, depth: 0, posInSet: i + 1, setSize: groups.length })
       if (open) rows.push(...shownRows(input, list, `smart:${smart}`, [`smart:${smart}`], null))
     })
     sections.push({ key: 'library', label: 'Library', rows })

@@ -1,6 +1,6 @@
 import { forwardRef, memo, useEffect, useMemo, useState, type HTMLAttributes, type MouseEvent } from 'react'
 import { GroupedVirtuoso } from 'react-virtuoso'
-import { ChevronRight, Copy, FileDiff, FileMinus, FilePen, FilePlus, FileQuestion, FileWarning, FolderOpen, FoldVertical, GitBranch, GitFork, LoaderCircle, RotateCw, UnfoldVertical } from 'lucide-react'
+import { AppWindow, ChevronRight, Copy, FileDiff, FileMinus, FilePen, FilePlus, FileQuestion, FileWarning, FolderOpen, FoldVertical, GitBranch, GitFork, LoaderCircle, RotateCw, UnfoldVertical } from 'lucide-react'
 import { totals, type DiffFile, type FileStatus, type SessionDiff, type TreeDiff } from '@shared/diff'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -46,6 +46,20 @@ export function DiffPane({ sessionId, clearCaptionButtons }: { sessionId: string
         <Segmented label="Changes to show" value={tab} segments={SEGMENTS} onChange={(next) => setTab(next)} panel="diff-panel" />
         <div className="flex-1" />
         <GlassCapsule label="Diff">
+          {sessionId && !new URLSearchParams(location.search).has('popout') && (
+            <Tooltip label="Open in Window">
+              <Button
+                aria-label="Open in window"
+                shape="round"
+                onClick={() => {
+                  void window.gloom?.popOut('diff', sessionId)
+                  useUi.getState().toggleDiff(false, false)
+                }}
+              >
+                <AppWindow size={15} strokeWidth={1.75} aria-hidden />
+              </Button>
+            </Tooltip>
+          )}
           <Tooltip label="Refresh" shortcut="F5">
             <Button aria-label="Refresh" shape="round" disabled={!sessionId} onClick={() => sessionId && useDiff.getState().load(tab, sessionId, true)}>
               <RotateCw size={15} strokeWidth={1.75} aria-hidden />
@@ -502,7 +516,7 @@ const CARD_PARTS = {
 }
 
 /** A language from a file's name: its extension, or the name itself (Dockerfile, Makefile). */
-function languageOf(path: string): string | undefined {
+export function languageOf(path: string): string | undefined {
   const name = path.slice(path.lastIndexOf('/') + 1).toLowerCase()
   const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1) : name
   return resolveLanguage(ext) ? ext : resolveLanguage(name) ? name : undefined

@@ -74,7 +74,8 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(usage).toContainText('Your usage limits · Max')
     await expect(usage.getByRole('meter', { name: '5-hour limit' })).toHaveAttribute('aria-valuenow', '12')
     await expect(usage.getByRole('meter', { name: 'Weekly · all models' })).toHaveAttribute('aria-valuenow', '38')
-    await expect(usage).toContainText(/Resets at \d/)
+    // "Resets at 8:30 PM" today, or "Resets Sun 12:07 AM" when two hours from now is tomorrow.
+    await expect(usage).toContainText(/Resets (at \d|\w{3} \d)/)
     await expect(usage.getByRole('button', { name: 'See All' })).toBeVisible()
     await capture(`usage-${theme}`)
     await page.keyboard.press('Escape')

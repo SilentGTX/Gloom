@@ -235,6 +235,9 @@ function Sessions() {
       <Row label="Archive inactive" hint="Sessions with no activity for this long go to Archived. Never one that’s running, pinned or unread; a worktree with uncommitted changes stays on disk.">
         <Choice label="Archive inactive sessions" value={settings.archiveAfterDays} options={ARCHIVE_CHOICES.map((d) => ({ value: d, label: archiveLabel(d) }))} onChange={(archiveAfterDays) => update({ archiveAfterDays })} />
       </Row>
+      <Row label="Pull requests">
+        <Toggle checked={settings.archiveOnPrClose} onChange={(archiveOnPrClose) => update({ archiveOnPrClose })} label="Archive a session when its pull request merges or closes" />
+      </Row>
       <Row label="Sleep" hint="Only idle sleep: closing the lid still sleeps.">
         <Toggle checked={settings.keepAwake} onChange={(keepAwake) => update({ keepAwake })} label="Keep the computer awake while Claude works" />
         <Toggle checked={settings.keepAwakeOnBattery} disabled={!settings.keepAwake} indent onChange={(keepAwakeOnBattery) => update({ keepAwakeOnBattery })} label="On battery power too" />
@@ -428,6 +431,57 @@ function ClaudeCode() {
         <Button size="text" tone="secondary" className="mt-[2px]" onClick={() => void window.gloom?.claude.inTerminal('login')}>
           Log In…
         </Button>
+      </Row>
+      <Heading>SSH connections</Heading>
+      <SshHosts />
+    </div>
+  )
+}
+
+/**
+ * Machines a session can run on, over your own ssh (its config and keys, so
+ * a Host from ~/.ssh/config works): New Session › Runs On offers them. Claude
+ * Code must be installed there, and ssh must connect without a password prompt.
+ */
+function SshHosts() {
+  const hosts = useLive((s) => s.settings.sshHosts)
+  const [host, setHost] = useState('')
+  const [name, setName] = useState('')
+  const valid = /^[\w.@-]+$/.test(host.trim()) && !host.trim().startsWith('-')
+  const add = () => {
+    if (!valid) return
+    update({ sshHosts: [...hosts, { id: crypto.randomUUID().slice(0, 8), name: name.trim() || host.trim(), host: host.trim(), claude: null }] })
+    setHost('')
+    setName('')
+  }
+  return (
+    <div>
+      {hosts.map((h) => (
+        <Row key={h.id} label={h.name}>
+          <div className="flex items-center gap-2 pt-[3px]">
+            <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-label-secondary">ssh {h.host}</span>
+            <Button size="text" tone="secondary" onClick={() => update({ sshHosts: hosts.filter((x) => x.id !== h.id) })}>
+              Remove
+            </Button>
+          </div>
+        </Row>
+      ))}
+      <Row label="Add" hint="A Host from ~/.ssh/config, or user@host. Claude Code needs to be installed there, and ssh to connect without asking for a password.">
+        <div className="flex gap-2">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" aria-label="Connection name" className={cn(FIELD, 'w-28')} />
+          <input
+            value={host}
+            onChange={(e) => setHost(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && add()}
+            placeholder="mac-mini or me@host"
+            aria-label="SSH host"
+            spellCheck={false}
+            className={cn(FIELD, 'min-w-0 flex-1 font-mono')}
+          />
+          <Button size="text" tone="secondary" disabled={!valid} onClick={add}>
+            Add
+          </Button>
+        </div>
       </Row>
     </div>
   )

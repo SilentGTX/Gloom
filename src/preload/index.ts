@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
-import { IPC, type CommandDispatch, type LibraryChange, type SessionsChange, type TranscriptChange, type UpdateScreen, type UpdateState, type WindowState } from '@shared/ipc'
+import { IPC, type BrowserState, type CommandDispatch, type RoutineList, type LibraryChange, type SessionsChange, type TranscriptChange, type UpdateScreen, type UpdateState, type WindowState } from '@shared/ipc'
 import type { LiveEvent, Settings } from '@shared/live'
 import type { TerminalData, TerminalExit, TerminalInfo } from '@shared/terminal'
 import type { GloomApi } from './api'
@@ -35,10 +35,11 @@ const api: GloomApi = {
   pickFolder: () => ipcRenderer.invoke(IPC.pickFolder),
   readTranscript: (request) => ipcRenderer.invoke(IPC.readTranscript, request),
   transcriptBlob: (id, ref) => ipcRenderer.invoke(IPC.transcriptBlob, id, ref),
-  unfollowTranscript: () => ipcRenderer.invoke(IPC.unfollowTranscript),
+  unfollowTranscript: (id) => ipcRenderer.invoke(IPC.unfollowTranscript, id),
   onTranscript: (listener) => subscribe<TranscriptChange>(IPC.transcriptChanged, listener),
   resumeSession: (id, options) => ipcRenderer.invoke(IPC.resumeSession, id, options),
   exportSession: (id) => ipcRenderer.invoke(IPC.exportSession, id),
+  readFile: (id, path) => ipcRenderer.invoke(IPC.fileRead, id, path),
   searchTranscripts: (query, includeArchived) => ipcRenderer.invoke(IPC.searchTranscripts, query, includeArchived),
   live: {
     list: () => ipcRenderer.invoke(IPC.liveList),
@@ -54,6 +55,7 @@ const api: GloomApi = {
     set: (id, request) => ipcRenderer.invoke(IPC.liveSet, id, request),
     toggleMcp: (id, name, enabled) => ipcRenderer.invoke(IPC.liveToggleMcp, id, name, enabled),
     reconnectMcp: (id, name) => ipcRenderer.invoke(IPC.liveReconnectMcp, id, name),
+    stopTask: (id, taskId) => ipcRenderer.invoke(IPC.liveStopTask, id, taskId),
     commands: (id) => ipcRenderer.invoke(IPC.liveCommands, id),
     files: (id) => ipcRenderer.invoke(IPC.liveFiles, id),
     models: () => ipcRenderer.invoke(IPC.liveModels),
@@ -100,6 +102,37 @@ const api: GloomApi = {
     onOpened: (listener) => subscribe<TerminalInfo>(IPC.terminalOpened, listener)
   },
   widget: (id, code, title, theme) => ipcRenderer.invoke(IPC.widgetServe, id, code, title, theme),
+  popOut: (pane, id) => ipcRenderer.invoke(IPC.popOut, pane, id),
+  cloud: {
+    start: (folder, task) => ipcRenderer.invoke(IPC.cloudStart, folder, task),
+    list: () => ipcRenderer.invoke(IPC.cloudList)
+  },
+  routines: {
+    list: () => ipcRenderer.invoke(IPC.routinesList),
+    save: (routine) => ipcRenderer.invoke(IPC.routinesSave, routine),
+    remove: (id) => ipcRenderer.invoke(IPC.routinesDelete, id),
+    run: (id) => ipcRenderer.invoke(IPC.routinesRun, id),
+    onChanged: (listener) => subscribe<RoutineList>(IPC.routinesChanged, listener)
+  },
+  pr: {
+    status: (id, maxAgeMs) => ipcRenderer.invoke(IPC.prStatus, id, maxAgeMs),
+    bind: (id, url) => ipcRenderer.invoke(IPC.prBind, id, url),
+    merge: (id, method) => ipcRenderer.invoke(IPC.prMerge, id, method),
+    autoMerge: (id, enabled, method) => ipcRenderer.invoke(IPC.prAutoMerge, id, enabled, method),
+    monitor: (id, switches) => ipcRenderer.invoke(IPC.prMonitor, id, switches)
+  },
+  browser: {
+    show: (id, bounds) => ipcRenderer.invoke(IPC.browserShow, id, bounds),
+    hide: () => ipcRenderer.invoke(IPC.browserHide),
+    navigate: (id, address) => ipcRenderer.invoke(IPC.browserNavigate, id, address),
+    go: (id, where) => ipcRenderer.invoke(IPC.browserGo, id, where),
+    state: (id) => ipcRenderer.invoke(IPC.browserState, id),
+    onChanged: (listener) => subscribe<BrowserState>(IPC.browserChanged, listener),
+    onOpen: (listener) => subscribe<string>(IPC.browserOpen, listener),
+    previews: (id) => ipcRenderer.invoke(IPC.previewList, id),
+    startPreview: (id, name) => ipcRenderer.invoke(IPC.previewStart, id, name),
+    stopPreview: (serverId) => ipcRenderer.invoke(IPC.previewStop, serverId)
+  },
   side: {
     start: (taskId) => ipcRenderer.invoke(IPC.sideStart, taskId),
     dismiss: (sessionId, taskId) => ipcRenderer.invoke(IPC.sideDismiss, sessionId, taskId),

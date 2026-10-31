@@ -75,6 +75,20 @@ export interface SessionEntry {
   /** The session that started it (a side session), and the short name its family calls it by. */
   startedBy?: string
   name?: string
+  /** Its pull request: linked by hand (url), or found from its branch (url null); and its monitor's switches. */
+  pr?: SessionPr
+  /** The routine whose run made it (Routines in the sidebar). */
+  routine?: string
+  /** It runs on another machine: Settings' SSH connection, and its folder there. */
+  ssh?: { host: string; cwd: string }
+}
+
+export interface SessionPr {
+  url: string | null
+  /** Wake the session on failed checks, conflicts and new review comments. */
+  autoFix?: boolean
+  /** Archive the session once the PR merges or closes. */
+  autoArchive?: boolean
 }
 
 export interface LibraryData {
@@ -227,6 +241,12 @@ export type LibraryOp =
   | { type: 'setSessionFolders'; id: string; folders: string[] }
   /** A side session: who started it, its name, and the title it was started with (until Claude Code names it). */
   | { type: 'linkSession'; id: string; startedBy: string; name: string; title: string | null }
+  /** Its pull request's link and monitor switches (null: back to finding it from the branch, monitor off). */
+  | { type: 'setPr'; id: string; pr: SessionPr | null }
+  /** A routine's run made it. */
+  | { type: 'setRoutine'; id: string; routine: string }
+  /** It runs on another machine. */
+  | { type: 'setSsh'; id: string; host: string; cwd: string }
   /** `title: null` goes back to Claude's title. */
   | { type: 'renameSession'; id: string; title: string | null }
   | { type: 'setFilingRules'; id: string; paths: string[] }
@@ -426,6 +446,18 @@ export function applyOp(lib: LibraryData, op: LibraryOp, ctx: OpContext): OpResu
       return { library }
     }
 
+    case 'setSsh':
+      return { library: setEntries(lib, [op.id], (e) => ({ ...e, ssh: { host: op.host, cwd: op.cwd } })) }
+
+    case 'setRoutine':
+      return { library: setEntries(lib, [op.id], (e) => ({ ...e, routine: op.routine })) }
+
+    case 'setPr': {
+      const pr = op.pr
+      const library = setEntries(lib, [op.id], (e) => (pr ? { ...e, pr: { url: pr.url, ...(pr.autoFix ? { autoFix: true } : {}), ...(pr.autoArchive ? { autoArchive: true } : {}) } } : withoutKey(e, 'pr')))
+      return { library }
+    }
+
     case 'renameSession': {
       const title = op.title === null ? '' : cleanName(op.title, TITLE_MAX)
       const before = lib.sessions[op.id]?.title ?? null
@@ -493,7 +525,7 @@ export function folderDefaults(folders: readonly Folder[], id: string | null): F
 
 // ─── Reading the library ─────────────────────────────────────────────────────
 
-export type SmartFolder = 'all' | 'recent' | 'pinned' | 'unfiled' | 'archived'
+export type SmartFolder = 'all' | 'recent' | 'pinned' | 'unfiled' | 'routines' | 'archived'
 
 /** Where the session list is looking: a smart folder or one of yours. */
 export type Place = { smart: SmartFolder } | { folder: string }
@@ -522,6 +554,8 @@ export function inSmartFolder(smart: SmartFolder, meta: SessionMeta, entry: Sess
       return !!entry?.pinned
     case 'unfiled':
       return !entry?.folderId || !folderExists(entry.folderId)
+    case 'routines':
+      return !!entry?.routine
   }
 }
 

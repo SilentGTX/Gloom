@@ -8,6 +8,8 @@ import { Dialog } from '../../components/ui/Dialog'
 import { MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger } from '../../components/ui/Menu'
 import { useLibrary } from '../../stores/library'
 import { useLive } from '../../stores/live'
+import { cn } from '../../lib/cn'
+import { notify } from '../../lib/toast'
 import { focusComposer } from '../chat/Composer'
 import { EffortPicker, effortsFor, ModelPicker, ModePicker } from '../chat/pickers'
 import { useProjects } from '../folders/FilingRules'
@@ -134,6 +136,11 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
   const [mode, setMode] = useState<ModeId>(settings.mode)
   const [effort, setEffort] = useState<Effort | null>(settings.effort)
   const [busy, setBusy] = useState(false)
+  // Where it runs: here, on one of Settings' SSH connections, or in the cloud (claude --cloud).
+  const [where, setWhere] = useState<string>('local')
+  const [remoteCwd, setRemoteCwd] = useState('~')
+  const [task, setTask] = useState('')
+  const host = settings.sshHosts.find((h) => h.id === where)
   // In a git repository, a worktree of its own unless you switch it off (a worktree's own folder never gets one).
   const [repo, setRepo] = useState<RepoInfo | null>(null)
   const [worktree, setWorktree] = useState(true)
@@ -164,7 +171,30 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!cwd || busy) return
+    if (busy) return
+    if (host) {
+      setBusy(true)
+      const id = await useLive.getState().create({ cwd: remoteCwd.trim() || '~', model, mode, effort: effort && efforts.includes(effort) ? effort : null, ssh: host.id }, place)
+      setBusy(false)
+      if (!id) return
+      onDone(true)
+      focusComposer()
+      return
+    }
+    if (where === 'cloud') {
+      if (!cwd || !task.trim()) return
+      setBusy(true)
+      try {
+        await window.gloom!.cloud.start(cwd, task)
+        notify('The cloud session started: it opened on claude.ai')
+        onDone(true)
+      } catch (error) {
+        notify(String((error as Error)?.message ?? error).replace(/^.*?Error: /, ''))
+      }
+      setBusy(false)
+      return
+    }
+    if (!cwd) return
     setBusy(true)
     if (!trusted) await useLibrary.getState().apply({ type: 'trustFolder', path: cwd }, { record: false })
     const id = await useLive.getState().create({ cwd, model, mode, effort: effort && efforts.includes(effort) ? effort : null, worktree: offersWorktree && worktree }, place)
@@ -174,11 +204,41 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
     focusComposer()
   }
 
+  const local = where === 'local'
   return (
     <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-2.5">
-      <Row label="Working folder">
-        <WorkingFolderPicker value={cwd} onChange={setCwd} />
-      </Row>
+      {(
+        <Row label="Runs on">
+          <MenuRoot>
+            <MenuTrigger className={fieldTrigger} aria-label={`Runs on: ${host ? host.name : where === 'cloud' ? 'Claude in the cloud' : 'This computer'}`}>
+              <span className="flex-1 truncate">{host ? `${host.name} (ssh)` : where === 'cloud' ? 'Claude in the Cloud' : 'This Computer'}</span>
+              <ChevronDown size={12} strokeWidth={2.25} aria-hidden className="shrink-0 opacity-60" />
+            </MenuTrigger>
+            <MenuPopup align="start">
+              <MenuItem label="This Computer" onClick={() => setWhere('local')} />
+              {settings.sshHosts.map((h) => (
+                <MenuItem key={h.id} label={`${h.name}`} detail={`ssh ${h.host}`} onClick={() => setWhere(h.id)} />
+              ))}
+              <MenuItem label="Claude in the Cloud" detail="From the repository on GitHub; keeps going when this computer sleeps" onClick={() => setWhere('cloud')} />
+              {settings.sshHosts.length === 0 && <MenuItem label="Add an SSH Connection in Settings › Claude Code" disabled />}
+            </MenuPopup>
+          </MenuRoot>
+        </Row>
+      )}
+      {host ? (
+        <Row label="Folder there">
+          <input value={remoteCwd} onChange={(e) => setRemoteCwd(e.target.value)} spellCheck={false} aria-label={`Working folder on ${host.name}`} placeholder="~/projects/app" className={cn(fieldTrigger, 'font-mono')} />
+        </Row>
+      ) : (
+        <Row label={where === 'cloud' ? 'Repository' : 'Working folder'}>
+          <WorkingFolderPicker value={cwd} onChange={setCwd} />
+        </Row>
+      )}
+      {where === 'cloud' && (
+        <Row label="Task">
+          <textarea value={task} onChange={(e) => setTask(e.target.value)} rows={3} placeholder="What the cloud session should do" aria-label="Task for the cloud session" className={cn(fieldTrigger, 'h-auto resize-y py-1.5 leading-snug')} />
+        </Row>
+      )}
       <Row label="Model">
         <ModelPicker look="field" value={model} models={models} onChange={setModel} />
       </Row>
@@ -190,10 +250,12 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
           <EffortPicker look="field" value={effort && isEffort(effort) ? effort : null} efforts={efforts} onChange={setEffort} />
         </Row>
       )}
-      <Row label="Place in">
-        <PlacePicker value={place} onChange={setPlace} />
-      </Row>
-      {offersWorktree && (
+      {where !== 'cloud' && (
+        <Row label="Place in">
+          <PlacePicker value={place} onChange={setPlace} />
+        </Row>
+      )}
+      {local && offersWorktree && (
         <div className="grid grid-cols-[96px_1fr] items-start gap-x-3">
           <span className="pt-[3px] text-right text-[13px] text-label-secondary">Worktree</span>
           <label className="flex cursor-default items-start gap-2 text-[13px] text-label">
@@ -208,7 +270,7 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
         </div>
       )}
 
-      {!trusted && cwd && (
+      {local && !trusted && cwd && (
         <div role="note" className="mt-1 flex gap-2.5 rounded-[12px] bg-fill p-3 text-[12.5px] leading-snug">
           <ShieldAlert size={16} strokeWidth={1.75} aria-hidden className="mt-px shrink-0 text-[var(--warning)]" />
           <p className="text-label">
@@ -222,8 +284,8 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
         <Button size="text" tone="secondary" onClick={() => onDone(false)}>
           Cancel
         </Button>
-        <Button type="submit" size="text" tone="primary" disabled={!cwd || busy}>
-          {trusted ? 'Start Session' : 'Trust and Start'}
+        <Button type="submit" size="text" tone="primary" disabled={busy || (host ? !remoteCwd.trim() : where === 'cloud' ? !cwd || !task.trim() : !cwd)}>
+          {host ? `Start on ${host.name}` : where === 'cloud' ? 'Start in the Cloud' : trusted ? 'Start Session' : 'Trust and Start'}
         </Button>
       </div>
     </form>

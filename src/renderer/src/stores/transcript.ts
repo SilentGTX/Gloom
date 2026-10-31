@@ -1,8 +1,10 @@
 // The open session's transcript: its newest page, older pages as you scroll up,
 // and what Claude Code appends while you watch. Pages come from the transcripts
 // process, which reads the file; the window only ever holds what it shows.
-import { useEffect } from 'react'
-import { create } from 'zustand'
+// There are two: the open session's, and the second column's in split view.
+// A chat column reads its own through TranscriptStore (useColumnTranscript).
+import { createContext, useContext, useEffect } from 'react'
+import { create, type StoreApi, type UseBoundStore } from 'zustand'
 import type { Cursor, ToolResult, TranscriptEntry, TranscriptPage, TranscriptUpdate } from '@shared/transcript'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -32,9 +34,6 @@ interface TranscriptState {
   setExpanded(key: string, open: boolean): void
 }
 
-/** Responses for a session you've since left are dropped. */
-let generation = 0
-
 const dedupe = (entries: TranscriptEntry[]) => {
   const seen = new Set<string>()
   return entries.filter((e) => !seen.has(e.key) && !!seen.add(e.key))
@@ -45,7 +44,10 @@ function failure(error: unknown): string {
   return String((error as Error)?.message ?? error).replace(/^.*?Error: /, '')
 }
 
-export const useTranscript = create<TranscriptState>()((set, get) => {
+function createTranscriptStore(): UseBoundStore<StoreApi<TranscriptState>> {
+  /** Responses for a session you've since left are dropped. */
+  let generation = 0
+  return create<TranscriptState>()((set, get) => {
   const read = (cursor: Cursor | null, follow: boolean): Promise<TranscriptPage> => {
     const { id } = get()
     const api = window.gloom
@@ -80,9 +82,10 @@ export const useTranscript = create<TranscriptState>()((set, get) => {
         ...(same ? {} : { entries: [], results: {}, older: null, loadingOlder: false, earlier: {}, expanded: new Set<string>(), epoch: s.epoch + 1 })
       })
       if (!id || !readable) {
-        void window.gloom?.unfollowTranscript()
+        if (s.id) void window.gloom?.unfollowTranscript(s.id)
         return
       }
+      if (s.id && s.id !== id) void window.gloom?.unfollowTranscript(s.id)
       read(null, true).then(
         (page) => gen === generation && set({ status: 'ready', entries: page.entries, results: page.results, older: page.older }),
         (error) => gen === generation && set({ status: 'error', error: failure(error) })
@@ -141,37 +144,58 @@ export const useTranscript = create<TranscriptState>()((set, get) => {
       set({ expanded: next })
     }
   }
-})
+  })
+}
 
-/** Applies what the transcripts process reports about the open transcript. */
-function applyUpdate(update: TranscriptUpdate): void {
-  const s = useTranscript.getState()
+/** The open session's transcript. */
+export const useTranscript = createTranscriptStore()
+/** The second column's, in split view. */
+export const useSplitTranscript = createTranscriptStore()
+
+type TranscriptStoreHook = typeof useTranscript
+
+/** The transcript a chat column shows: the open session's, unless the column is split view's second. */
+export const TranscriptStore = createContext<TranscriptStoreHook>(useTranscript)
+
+/** The column's transcript, subscribed. */
+export function useColumnTranscript<T>(selector: (s: TranscriptState) => T): T {
+  return useContext(TranscriptStore)(selector)
+}
+
+/** The column's transcript store itself, for what happens outside a render (a click). */
+export function useColumnTranscriptApi(): TranscriptStoreHook {
+  return useContext(TranscriptStore)
+}
+
+/** Applies what the transcripts process reports about a followed transcript. */
+function applyUpdate(store: TranscriptStoreHook, update: TranscriptUpdate): void {
+  const s = store.getState()
   if (s.status !== 'ready') return
   if (update.type === 'gone') {
-    useTranscript.setState({ status: 'error', error: 'Its transcript file is gone.' })
+    store.setState({ status: 'error', error: 'Its transcript file is gone.' })
     return
   }
   if (update.type === 'append') {
-    useTranscript.setState({ entries: update.entries.length ? dedupe([...s.entries, ...update.entries]) : s.entries, results: { ...s.results, ...update.results } })
+    store.setState({ entries: update.entries.length ? dedupe([...s.entries, ...update.entries]) : s.entries, results: { ...s.results, ...update.results } })
     return
   }
   // The newest page, read again: keep what's loaded above where it starts.
   const { page } = update
   const start = page.entries.length ? s.entries.findIndex((e) => e.key === page.entries[0].key) : -1
-  useTranscript.setState(
+  store.setState(
     start >= 0
       ? { entries: [...s.entries.slice(0, start), ...page.entries], results: { ...s.results, ...page.results } }
       : { entries: page.entries, results: page.results, older: page.older, earlier: {}, epoch: s.epoch + 1 }
   )
 }
 
-/** Follows the open transcript's changes. */
+/** Follows the open transcripts' changes (the open session's, and split view's second). */
 export function useTranscriptBridge(): void {
   useEffect(() => {
     const api = window.gloom
     if (!api) return
     return api.onTranscript(({ id, update }) => {
-      if (id === useTranscript.getState().id) applyUpdate(update)
+      for (const store of [useTranscript, useSplitTranscript]) if (id === store.getState().id) applyUpdate(store, update)
     })
   }, [])
 }

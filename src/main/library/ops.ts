@@ -73,6 +73,17 @@ export function parseOp(raw: unknown): LibraryOp {
       return { type: 'setSessionFolders', id: str(raw.id, 'id'), folders: raw.folders.map((f) => str(f, 'folder')) }
     case 'linkSession':
       return { type: 'linkSession', id: str(raw.id, 'id'), startedBy: str(raw.startedBy, 'id'), name: str(raw.name, 'name'), title: strOrNull(raw.title ?? null, 'title') }
+    case 'setSsh':
+      return { type: 'setSsh', id: str(raw.id, 'id'), host: str(raw.host, 'host'), cwd: str(raw.cwd, 'folder') }
+    case 'setRoutine':
+      return { type: 'setRoutine', id: str(raw.id, 'id'), routine: str(raw.routine, 'routine') }
+    case 'setPr': {
+      if (raw.pr === null) return { type: 'setPr', id: str(raw.id, 'id'), pr: null }
+      if (!isRecord(raw.pr)) throw new LibraryError('bad pr')
+      const url = raw.pr.url === null ? null : str(raw.pr.url, 'url')
+      if (url !== null && !/^https:\/\/[\w.-]+\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(url)) throw new LibraryError('That isn’t a pull request URL.')
+      return { type: 'setPr', id: str(raw.id, 'id'), pr: { url, autoFix: raw.pr.autoFix === true, autoArchive: raw.pr.autoArchive === true } }
+    }
     case 'renameSession':
       return { type: 'renameSession', id: str(raw.id, 'id'), title: strOrNull(raw.title, 'title') }
     case 'setFilingRules':

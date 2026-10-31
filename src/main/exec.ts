@@ -21,6 +21,18 @@ export function systemExe(path: string): string {
   return join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', path)
 }
 
+/** ssh: Windows' own OpenSSH, else one on PATH (development builds can point GLOOM_SSH_EXE at a stand-in for the tests). */
+export function sshExe(): string {
+  const stand = process.env.GLOOM_SSH_EXE
+  // process.defaultApp: an unpackaged run (development, the tests); a built Gloom ignores the variable.
+  if (stand && process.defaultApp) return stand
+  const own = systemExe('OpenSSH\\ssh.exe')
+  if (existsSync(own)) return own
+  const found = onPath('ssh.exe')
+  if (!found) throw new Error('ssh isn’t installed (Windows’ OpenSSH client, under Settings › System › Optional features).')
+  return found
+}
+
 let git: string | null | undefined
 /** git, found once on PATH. */
 export function gitExe(): string {

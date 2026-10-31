@@ -237,3 +237,94 @@ describe('side sessions and the terminal (part B)', async () => {
     expect(screenText('a\nb\nc\n', 2)).toBe('b\nc')
   })
 })
+
+describe('pull requests, routines, SSH and the cloud (part D)', async () => {
+  const { checkState, monitorNews, parsePr } = await import('../../src/main/git/pr')
+  const { describeSchedule, dueRoutines, nextCron, parseCron } = await import('../../src/shared/routines')
+  const { forwardedEnv, projectFolder, remoteCommand, shellWord, connectionFolder } = await import('../../src/shared/ssh')
+  const { cloudUrl } = await import('../../src/main/cloud')
+
+  const pr = (extra: Record<string, unknown> = {}) =>
+    parsePr({
+      number: 7,
+      url: 'https://github.com/o/r/pull/7',
+      title: 'Health page',
+      state: 'OPEN',
+      isDraft: false,
+      baseRefName: 'main',
+      headRefName: 'claude/quiet-moon',
+      mergeable: 'MERGEABLE',
+      mergeStateStatus: 'CLEAN',
+      reviewDecision: '',
+      statusCheckRollup: [
+        { name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS', detailsUrl: 'https://ci/1' },
+        { context: 'lint', state: 'PENDING' }
+      ],
+      autoMergeRequest: null,
+      comments: [],
+      reviews: [],
+      updatedAt: '2026-10-31T10:00:00Z',
+      ...extra
+    })!
+
+  it('reads gh’s answer: checks in both shapes, review, auto-merge', () => {
+    const p = pr()
+    expect(p.checks).toEqual([
+      { name: 'test', state: 'passed', url: 'https://ci/1' },
+      { name: 'lint', state: 'pending', url: null }
+    ])
+    expect(p.review).toBeNull()
+    expect(p.autoMerge).toBe(false)
+    expect(checkState({ conclusion: 'TIMED_OUT' })).toBe('failed')
+    expect(parsePr({})).toBeNull()
+  })
+
+  it('tells Auto-fix only what’s new: failed checks, a conflict, new comments', () => {
+    const before = pr()
+    const failing = pr({ statusCheckRollup: [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE', detailsUrl: 'https://ci/2' }], mergeable: 'CONFLICTING', comments: [{}, {}] })
+    const news = monitorNews(before, failing)!
+    expect(news).toMatch(/^<ci-monitor-event>/)
+    expect(news).toContain('Checks failed: test (https://ci/2)')
+    expect(news).toContain('conflicts with main')
+    expect(news).toContain('2 new review comments')
+    expect(monitorNews(failing, failing)).toBeNull()
+    expect(monitorNews(before, pr({ state: 'MERGED' }))).toBeNull()
+  })
+
+  it('parses cron and finds the next run, in local time', () => {
+    expect(parseCron('0 9 * * 1-5')).not.toBeNull()
+    expect(parseCron('61 * * * *')).toBeNull()
+    expect(parseCron('* * *')).toBeNull()
+    const friday = new Date(2026, 9, 30, 10, 0).getTime() // a Friday, 10:00
+    expect(new Date(nextCron('0 9 * * 1-5', friday)!).toString()).toBe(new Date(2026, 10, 2, 9, 0).toString()) // Monday 9:00
+    expect(nextCron('*/15 * * * *', friday)! - friday).toBe(15 * 60_000)
+  })
+
+  it('runs a routine due now once, a missed one at launch, and a one-off once', () => {
+    const now = new Date(2026, 9, 31, 12, 0).getTime()
+    const base = { prompt: 'p', cwd: 'C:\w', model: null, mode: 'default', enabled: true, lastSession: null, at: null }
+    const routines = [
+      { ...base, id: 'missed', name: 'm', cron: '0 9 * * *', lastRun: new Date(2026, 9, 30, 9, 0).getTime(), created: 0 },
+      { ...base, id: 'later', name: 'l', cron: '0 18 * * *', lastRun: new Date(2026, 9, 31, 11, 0).getTime(), created: 0 },
+      { ...base, id: 'once', name: 'o', cron: null, at: now - 1000, lastRun: null, created: 0 },
+      { ...base, id: 'off', name: 'x', cron: '* * * * *', lastRun: null, created: 0, enabled: false }
+    ]
+    expect(dueRoutines(routines, now).map((r) => r.id)).toEqual(['missed', 'once'])
+    expect(describeSchedule({ cron: '0 9 * * 1-5', at: null })).toMatch(/^Weekdays at 9:00/)
+    expect(describeSchedule({ cron: null, at: null })).toBe('When you start it')
+  })
+
+  it('quotes the remote command for a POSIX shell, and names folders as Claude Code does', () => {
+    expect(shellWord('plain-word_1.2')).toBe('plain-word_1.2')
+    expect(shellWord("it's")).toBe("'it'\\''s'")
+    expect(remoteCommand('~/my app', 'claude', ['--print', '{"a":1}'], { CLAUDE_CODE_ENTRYPOINT: 'sdk-ts' })).toBe(`cd ~/'my app' && exec env CLAUDE_CODE_ENTRYPOINT=sdk-ts claude --print '{"a":1}'`)
+    expect(projectFolder('/Users/ivan/my-app')).toBe('-Users-ivan-my-app')
+    expect(forwardedEnv({ PATH: 'x', CLAUDE_CODE_ENTRYPOINT: 'sdk-ts', CLAUDE_AGENT_SDK_VERSION: '1' })).toEqual({ CLAUDE_CODE_ENTRYPOINT: 'sdk-ts', CLAUDE_AGENT_SDK_VERSION: '1' })
+    expect(connectionFolder('mac mini')).toBe('ssh-mac-mini')
+  })
+
+  it('finds the cloud session’s link in what claude --cloud printed', () => {
+    expect(cloudUrl('Started a cloud session: https://claude.ai/code/session_01ABC?x=1 \n')).toBe('https://claude.ai/code/session_01ABC?x=1')
+    expect(cloudUrl('nothing')).toBeNull()
+  })
+})

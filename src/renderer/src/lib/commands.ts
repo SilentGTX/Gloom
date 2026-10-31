@@ -8,6 +8,7 @@ import { useWorktrees } from '../features/chat/Worktree'
 import { newFolder } from '../features/folders/folders'
 import { addFolder, exportSession, isUnread, markCompleted, setTranscriptView, setUnread, toggleFast } from '../features/sessions/actions'
 import { resumeSession } from '../features/sessions/SessionMenu'
+import { useRoutinesSheet } from '../features/routines/RoutinesSheet'
 import { screenHasFocus } from '../features/terminal/registry'
 import { useDiff } from '../stores/diff'
 import { useLibrary } from '../stores/library'
@@ -175,6 +176,13 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
     const id = openSession()
     if (id) setTranscriptView(id, 'thinking', k)
   },
+  'view.paneFile': (k) => useUi.getState().toggleSide('file', k),
+  'view.panePlan': (k) => useUi.getState().toggleSide('plan', k),
+  'view.paneTasks': (k) => useUi.getState().toggleSide('tasks', k),
+  'view.paneBrowser': (k) => useUi.getState().toggleSide('browser', k),
+  'view.paneArtifacts': (k) => useUi.getState().toggleSide('artifacts', k),
+  'view.panePr': (k) => useUi.getState().toggleSide('pr', k),
+  'session.routines': () => useRoutinesSheet.setState({ open: true }),
   'view.transcriptVerbose': (k) => {
     const id = openSession()
     if (id) setTranscriptView(id, 'verbose', k)

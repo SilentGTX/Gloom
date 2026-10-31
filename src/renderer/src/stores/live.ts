@@ -23,6 +23,7 @@ import {
   type AccountSummary
 } from '@shared/live'
 import { ELSEWHERE_MS, type SessionMeta } from '@shared/library'
+import type { PrStatus } from '@shared/pr'
 import { notify } from '../lib/toast'
 import { useFinished } from '../features/concept/finished'
 import { useLibrary } from './library'
@@ -72,6 +73,8 @@ interface LiveState {
   models: ModelChoice[]
   settings: Settings
   claude: ClaudeInfo | null
+  /** Sessions' pull requests as Gloom last read them (null: none). */
+  prs: Record<string, PrStatus | null>
   /** The New Session sheet, and the folder it files into. */
   newSession: { open: boolean; folderId: string | null }
   settingsOpen: boolean
@@ -126,6 +129,7 @@ export const useLive = create<LiveState>()((set, get) => ({
   models: DEFAULT_MODELS,
   settings: DEFAULT_SETTINGS,
   claude: null,
+  prs: {},
   newSession: { open: false, folderId: null },
   settingsOpen: false,
 
@@ -391,6 +395,9 @@ function onEvent(event: LiveEvent): void {
       if (!open.includes(event.id)) notify(`Claude started “${event.name}”`, { action: { label: 'Show', onClick: () => useUi.getState().select([event.id]) } })
       return
     }
+    case 'pr':
+      useLive.setState({ prs: { ...s.prs, [event.id]: event.status } })
+      return
     case 'proposal':
     case 'proposal-gone':
       return
@@ -406,6 +413,11 @@ export function useLiveBridge(): void {
     useLive.setState({ ranAt: { ...loadRanAt(), ...useLive.getState().ranAt } })
     const offEvent = api.live.onEvent(onEvent)
     const offSettings = api.onSettings((settings) => useLive.setState({ settings }))
+    // Claude opened a page in a session's Browser pane: it comes up if that session is the one on screen.
+    const offBrowser = api.browser.onOpen((id) => {
+      const { selection, side } = useUi.getState()
+      if (selection.length === 1 && selection[0] === id && side !== 'browser') useUi.getState().openSide('browser')
+    })
     void Promise.all([api.live.list(), api.getSettings(), api.live.models(), api.live.usage(), api.live.account(), api.claude.info()]).then(([list, settings, models, usage, account, claude]) => {
       if (!alive) return
       const s = useLive.getState()
@@ -422,6 +434,7 @@ export function useLiveBridge(): void {
       alive = false
       offEvent()
       offSettings()
+      offBrowser()
     }
   }, [])
 }

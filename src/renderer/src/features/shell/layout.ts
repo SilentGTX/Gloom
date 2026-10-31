@@ -5,6 +5,8 @@ export const SIDEBAR = { min: 220, max: 420, initial: 288 }
 export const CHAT_MIN = 480
 /** The diff pane, beside the chat on the trailing side. */
 export const DIFF = { min: 320, max: 960, initial: 460 }
+/** The side pane (File, Plan, Tasks, Browser, Artifacts), on the trailing side like the diff pane. */
+export const SIDE = { min: 360, max: 1200, initial: 560 }
 /** Narrower than this beside the diff pane, the chat lets the pane float over it instead. */
 export const CHAT_MIN_BESIDE_DIFF = 560
 /** The terminal pane, under the chat. */

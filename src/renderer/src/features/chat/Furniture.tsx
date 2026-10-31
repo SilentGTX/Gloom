@@ -31,7 +31,6 @@ export interface Chapter {
 }
 
 interface Furniture {
-  id: string | null
   plan: PlanStep[]
   /** The next-step box of the latest turn: a wrap_up after your last message. */
   wrap: WrapUp | null
@@ -39,11 +38,13 @@ interface Furniture {
   chapters: Chapter[]
 }
 
-/** Kept by the transcript as it reads; the composer and the table of contents read it. */
-export const useFurniture = create<Furniture>(() => ({ id: null, plan: [], wrap: null, wrapKey: null, chapters: [] }))
+/** Kept by each column's transcript as it reads, by session; the composer, the contents and the Tasks pane read it. */
+export const useFurniture = create<Record<string, Furniture>>(() => ({}))
+
+const NO_CHAPTERS: Chapter[] = []
 
 /** The list, the latest box and the chapters, from a conversation's entries. */
-export function furnitureOf(entries: readonly TranscriptEntry[]): Omit<Furniture, 'id'> {
+export function furnitureOf(entries: readonly TranscriptEntry[]): Furniture {
   const tools = entries.filter((e): e is ToolEntry => e.kind === 'tool')
   const plan = planOf(tools)
   const lastPrompt = entries.findLastIndex((e) => e.kind === 'prompt')
@@ -74,9 +75,9 @@ export function isFurniture(name: string): boolean {
 
 /** The task list and the next-step box, above the composer: the conversation's foot. */
 export function TurnFurniture({ sessionId }: { sessionId: string }) {
-  const furniture = useFurniture()
+  const furniture = useFurniture((s) => s[sessionId])
   const summary = useLive((s) => s.sessions[sessionId])
-  if (furniture.id !== sessionId) return null
+  if (!furniture) return null
   const busy = isBusy(summary)
   return (
     <>
@@ -202,7 +203,7 @@ export function FurnitureRow({ sessionId, call, result }: { sessionId: string; c
 
 /** An earlier turn's next-step box, read as its recap, quietly; the latest one is the box at the foot. */
 function WrapRecap({ sessionId, call }: { sessionId: string; call: ToolEntry }) {
-  const inTheBox = useFurniture((s) => s.id === sessionId && s.wrapKey === call.key)
+  const inTheBox = useFurniture((s) => s[sessionId]?.wrapKey === call.key)
   const busy = useLive((s) => isBusy(s.sessions[sessionId]))
   const wrap = wrapUpOf(call.input)
   if (!wrap || (inTheBox && !busy)) return null
@@ -230,8 +231,8 @@ function ChapterDivider({ call }: { call: ToolEntry }) {
  * chapters: a click scrolls to one (through the transcript's own list, which
  * draws only the rows near the screen).
  */
-export function Contents({ onGo }: { onGo(key: string): void }) {
-  const chapters = useFurniture((s) => s.chapters)
+export function Contents({ sessionId, onGo }: { sessionId: string; onGo(key: string): void }) {
+  const chapters = useFurniture((s) => s[sessionId]?.chapters ?? NO_CHAPTERS)
   const [open, setOpen] = useState(false)
   const reduce = useReducedMotion()
   if (chapters.length < 2) return null

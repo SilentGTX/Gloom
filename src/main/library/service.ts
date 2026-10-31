@@ -14,7 +14,7 @@ import transcriptsWorker from '../../worker/transcripts?modulePath'
 import { parseOp } from './ops'
 import { LibraryStore } from './store'
 
-/** Claude Code's folder: CLAUDE_CONFIG_DIR when set, as the CLI does, else ~/.claude. */
+/** Claude Code's folder: CLAUDE_CONFIG_DIR when set, as the CLI does, else ~/.claude. Exported for SSH sessions' copies. */
 export function claudeDir(): string {
   return process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
 }
@@ -134,8 +134,11 @@ export class LibraryService {
     return this.ask({ type: 'search', query, files, limit }) as Promise<{ hits: { id: string; snippet: string }[]; done: boolean }>
   }
 
-  unfollow(): void {
-    const request: WorkerRequest = { type: 'unfollow' }
+  /** Stops following a session's transcript (every one, without an ID). */
+  unfollow(id?: string): void {
+    const file = id ? this.index.get(id)?.file : undefined
+    if (id && !file) return
+    const request: WorkerRequest = file ? { type: 'unfollow', file } : { type: 'unfollow' }
     this.worker?.postMessage(request)
   }
 

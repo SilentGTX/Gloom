@@ -1,5 +1,5 @@
 import { memo, useEffect } from 'react'
-import { FileDiff, MessagesSquare, SquarePen, SquareTerminal, TriangleAlert } from 'lucide-react'
+import { FileDiff, MessagesSquare, SquarePen, SquareTerminal, TriangleAlert, X } from 'lucide-react'
 import { formatAccelerator } from '@shared/commands'
 import { displayTitle, type SessionMeta } from '@shared/library'
 import type { LiveSummary } from '@shared/live'
@@ -14,7 +14,7 @@ import { useNow } from '../../lib/now'
 import { relativeTime } from '../../lib/time'
 import { useLibrary } from '../../stores/library'
 import { loadSnapshot, useElsewhere, useLive } from '../../stores/live'
-import { useTranscript } from '../../stores/transcript'
+import { useColumnTranscriptApi } from '../../stores/transcript'
 import { useUi } from '../../stores/ui'
 import { ConceptToolbar, type Status } from '../concept/ChatToolbar'
 import { TerminalView } from '../concept/TerminalView'
@@ -66,7 +66,19 @@ function status(summary: LiveSummary | undefined, updated: number, elsewhere: bo
  * the foot. With the sidebar away, its menu comes along to the leading edge.
  */
 // Memo: a splitter drag re-renders the shell every frame, and nothing the chat takes changes with it.
-export const ChatColumn = memo(function ChatColumn({ session, sidebarShown, clearCaptionButtons }: { session: SessionMeta | undefined; sidebarShown: boolean; clearCaptionButtons: boolean }) {
+export const ChatColumn = memo(function ChatColumn({
+  session,
+  sidebarShown,
+  clearCaptionButtons,
+  split = false
+}: {
+  session: SessionMeta | undefined
+  sidebarShown: boolean
+  clearCaptionButtons: boolean
+  /** Split view's second column: its own transcript, and a toolbar with its title and Close. */
+  split?: boolean
+}) {
+  const transcriptApi = useColumnTranscriptApi()
   const selection = useUi((s) => s.selection)
   const concept = useUi((s) => s.design === 'concept')
   const view = useUi((s) => s.view)
@@ -80,8 +92,8 @@ export const ChatColumn = memo(function ChatColumn({ session, sidebarShown, clea
   const readable = !!session?.file
 
   useEffect(() => {
-    useTranscript.getState().open(id, readable)
-  }, [id, readable])
+    transcriptApi.getState().open(id, readable)
+  }, [id, readable, transcriptApi])
 
   useEffect(() => {
     if (!id) return
@@ -101,8 +113,24 @@ export const ChatColumn = memo(function ChatColumn({ session, sidebarShown, clea
     </>
   )
   return (
-    <main className="@container relative flex min-h-0 min-w-0 flex-1 flex-col pt-[var(--titlebar-h)]">
-      {concept ? (
+    <main aria-label={split ? 'Second session' : undefined} className="@container relative flex min-h-0 min-w-0 flex-1 flex-col pt-[var(--titlebar-h)]">
+      {split ? (
+        <PaneToolbar clearCaptionButtons={clearCaptionButtons}>
+          {session && title && (
+            <BarTitle status={status(summary, session.updated, elsewhere, now)} live={summary?.state === 'working' || summary?.state === 'starting'}>
+              {title}
+            </BarTitle>
+          )}
+          <div className="flex-1" />
+          <GlassCapsule label="Split view">
+            <Tooltip label="Close Split View">
+              <Button aria-label="Close split view" shape="round" onClick={() => useUi.getState().setSplit(null)}>
+                <X size={15} strokeWidth={1.75} aria-hidden />
+              </Button>
+            </Tooltip>
+          </GlassCapsule>
+        </PaneToolbar>
+      ) : concept ? (
         <ConceptToolbar
           session={session}
           title={title}
@@ -132,7 +160,7 @@ export const ChatColumn = memo(function ChatColumn({ session, sidebarShown, clea
       {session ? (
         // Under the toolbar, which stays usable when a session won't draw.
         <ErrorBoundary part="Chat" resetKey={session.id}>
-          {concept ? (
+          {concept && !split ? (
             <>
               {/* The conversation keeps its place (scrolled, half-written) while Changes or Terminal shows over it. */}
               <div className={cn('relative flex min-h-0 flex-1 flex-col', view !== 'conversation' && 'invisible')} inert={view !== 'conversation'}>

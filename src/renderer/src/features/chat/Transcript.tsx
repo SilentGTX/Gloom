@@ -10,7 +10,7 @@ import { cn } from '../../lib/cn'
 import { composerSpace } from '../../lib/composer-space'
 import { useDelayed } from '../../lib/delayed'
 import { isBusy, useLive } from '../../stores/live'
-import { useTranscript } from '../../stores/transcript'
+import { useColumnTranscript, useColumnTranscriptApi } from '../../stores/transcript'
 import { useConcept } from '../concept/parts'
 import { clearMatches, findMatches, paintMatches, popMatch, useFind } from './find'
 import { FindBar } from './FindBar'
@@ -35,11 +35,11 @@ const bottomSpace = () => BOTTOM_SPACE + composerSpace()
  * While the session runs elsewhere, what it writes appears as it's written.
  */
 export function Transcript({ sessionId, live }: { sessionId: string; live: boolean }) {
-  const status = useTranscript((s) => s.status)
-  const error = useTranscript((s) => s.error)
-  const entries = useTranscript((s) => s.entries)
-  const results = useTranscript((s) => s.results)
-  const epoch = useTranscript((s) => s.epoch)
+  const status = useColumnTranscript((s) => s.status)
+  const error = useColumnTranscript((s) => s.error)
+  const entries = useColumnTranscript((s) => s.entries)
+  const results = useColumnTranscript((s) => s.results)
+  const epoch = useColumnTranscript((s) => s.epoch)
   // In a session Gloom runs, what the stream has shown joins what the file holds, and the reply streams below.
   const provisional = useLive((s) => s.provisional[sessionId])
   const stream = useLive((s) => s.streams[sessionId] ?? null)
@@ -71,11 +71,12 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
   // The task list, the latest next-step box and the chapters, for the composer and the contents.
   useEffect(() => {
     const merged = mergeProvisional(cutAt(entries, rewoundTo), results, provisional)
-    useFurniture.setState({ id: sessionId, ...furnitureOf(merged.entries) })
+    useFurniture.setState({ [sessionId]: furnitureOf(merged.entries) })
   }, [entries, results, provisional, rewoundTo, sessionId])
   const openByDefault = useMemo(() => ({ thinking: view !== 'normal', tools: view === 'verbose' }), [view])
   // Switching views starts every row from how the new view opens them.
-  useEffect(() => useTranscript.setState({ expanded: new Set() }), [view])
+  const transcriptApi = useColumnTranscriptApi()
+  useEffect(() => transcriptApi.setState({ expanded: new Set() }), [view, transcriptApi])
 
   if (status === 'loading' || status === 'idle') {
     return <div className="flex flex-1 items-center justify-center">{slow && <LoaderCircle size={20} strokeWidth={1.75} aria-label="Loading the transcript" className="animate-spin text-label-secondary motion-reduce:animate-none" />}</div>
@@ -189,9 +190,9 @@ const components = {
 function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] }) {
   const virtuoso = useRef<VirtuosoHandle>(null)
   const scroller = useRef<HTMLElement | null>(null)
-  const loadingOlder = useTranscript((s) => s.loadingOlder)
-  const loadOlder = useTranscript((s) => s.loadOlder)
-  const setExpanded = useTranscript((s) => s.setExpanded)
+  const loadingOlder = useColumnTranscript((s) => s.loadingOlder)
+  const loadOlder = useColumnTranscript((s) => s.loadOlder)
+  const setExpanded = useColumnTranscript((s) => s.setExpanded)
   const openByDefault = useContext(OpenByDefault)
   const firstItemIndex = useFirstItemIndex(rows)
   const [scrolled, setScrolled] = useState(false)
@@ -327,7 +328,7 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
 
   return (
     <div className="relative min-h-0 flex-1">
-      <Contents onGo={goToChapter} />
+      <Contents sessionId={sessionId} onGo={goToChapter} />
       <Virtuoso
         ref={virtuoso}
         scrollerRef={(el) => {

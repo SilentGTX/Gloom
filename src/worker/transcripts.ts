@@ -25,8 +25,8 @@ let projectsDir = ''
 let cacheFile = ''
 let files: Record<string, FileIndex> = {}
 let watcher: FSWatcher | null = null
-/** The transcript open in the chat, kept current as it grows. */
-let follower: Follower | null = null
+/** The transcripts open in the chat (the open session's, and split view's second), kept current as they grow. */
+const followers = new Map<string, Follower>()
 
 function post(reply: WorkerReply): void {
   port.postMessage(reply)
@@ -75,7 +75,7 @@ function queue(path: string): void {
 function flush(): void {
   batchTimer = null
   const ids = new Set<string>()
-  const followed = follower && [...dirty].some((path) => samePath(path, follower!.file)) ? follower : null
+  const followed = [...followers.values()].filter((f) => [...dirty].some((path) => samePath(path, f.file)))
   for (const path of dirty) {
     ids.add(basename(path, '.jsonl'))
     try {
@@ -96,12 +96,12 @@ function flush(): void {
   const remove = [...ids].filter((id) => !now.has(id))
   if (upsert.length || remove.length) post({ type: 'changed', upsert, remove })
   saveCacheSoon()
-  if (followed) {
+  for (const f of followed) {
     try {
-      const update = followed.update()
-      if (update) post({ type: 'transcript', file: followed.file, update })
+      const update = f.update()
+      if (update) post({ type: 'transcript', file: f.file, update })
     } catch (error) {
-      post({ type: 'error', message: `following ${basename(followed.file)}: ${String(error)}` })
+      post({ type: 'error', message: `following ${basename(f.file)}: ${String(error)}` })
     }
   }
 }
@@ -126,7 +126,11 @@ function answer(request: Extract<WorkerRequest, { type: 'page' | 'blob' | 'edits
       return
     }
     const read = readPage(request.file, request.cursor)
-    if (request.follow) follower = new Follower(request.file, read)
+    if (request.follow) {
+      followers.set(request.file, new Follower(request.file, read))
+      // Two at most: the open session's and split view's second.
+      while (followers.size > 2) followers.delete(followers.keys().next().value!)
+    }
     if (read.unknown.length) post({ type: 'unknown', file: request.file, types: read.unknown })
     post({ type: 'answer', reqId: request.reqId, value: read.page })
   } catch (error) {
@@ -211,7 +215,8 @@ port.on('message', ({ data }: { data: WorkerRequest }) => {
     case 'search':
       return search(data)
     case 'unfollow':
-      follower = null
+      if (data.file) followers.delete(data.file)
+      else followers.clear()
       return
     case 'stop':
       void watcher?.close()

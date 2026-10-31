@@ -32,6 +32,7 @@ import { readAccount, usageFromRateLimits } from './account'
 import { claudeInfo, findClaude } from './binary'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import { askModels, askUsage, Runner, type RunnerEvents } from './runner'
+import { sshExe } from '../exec'
 import { knownModels, learnedModels, modelsFrom, rememberModels, settings } from './settings'
 
 const MAX_PROCESSES = 6
@@ -142,6 +143,8 @@ export class Sessions {
   /** A session made in Gloom: nothing runs until its first message. */
   create(request: NewSessionRequest): string {
     const id = randomUUID()
+    const ssh = request.ssh ? this.sshFor(request.ssh) : null
+    if (request.ssh && !ssh) throw new Error('That SSH connection isn’t in Settings any more.')
     this.runners.set(
       id,
       this.makeRunner({
@@ -152,7 +155,8 @@ export class Sessions {
         effort: request.effort,
         resume: false,
         remoteControl: settings().remoteControl,
-        ...(request.forkFrom ? { forkFrom: request.forkFrom } : {})
+        ...(request.forkFrom ? { forkFrom: request.forkFrom } : {}),
+        ...(ssh ? { ssh } : {})
       })
     )
     this.emitSummary(id)
@@ -172,6 +176,12 @@ export class Sessions {
     const runner = this.runners.get(id)
     const meta = this.lookup(id)
     if (!runner && !meta) return { ok: false, kind: 'gone', reason: 'That session’s transcript is gone.' }
+    // An SSH session carries on over ssh while its connection is in Settings; another machine's copy is only read.
+    const ssh = this.entryOf(id)?.ssh
+    if (ssh || runner?.remote) {
+      if (ssh && !this.sshFor(ssh.host)) return { ok: false, kind: 'remote', reason: 'It runs over an SSH connection that isn’t in Settings any more.' }
+      return { ok: true }
+    }
     if (meta?.remote) return { ok: false, kind: 'remote', reason: 'It ran on another machine, so it can only be read here.' }
     if (!findClaude()) return { ok: false, kind: 'not-installed', reason: 'Claude Code isn’t installed.' }
     const cwd = runner?.cwd ?? meta?.cwd
@@ -212,6 +222,19 @@ export class Sessions {
     else await runner.setFolders(request.folders)
   }
 
+  /** Settings' SSH connection by id, as the runner starts ssh with it. */
+  private sshFor(id: string): { exe: string; host: string; claude: string } | null {
+    const host = settings().sshHosts.find((h) => h.id === id)
+    return host ? { exe: sshExe(), host: host.host, claude: host.claude ?? 'claude' } : null
+  }
+
+  /** An SSH session's connection and folder, for copying its transcript back. */
+  remoteOf(id: string): { host: string; exe: string; cwd: string } | null {
+    const runner = this.runners.get(id)
+    const ssh = runner?.remote
+    return ssh && runner ? { host: ssh.host, exe: ssh.exe, cwd: runner.cwd } : null
+  }
+
   /** start_session's offer, asked in the session's chat. */
   offer(id: string, title: string): Promise<'new' | 'here'> {
     const runner = this.runners.get(id)
@@ -222,6 +245,13 @@ export class Sessions {
   /** The latest reply text a session's process showed. */
   lastReply(id: string): string | null {
     return this.runners.get(id)?.lastReply() ?? null
+  }
+
+  /** Stops one of a session's background tasks. */
+  stopTask(id: string, taskId: string): Promise<void> {
+    const runner = this.runners.get(id)
+    if (!runner) throw new Error('The session isn’t running.')
+    return runner.stopTask(taskId)
   }
 
   /** Turns one of a running session's MCP servers off or on. */
@@ -322,16 +352,19 @@ export class Sessions {
     const existing = this.runners.get(id)
     if (existing) return existing
     const meta = this.lookup(id)
-    if (!meta?.cwd) throw new Error('That session’s transcript is gone.')
+    const sshEntry = this.entryOf(id)?.ssh
+    const ssh = sshEntry ? this.sshFor(sshEntry.host) : null
+    if (!meta?.cwd && !sshEntry) throw new Error('That session’s transcript is gone.')
     const s = settings()
     const runner = this.makeRunner({
       id,
-      cwd: meta.cwd,
+      cwd: sshEntry?.cwd ?? meta!.cwd!,
       model: s.model,
       mode: isMode(s.mode) ? s.mode : 'default',
       effort: isEffort(s.effort) ? s.effort : null,
       resume: true,
-      folders: this.entryOf(id)?.folders ?? []
+      folders: this.entryOf(id)?.folders ?? [],
+      ...(ssh ? { ssh } : {})
     })
     this.runners.set(id, runner)
     return runner

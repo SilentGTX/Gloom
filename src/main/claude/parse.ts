@@ -34,7 +34,14 @@ export function parseNewSession(raw: unknown): NewSessionRequest {
   if (!isRecord(raw)) throw new Error('bad request')
   if (!isMode(raw.mode)) throw new Error('bad mode')
   if (raw.effort !== null && !isEffort(raw.effort)) throw new Error('bad effort')
-  return { cwd: str(raw.cwd, 'folder', 1024), model: model(raw.model), mode: raw.mode, effort: raw.effort, worktree: raw.worktree === true }
+  return {
+    cwd: str(raw.cwd, 'folder', 1024),
+    model: model(raw.model),
+    mode: raw.mode,
+    effort: raw.effort,
+    worktree: raw.worktree === true,
+    ...(typeof raw.ssh === 'string' && raw.ssh ? { ssh: str(raw.ssh, 'connection', 64) } : {})
+  }
 }
 
 /** A rewind: the message (a UUID, its checkpoint), and what goes back. */

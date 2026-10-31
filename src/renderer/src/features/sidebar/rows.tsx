@@ -4,7 +4,7 @@
 // to their new places when the order changes.
 import { createContext, useContext, useEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type Ref } from 'react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
-import { Archive, ChevronRight, Clock3, Folder as FolderIcon, Inbox, MessagesSquare, Pin, type LucideIcon } from 'lucide-react'
+import { Archive, CalendarClock, ChevronRight, Clock3, Folder as FolderIcon, Inbox, MessagesSquare, Pin, type LucideIcon } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { SmartFolder } from '@shared/library'
 import { cn } from '../../lib/cn'
@@ -20,6 +20,7 @@ export const SMART_ICONS: Record<SmartFolder, LucideIcon> = {
   recent: Clock3,
   pinned: Pin,
   unfiled: Inbox,
+  routines: CalendarClock,
   archived: Archive
 }
 

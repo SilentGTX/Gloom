@@ -120,6 +120,62 @@ const COMPOSITED_MS = 50
  * version's window (handover.ts): it opens on top of it, shows only the update
  * screen until the app may load, and calls `onShown` once it's fully in view.
  */
+/** The panes a window of their own can show (View › Pane, the diff, the terminal). */
+export const POP_OUT_PANES = ['diff', 'terminal', 'file', 'plan', 'tasks', 'browser', 'artifacts', 'pr'] as const
+export type PopOutPane = (typeof POP_OUT_PANES)[number]
+
+const PANE_TITLES: Record<PopOutPane, string> = { diff: 'Diff', terminal: 'Terminal', file: 'File', plan: 'Plan', tasks: 'Tasks', browser: 'Browser', artifacts: 'Artifacts', pr: 'Pull Request' }
+
+/**
+ * A pane in a window of its own (the Claude app pops its panes out the same
+ * way): Gloom's page, showing only that pane for the session, beside the main
+ * window. It follows the session as the main window does, through the same events.
+ */
+export function createPopOutWindow(pane: PopOutPane, sessionId: string, title: string, near: BrowserWindow | null): BrowserWindow {
+  const at = near && !near.isDestroyed() ? near.getBounds() : null
+  const win = new BrowserWindow({
+    width: pane === 'browser' ? 1100 : 760,
+    height: pane === 'terminal' ? 460 : 820,
+    ...(at ? { x: at.x + Math.max(0, at.width - 820), y: at.y + 60 } : {}),
+    minWidth: 420,
+    minHeight: 300,
+    show: false,
+    title: `${PANE_TITLES[pane]} \u2014 ${title}`,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: overlayColors(),
+    backgroundColor: paperColor(),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      spellcheck: false
+    }
+  })
+  const send = () => {
+    if (!win.isDestroyed()) win.webContents.send(IPC.windowStateChanged, windowState(win))
+  }
+  for (const event of ['focus', 'blur', 'maximize', 'unmaximize'] as const) win.on(event as 'focus', send)
+  const onTheme = () => {
+    if (win.isDestroyed()) return
+    win.setTitleBarOverlay(overlayColors())
+    win.setBackgroundColor(paperColor())
+    send()
+  }
+  nativeTheme.on('updated', onTheme)
+  win.on('closed', () => nativeTheme.off('updated', onTheme))
+  win.once('ready-to-show', () => win.show())
+  win.webContents.on('will-navigate', (event, url) => {
+    if (!isRendererUrl(url)) event.preventDefault()
+  })
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  void win.loadURL(`${rendererUrl()}?popout=${encodeURIComponent(pane)}&session=${encodeURIComponent(sessionId)}`)
+  return win
+}
+
 export function createMainWindow({ handover = false, onShown }: { handover?: boolean; onShown?: () => void } = {}): BrowserWindow {
   const saved = loadBounds()
   const win = new BrowserWindow({

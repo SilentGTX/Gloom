@@ -5,7 +5,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { SmartFolder } from '@shared/library'
 import type { TranscriptView } from '@shared/live'
-import { computeLayout, DIFF, inspectorFits, SIDEBAR, TERMINAL, type ColumnPrefs } from '../features/shell/layout'
+import { computeLayout, DIFF, inspectorFits, SIDE, SIDEBAR, TERMINAL, type ColumnPrefs } from '../features/shell/layout'
 import { SHOWN_STEP } from '../features/sidebar/tree'
 
 /** Up to 200%, Apple's floor for "support larger text". */
@@ -24,6 +24,8 @@ export type Design = 'concept' | 'classic'
 export type ChatView = 'conversation' | 'changes' | 'terminal'
 /** The inspector's sections, which fold and which you put in your own order. */
 export type InspectorPart = 'changes' | 'tasks' | 'context' | 'environment' | 'connectors' | 'session'
+/** The side pane's tabs, as the Claude app's panes: a file at a line, the plan, background tasks, the browser, artifacts. */
+export type SideTab = 'file' | 'plan' | 'tasks' | 'browser' | 'artifacts' | 'pr'
 export const INSPECTOR_PARTS: InspectorPart[] = ['changes', 'tasks', 'context', 'environment', 'connectors', 'session']
 
 /** What's being renamed in place. */
@@ -76,6 +78,14 @@ interface UiState extends ColumnPrefs {
   inspectorFolded: InspectorPart[]
   /** Conversations you switched to another Transcript View than Settings' default, by session. Not kept. */
   transcriptViews: Record<string, TranscriptView>
+  /** The side pane on the trailing side, and which tab it shows; the diff pane and inspector step aside for it. Not kept. */
+  side: SideTab | null
+  sideWidth: number
+  /** The file the File tab shows, and the line it scrolls to. Not kept. */
+  sideFile: { path: string; line: number | null } | null
+  /** Split view: a second session beside the open one, and its column's width. */
+  split: string | null
+  splitWidth: number
 
   setSidebarWidth(width: number): void
   toggleDiff(viaKeyboard: boolean, open?: boolean): void
@@ -114,6 +124,15 @@ interface UiState extends ColumnPrefs {
   /** Folds or unfolds a section; with no `open`, flips it. */
   foldInspectorPart(part: InspectorPart, open?: boolean): void
   setTranscriptView(id: string, view: TranscriptView): void
+  openSide(tab: SideTab, viaKeyboard?: boolean): void
+  /** Shows the tab, or puts the pane away if it's the one showing. */
+  toggleSide(tab: SideTab, viaKeyboard?: boolean): void
+  closeSide(viaKeyboard?: boolean): void
+  openFile(path: string, line?: number | null): void
+  setSideWidth(width: number): void
+  /** Opens a session beside the open one (null closes split view). */
+  setSplit(id: string | null): void
+  setSplitWidth(width: number): void
 }
 
 export const useUi = create<UiState>()(
@@ -154,6 +173,11 @@ export const useUi = create<UiState>()(
         // As Claude Code's panel starts: the context as its share alone, the details folded.
         inspectorFolded: ['context', 'session'],
         transcriptViews: {},
+        side: null,
+        sideWidth: SIDE.initial,
+        sideFile: null,
+        split: null,
+        splitWidth: 520,
 
         setSidebarWidth: (width) => set({ sidebarWidth: width }),
         toggleDiff: (viaKeyboard, open) => {
@@ -205,8 +229,15 @@ export const useUi = create<UiState>()(
         toggleGlass: () => set({ glassAlways: !get().glassAlways }),
         setSearch: (search) => set({ search }),
         setSort: (sort) => set({ sort }),
-        select: (ids) => set({ selection: ids }),
+        select: (ids) => set({ selection: ids, ...(ids.length === 1 && ids[0] === get().split ? { split: null } : {}) }),
         setTranscriptView: (id, view) => set({ transcriptViews: { ...get().transcriptViews, [id]: view } }),
+        openSide: (tab, viaKeyboard = false) => set({ side: tab, ...(get().side ? {} : { paneInstant: viaKeyboard, paneToggledAt: Date.now() }) }),
+        toggleSide: (tab, viaKeyboard = false) => set({ side: get().side === tab ? null : tab, paneInstant: viaKeyboard, paneToggledAt: Date.now() }),
+        closeSide: (viaKeyboard = false) => set({ side: null, paneInstant: viaKeyboard, paneToggledAt: Date.now() }),
+        openFile: (path, line = null) => set({ sideFile: { path, line }, side: 'file', ...(get().side ? {} : { paneInstant: false, paneToggledAt: Date.now() }) }),
+        setSideWidth: (width) => set({ sideWidth: Math.round(width) }),
+        setSplit: (id) => set({ split: id }),
+        setSplitWidth: (width) => set({ splitWidth: Math.round(width) }),
         rename: (renaming) => set({ renaming }),
         setInfo: (open) => set({ info: open }),
         revealRow: (key) => set({ reveal: key }),
@@ -238,6 +269,8 @@ export const useUi = create<UiState>()(
       name: 'gloom.ui',
       version: 4,
       partialize: (s) => ({
+        sideWidth: s.sideWidth,
+        splitWidth: s.splitWidth,
         sidebarWidth: s.sidebarWidth,
         sidebarHidden: s.sidebarHidden,
         diffOpen: s.diffOpen,

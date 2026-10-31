@@ -88,3 +88,48 @@ async function walk(root: string): Promise<{ files: string[]; truncated: boolean
   }
   return { files, truncated: false }
 }
+
+/** What the File pane reads of a file at most. */
+const READ_MAX = 2 * 1024 * 1024
+
+/**
+ * A file for the File pane: only inside the session's folders (as the Claude
+ * app's file pane), resolved through links, never a folder, cut past 2 MB.
+ */
+export async function readSessionFile(path: string, folders: string[]): Promise<import('@shared/ipc').FileRead> {
+  const { realpath, stat, open } = await import('node:fs/promises')
+  const { isAbsolute, relative, resolve } = await import('node:path')
+  if (!path || path.length > 2048) return { ok: false, path, reason: 'That isn’t a file path.' }
+  const base = folders[0]
+  const abs = isAbsolute(path) ? path : base ? resolve(base, path) : path
+  let real: string
+  try {
+    real = await realpath(abs)
+  } catch {
+    return { ok: false, path: abs, reason: 'That file doesn’t exist (any more).' }
+  }
+  const inside = await Promise.all(
+    folders.map(async (f) => {
+      try {
+        const root = await realpath(f)
+        const rel = relative(root, real)
+        return !rel.startsWith('..') && !isAbsolute(rel)
+      } catch {
+        return false
+      }
+    })
+  )
+  if (!inside.some(Boolean)) return { ok: false, path: abs, reason: 'It’s outside this session’s folders, so Gloom doesn’t open it here.' }
+  const info = await stat(real)
+  if (!info.isFile()) return { ok: false, path: abs, reason: 'That’s a folder, not a file.' }
+  const handle = await open(real, 'r')
+  try {
+    const length = Math.min(info.size, READ_MAX)
+    const buf = Buffer.alloc(length)
+    await handle.read(buf, 0, length, 0)
+    if (buf.subarray(0, Math.min(length, 8000)).includes(0)) return { ok: false, path: abs, reason: 'It’s a binary file.' }
+    return { ok: true, path: abs, text: buf.toString('utf8'), size: info.size, truncated: info.size > READ_MAX }
+  } finally {
+    await handle.close()
+  }
+}

@@ -35,7 +35,14 @@ export function cleanSettings(raw: unknown, base: Settings = DEFAULT_SETTINGS): 
   const days = typeof s.archiveAfterDays === 'number' && Number.isFinite(s.archiveAfterDays) ? Math.round(s.archiveAfterDays) : base.archiveAfterDays
   // Gloom before 0.14 had one switch for every notification: off turns each kind off.
   const quiet = s.notifications === false && s.notifyPermission === undefined
+  const hosts = Array.isArray(s.sshHosts)
+    ? s.sshHosts.flatMap((h): Settings['sshHosts'] => {
+        if (!isRecord(h) || typeof h.id !== 'string' || typeof h.host !== 'string' || !/^[\w.@-]+$/.test(h.host) || h.host.startsWith('-')) return []
+        return [{ id: h.id.slice(0, 64), name: typeof h.name === 'string' && h.name.trim() ? h.name.trim().slice(0, 60) : h.host, host: h.host, claude: typeof h.claude === 'string' && h.claude.trim() ? h.claude.trim().slice(0, 500) : null }]
+      })
+    : base.sshHosts
   return {
+    sshHosts: hosts.slice(0, 50),
     claudePath: s.claudePath === null || (typeof s.claudePath === 'string' && s.claudePath.length < 1024) ? (s.claudePath as string | null) || null : base.claudePath,
     model: s.model === null || (typeof s.model === 'string' && s.model.length < 200) ? (s.model as string | null) || null : base.model,
     mode: isMode(s.mode) ? s.mode : base.mode,
@@ -46,6 +53,7 @@ export function cleanSettings(raw: unknown, base: Settings = DEFAULT_SETTINGS): 
     transcriptView: isTranscriptView(s.transcriptView) ? s.transcriptView : base.transcriptView,
     idleMinutes: Math.max(0, Math.min(24 * 60, minutes)),
     archiveAfterDays: Math.max(0, Math.min(365, days)),
+    archiveOnPrClose: flag(s.archiveOnPrClose, base.archiveOnPrClose),
     keepAwake: flag(s.keepAwake, base.keepAwake),
     keepAwakeOnBattery: flag(s.keepAwakeOnBattery, base.keepAwakeOnBattery),
     branchPrefix: typeof s.branchPrefix === 'string' && !branchPrefixProblem(s.branchPrefix) ? s.branchPrefix : base.branchPrefix,

@@ -23,6 +23,8 @@ export const DIFF_TABS: Record<string, DiffTab> = { 'view.diffSession': 'session
 export const DESIGNS: Record<string, Design> = { 'view.designConcept': 'concept', 'view.designClassic': 'classic' }
 /** The Transcript View choices, by command. */
 export const VIEWS: Record<string, TranscriptView> = { 'view.transcriptNormal': 'normal', 'view.transcriptThinking': 'thinking', 'view.transcriptVerbose': 'verbose' }
+/** The side pane's tabs, by command. */
+export const PANES: Record<string, string> = { 'view.paneFile': 'file', 'view.panePlan': 'plan', 'view.paneTasks': 'tasks', 'view.paneBrowser': 'browser', 'view.paneArtifacts': 'artifacts', 'view.panePr': 'pr' }
 /** Commands that act on the one session the chat shows. */
 const NEEDS_SESSION = new Set<string>(['session.addFolder', 'session.export', ...Object.keys(VIEWS)])
 
@@ -90,6 +92,8 @@ export function useCommandState(): (command: CommandSpec) => CommandState {
               ? DESIGNS[c.id] === ui.design
               : c.id in VIEWS
                 ? VIEWS[c.id] === view
+                : c.id in PANES
+                  ? PANES[c.id] === ui.side
                 : c.id === 'session.fast'
                   ? fast
                   : false
