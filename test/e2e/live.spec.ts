@@ -108,6 +108,22 @@ test('Stop ends the turn, and a message queued meanwhile comes back to the compo
   await expect(page.getByRole('list', { name: 'Queued messages' })).toHaveCount(0)
 })
 
+test('in the background, a card waiting for you sends a notification', async () => {
+  await start('permission')
+  const composer = await openSession()
+  // Windows' notifications are recorded rather than shown (development builds hand tests the switch).
+  type Hook = { gloomAttention: { record(): { title: string; body: string }[] }; notes: { title: string; body: string }[] }
+  await app.evaluate(() => {
+    const hook = globalThis as unknown as Hook
+    hook.notes = hook.gloomAttention.record()
+  })
+  await composer.fill('Make hello.txt')
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].minimize())
+  await composer.press('Enter')
+  await expect.poll(() => app.evaluate(() => (globalThis as unknown as Hook).notes)).toEqual([{ title: TITLE, body: 'Claude needs your permission to continue.' }])
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].restore())
+})
+
 test('a session growing in another app is locked until you take it over', async () => {
   process.env.GLOOM_CLAUDE_EXE = FAKE
   process.env.FAKE_CLAUDE_FIXTURE = 'two-turns'

@@ -172,12 +172,13 @@ export const useLive = create<LiveState>()((set, get) => ({
     return id
   },
 
+  // One sheet at a time: opening one closes the other.
   openNewSession: (folderId) => {
     const folder = folderId === undefined ? currentFolder() : folderId
-    set({ newSession: { open: true, folderId: folder } })
+    set({ newSession: { open: true, folderId: folder }, settingsOpen: false })
   },
   closeNewSession: () => set({ newSession: { ...get().newSession, open: false } }),
-  setSettingsOpen: (open) => set({ settingsOpen: open }),
+  setSettingsOpen: (open) => set(open ? { settingsOpen: true, newSession: { ...get().newSession, open: false } } : { settingsOpen: false }),
 
   updateSettings: async (patch) => {
     const api = window.gloom

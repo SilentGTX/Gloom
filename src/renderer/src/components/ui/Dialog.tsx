@@ -11,7 +11,8 @@ export function Dialog({
   title,
   description,
   children,
-  width = 460
+  width = 460,
+  finalFocus
 }: {
   open: boolean
   onClose(): void
@@ -19,6 +20,8 @@ export function Dialog({
   description?: ReactNode
   children: ReactNode
   width?: number
+  /** Where focus goes once it has closed; by default, back where it came from. */
+  finalFocus?: () => HTMLElement | true | null
 }) {
   return (
     <Base.Root open={open} onOpenChange={(next) => !next && onClose()}>
@@ -32,6 +35,7 @@ export function Dialog({
             'motion-reduce:data-[starting-style]:scale-100 motion-reduce:data-[ending-style]:scale-100'
           ].join(' ')}
           style={{ width }}
+          finalFocus={finalFocus}
         >
           <div className="relative z-[2]">
             <Base.Title className="font-display text-headline font-semibold tracking-[var(--tracking-title)]">{title}</Base.Title>

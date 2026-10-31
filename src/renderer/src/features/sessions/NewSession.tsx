@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ChevronDown, Folder as FolderGlyph, FolderOpen, Inbox, ShieldAlert } from 'lucide-react'
 import { flattenTree, folderDefaults, folderTrusted, normalizePath } from '@shared/library'
 import { isEffort, isMode, type Effort, type ModeId } from '@shared/live'
@@ -94,14 +94,34 @@ function PlacePicker({ value, onChange }: { value: string | null; onChange(folde
 export function NewSessionSheet() {
   const { open, folderId } = useLive((s) => s.newSession)
   const close = useLive((s) => s.closeNewSession)
+  // Once it has started a session, the sheet leaves the keyboard in that session's composer.
+  const started = useRef(false)
+  useEffect(() => {
+    if (open) started.current = false
+  }, [open])
   return (
-    <Dialog open={open} onClose={close} title="New Session" description="Claude starts once you send your first message." width={480}>
-      {open && <NewSessionForm initialFolder={folderId} onDone={close} />}
+    <Dialog
+      open={open}
+      onClose={close}
+      title="New Session"
+      description="Claude starts once you send your first message."
+      width={480}
+      finalFocus={() => (started.current ? document.querySelector<HTMLTextAreaElement>('textarea[data-composer]') : null) ?? true}
+    >
+      {open && (
+        <NewSessionForm
+          initialFolder={folderId}
+          onDone={(didStart) => {
+            started.current = didStart
+            close()
+          }}
+        />
+      )}
     </Dialog>
   )
 }
 
-function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | null; onDone(): void }) {
+function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | null; onDone(started: boolean): void }) {
   const library = useLibrary((s) => s.library)
   const sessions = useLibrary((s) => s.sessions)
   const settings = useLive((s) => s.settings)
@@ -137,7 +157,7 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
     const id = await useLive.getState().create({ cwd, model, mode, effort: effort && efforts.includes(effort) ? effort : null }, place)
     setBusy(false)
     if (!id) return
-    onDone()
+    onDone(true)
     focusComposer()
   }
 
@@ -172,7 +192,7 @@ function NewSessionForm({ initialFolder, onDone }: { initialFolder: string | nul
       )}
 
       <div className="mt-2 flex justify-end gap-2">
-        <Button size="text" tone="secondary" onClick={onDone}>
+        <Button size="text" tone="secondary" onClick={() => onDone(false)}>
           Cancel
         </Button>
         <Button type="submit" size="text" tone="primary" disabled={!cwd || busy}>

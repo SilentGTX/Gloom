@@ -137,9 +137,10 @@ callbacks (`canUseTool`), `interrupt()`, `setPermissionMode()`, `setModel()` and
   `rate_limit_event` in every turn, plus the SDK's experimental usage call for the 5-hour and weekly
   percentages. Both answer in shapes that differ from the SDK's published types; parse defensively.
 - Phase 0 found no need for the raw-CLI fallback. Details: `docs/phase-0-findings.md`.
-- **CLI version (proposed, awaiting your OK):** your `claude.exe` was 2.1.186 while the SDK expects
-  2.1.314, with older models and a flag it rejects. Gloom checks the version at start and offers
-  **Update Claude Code** (`claude update`) when it's behind.
+- **CLI version (built in Phase 4):** Gloom runs your own `claude.exe` (2.1.186 here) while the SDK
+  expects 2.1.314. Settings › Claude Code shows the version and offers **Update Claude Code…**
+  (`claude update`, in a terminal) when it's behind. Everything in Phase 4 works on 2.1.186; the
+  flag it rejects (`--resume-drops-turn`) is Phase 6's.
 
 **Process lifecycle.** Each running session is one `claude` process, and each starts its own copy
 of every MCP server. A process stays alive while a turn runs or a prompt card waits, closes after 10
@@ -384,8 +385,9 @@ and **your new icon**, the gloomy cloud, as Gloom 0.6.1 (Phase 1's notes, "After
 sidebar's click and motion fixes are out as Gloom 0.6.2. **Updates that don't close the window**,
 the cloud on a violet tile and the shimmering title of a running session are out as Gloom 0.6.3
 (Phase 1's notes and the sidebar's, "After 0.6.2"). Show More and a sidebar that keeps its order
-are out as Gloom 0.6.5, and a fix for clicks lost while a group opens as Gloom 0.6.6. **Next:
-Phase 4**, live chat, on your OK.
+are out as Gloom 0.6.5, and a fix for clicks lost while a group opens as Gloom 0.6.6. **Phase 4,
+live chat, is built** (2026-10-31, branch `phase-4-live-chat`) and goes out as Gloom 0.7.0 at your
+OK; then Phase 5.
 
 **One sidebar instead of two** (your Claude Design mockup, 2026-10-30). The folder tree and the
 session list merge into the one floating glass sidebar, so the window has two columns, sidebar and
@@ -676,6 +678,65 @@ disclosure pages; `apple-design` for motion).
    mode and effort pickers, all three prompt cards (a live session can't do much without them),
    context meter and usage limits, attention (toasts, flash, badge), the running-elsewhere lock with
    Take over, Settings and first run.
+   **Built 2026-10-31 on `phase-4-live-chat`, not released yet.** Built with both Apple skills loaded
+   (`apple-hig` with its foundation pages and the text field, pop-up button, sheet, modality, alert,
+   settings, progress, gauge, notification, onboarding, launching, feedback and loading pages;
+   `apple-design` for motion).
+   - **Running sessions:** `src/main/claude/runner.ts` drives one session's `claude` through the
+     Agent SDK in streaming-input mode (a new session gets its ID up front, `sessionId`; later starts
+     `resume` it). `src/main/claude/sessions.ts` keeps them all: six processes at most (the
+     longest-idle closes first, never one mid-turn), idle ones close after Settings' time (10 minutes),
+     and the whole process tree goes with `taskkill /T` (MCP servers too). Quitting mid-turn asks first.
+   - **What you see:** each finished line shows the moment the stream has it; the transcript file
+     takes over under the same UUIDs (your CLI writes it about 100 ms behind). The reply streams in
+     (text as it comes, thinking folded, a tool's name as its call forms) above "Thinking · 12s",
+     and calls still waiting say what they're doing ("Writing hello.txt"). A new session shows in
+     the chat and the sidebar at once, before it has a transcript.
+   - **Composer:** glass, floating over the transcript's foot. Enter sends, Shift+Enter starts a
+     line. While Claude works a message waits as a Queued chip (× takes it back); Esc or Stop
+     (File › Stop, Ctrl+.) ends the turn and puts what was queued back in the box. `/` lists the
+     session's commands. Paste or drop images (5 MB each); other files go in as their paths. The
+     mode, model and effort pop-ups switch a running session live. A ring by Send shows how full the
+     context is; its card has Compact Now and your plan's 5-hour and weekly use.
+   - **Prompt cards** above the composer, one at a time, Enter to answer and Esc to decline:
+     **permission** (the command, the edit as a diff, or the new file; Deny, Always Allow saying what
+     it allows and where it's saved, Allow Once; "Tell Claude What to Do…" denies with a note and lets
+     Claude carry on), **Claude's plan** (Keep Planning with a note, or Approve Plan into a mode,
+     Accept Edits by default) and **questions** (options as buttons, Other, Skip).
+   - **New Session** (Ctrl+N, the pencil, or a folder's New Session Here…): working folder (your
+     recent ones, or Choose Folder…), model, mode, effort and where it goes. A folder's Defaults for
+     New Sessions… (or its parents') fill it in. A folder Claude hasn't worked in asks for your trust
+     first: Trust and Start.
+   - **Attention:** in the background, a card waiting or a turn ending sends a Windows notification
+     (never the command itself; a click opens the session), flashes the taskbar button, and its badge
+     counts the sessions waiting for you. In the sidebar a working session's title shimmers and a
+     waiting one says "Waiting".
+   - **When it can't send:** a session growing in another app says so in the composer's place, with
+     Take Over; one whose folder is gone, or that ran on another machine, says why. Without Claude
+     Code the window says how to install it, or to choose claude.exe.
+   - **Settings** (File › Settings…, Ctrl+,): new sessions' model, mode and effort; when idle
+     sessions close; notifications; appearance (Windows, Light, Dark) and glass; Claude Code's path,
+     version, Update Claude Code… and Log In… (each in a terminal); Gloom's version and Check for
+     Updates.
+   - **Updates wait for Claude:** Update clicked mid-turn says "Updates When Claude Finishes" and
+     installs once no session is working; the window and the open session come back.
+   - **Review** with both skills. Fixes made: primary actions (Send, Allow Once, Approve Plan, Start
+     Session, Done) take Gloom's indigo, since Windows' gray accent made them read as disabled; an
+     answered card leaves the layout at once, so the next one doesn't stack under it, and can't be
+     reached while it goes; the working line isn't a live region (its ticking clock would be read out
+     every second); the streaming reply no longer re-renders the transcript above it; one sheet at a
+     time.
+   - **Departures**, deliberate: the composer and its cards sit at the window's foot, a chat's place
+     as in Messages (the toolbar's "Waiting for you", the sidebar, notifications and the badge say it
+     elsewhere); Settings is a sheet in the window rather than its own window; mode, model and effort
+     live in the composer, not in the menu.
+   - **Found on the way:** the SDK's messages and the transcript's lines share UUIDs, prompts
+     included, so the file can take over from the stream line by line; the fake claude writes no
+     transcript, so the tests see only what came from the stream.
+   - **Tests:** the runner against the fake (two turns, the queue, Stop, permission, plan, question),
+     the stream and the merge with the file; end-to-end, the three cards, Stop with a queue, New
+     Session with trust, a notification in the background, the running-elsewhere lock and a missing
+     folder; and one opt-in turn on your real claude.exe (`GLOOM_REAL_CLI=1`, a few cents of Haiku).
 5. **Diff and terminal panes.**
 6. **Rewind, edit and worktrees.** Edit and rewind with the conversation / code / both choice;
    worktree sessions in git repos, Merge, cleanup on archive, and the missing-folder behaviour

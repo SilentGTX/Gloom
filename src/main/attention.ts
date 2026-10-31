@@ -2,7 +2,7 @@
 // notification (clicking it opens the session), the taskbar button flashing,
 // and a badge on it counting the sessions waiting for you. Nothing of this
 // while Gloom is in front: the chat and the sidebar already say it there.
-import { BrowserWindow, nativeImage, Notification } from 'electron'
+import { app, BrowserWindow, nativeImage, Notification } from 'electron'
 import { IPC } from '@shared/ipc'
 import type { LiveEvent, PromptCard } from '@shared/live'
 import { settings } from './claude/settings'
@@ -29,11 +29,10 @@ export function reveal(win: BrowserWindow, id: string): void {
   win.webContents.send(IPC.liveEvent, event)
 }
 
-export function attend(win: BrowserWindow | null, id: string, title: string, kind: AttentionKind, card?: PromptCard): void {
-  if (!win || win.isDestroyed() || (win.isFocused() && win.isVisible() && !win.isMinimized())) return
-  win.flashFrame(true)
-  if (!settings().notifications || !Notification.isSupported()) return
-  const note = new Notification({ title, body: body(kind, card) })
+/** Shows a Windows notification; a click opens the session. */
+let showNote = (win: BrowserWindow, id: string, title: string, text: string): void => {
+  if (!Notification.isSupported()) return
+  const note = new Notification({ title, body: text })
   shown.add(note)
   note.on('click', () => {
     shown.delete(note)
@@ -41,6 +40,25 @@ export function attend(win: BrowserWindow | null, id: string, title: string, kin
   })
   note.on('close', () => shown.delete(note))
   note.show()
+}
+
+export function attend(win: BrowserWindow | null, id: string, title: string, kind: AttentionKind, card?: PromptCard): void {
+  if (!win || win.isDestroyed() || (win.isFocused() && win.isVisible() && !win.isMinimized())) return
+  win.flashFrame(true)
+  if (settings().notifications) showNote(win, id, title, body(kind, card))
+}
+
+// The end-to-end tests record notifications instead of showing them (development builds only).
+if (!app.isPackaged) {
+  Object.assign(globalThis, {
+    gloomAttention: {
+      record(): { title: string; body: string }[] {
+        const notes: { title: string; body: string }[] = []
+        showNote = (_win, _id, title, text) => void notes.push({ title, body: text })
+        return notes
+      }
+    }
+  })
 }
 
 /** The taskbar's badge: how many sessions wait for you, drawn by the window (main has no canvas). */
