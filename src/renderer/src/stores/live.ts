@@ -20,12 +20,18 @@ import {
   type Settings,
   type StreamState,
   type UsageInfo,
-  type AccountSummary
+  type AccountSummary,
+  type Effort,
+  type ModeId,
+  isMode
 } from '@shared/live'
-import { ELSEWHERE_MS, type SessionMeta } from '@shared/library'
+import type { RepoInfo } from '@shared/git'
+import { ELSEWHERE_MS, folderDefaults, folderTrusted, type SessionMeta } from '@shared/library'
 import type { PrStatus } from '@shared/pr'
 import { notify } from '../lib/toast'
 import { useFinished } from '../features/concept/finished'
+import { effortsFor } from '../features/chat/pickers'
+import { recentEnvironments, type Environment } from '../features/sessions/environments'
 import { useLibrary } from './library'
 import { useUi } from './ui'
 
@@ -53,6 +59,24 @@ export interface Editing {
 }
 
 const EMPTY_DRAFT: Draft = { text: '', images: [] }
+
+/** The composer's key for a session not made yet. */
+export const DRAFT_ID = 'new-session'
+
+export interface NewDraft {
+  /** The library folder it files into (null: Unfiled). */
+  folderId: string | null
+  /** Where it runs; null until there's somewhere (no folder worked in yet). */
+  env: Environment | null
+  /** In a git repository: a worktree of its own. */
+  worktree: boolean
+  /** The local folder's repository, once asked; a worktree is only offered in one that isn't a worktree itself. */
+  repo: RepoInfo | null
+  model: string | null
+  mode: ModeId
+  effort: Effort | null
+}
+
 /** Provisional entries kept per session; main sends two turns' worth at most. */
 const PROVISIONAL_MAX = 600
 
@@ -75,8 +99,12 @@ interface LiveState {
   claude: ClaudeInfo | null
   /** Sessions' pull requests as Gloom last read them (null: none). */
   prs: Record<string, PrStatus | null>
-  /** The New Session sheet, and the folder it files into. */
-  newSession: { open: boolean; folderId: string | null }
+  /**
+   * A session not started yet, as the Claude app's new-session screen: where
+   * it runs and how, written in the composer under DRAFT_ID. Nothing is made
+   * (no process, no worktree) until its first message goes.
+   */
+  newDraft: NewDraft | null
   settingsOpen: boolean
 
   draft(id: string): Draft
@@ -98,8 +126,11 @@ interface LiveState {
   takeOver(id: string): void
   /** Makes a session, files it, and opens it. */
   create(request: NewSessionRequest, folderId: string | null): Promise<string | null>
+  /** Opens the new-session screen, ready to type: filed into this folder (by default the open session's), where you last worked. */
   openNewSession(folderId?: string | null): void
-  closeNewSession(): void
+  setNewDraft(patch: Partial<NewDraft>): void
+  /** Makes the session from the draft and sends its first message; resolves false (after saying why) when it couldn't. */
+  startDraft(): Promise<boolean>
   setSettingsOpen(open: boolean): void
   updateSettings(patch: Partial<Settings>): Promise<void>
 }
@@ -130,7 +161,7 @@ export const useLive = create<LiveState>()((set, get) => ({
   settings: DEFAULT_SETTINGS,
   claude: null,
   prs: {},
-  newSession: { open: false, folderId: null },
+  newDraft: null,
   settingsOpen: false,
 
   draft: (id) => get().drafts[id] ?? EMPTY_DRAFT,
@@ -239,13 +270,62 @@ export const useLive = create<LiveState>()((set, get) => ({
     return id
   },
 
-  // One sheet at a time: opening one closes the other.
   openNewSession: (folderId) => {
     const folder = folderId === undefined ? currentFolder() : folderId
-    set({ newSession: { open: true, folderId: folder }, settingsOpen: false })
+    const { library, sessions } = useLibrary.getState()
+    const { settings } = get()
+    // The folder's defaults (or its parents'), else Settings'; it runs where the folder says, else where you last worked.
+    const d = folderDefaults(library.folders, folder)
+    const recent = recentEnvironments(Object.values(sessions), library.sessions, settings.sshHosts)
+    const env: Environment | null = d.cwd ? { kind: 'local', cwd: d.cwd } : (recent[0] ?? null)
+    set({
+      newDraft: { folderId: folder, env, worktree: useUi.getState().newWorktree, repo: null, model: d.model ?? settings.model, mode: isMode(d.mode) ? d.mode : settings.mode, effort: settings.effort },
+      settingsOpen: false
+    })
+    // The chat shows the new session's screen in place of the open one, the keyboard in its composer.
+    useUi.getState().select([])
+    requestAnimationFrame(() => requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('textarea[data-composer]')?.focus()))
   },
-  closeNewSession: () => set({ newSession: { ...get().newSession, open: false } }),
-  setSettingsOpen: (open) => set(open ? { settingsOpen: true, newSession: { ...get().newSession, open: false } } : { settingsOpen: false }),
+  setNewDraft: (patch) => {
+    const d = get().newDraft
+    if (!d) return
+    if (patch.worktree !== undefined) useUi.getState().setNewWorktree(patch.worktree)
+    set({ newDraft: { ...d, ...patch } })
+  },
+  startDraft: async () => {
+    const api = window.gloom
+    const d = get().newDraft
+    const draft = get().draft(DRAFT_ID)
+    if (!api || !d?.env || (!draft.text.trim() && !draft.images.length)) return false
+    const env = d.env
+    // In the cloud, the message is the task: it runs on claude.ai, not here.
+    if (env.kind === 'cloud') {
+      try {
+        await api.cloud.start(env.cwd, draft.text)
+      } catch (error) {
+        notify(failure(error))
+        return false
+      }
+      get().setDraft(DRAFT_ID, EMPTY_DRAFT)
+      set({ newDraft: null })
+      notify('The cloud session started: it opened on claude.ai')
+      return true
+    }
+    // A folder Claude hasn't run in: sending its first message trusts it (the screen says so).
+    if (env.kind === 'local' && !folderTrusted(useLibrary.getState().library, Object.values(useLibrary.getState().sessions), env.cwd)) {
+      await useLibrary.getState().apply({ type: 'trustFolder', path: env.cwd }, { record: false })
+    }
+    const effort = d.effort && effortsFor(d.model, get().models).includes(d.effort) ? d.effort : null
+    const worktree = env.kind === 'local' && d.worktree && !!d.repo && !d.repo.worktree
+    const id = await get().create({ cwd: env.cwd, model: d.model, mode: d.mode, effort, worktree, ...(env.kind === 'ssh' ? { ssh: env.host } : {}) }, d.folderId)
+    if (!id) return false
+    // What you wrote goes with it, as the session's first message.
+    get().setDraft(id, draft)
+    get().setDraft(DRAFT_ID, EMPTY_DRAFT)
+    set({ newDraft: null })
+    return get().send(id)
+  },
+  setSettingsOpen: (open) => set(open ? { settingsOpen: true } : { settingsOpen: false }),
 
   updateSettings: async (patch) => {
     const api = window.gloom

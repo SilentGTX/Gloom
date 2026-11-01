@@ -188,13 +188,11 @@ test('the Effort menus open where they appear, and what you pick shows on the bu
   await pick('Effort: Default', 'High')
   await expect(page.getByRole('button', { name: 'Effort: High' })).toBeVisible()
 
+  // A new session's composer: its pick stays with the draft until the first message.
   await triggerShortcut(app, 'CmdOrCtrl+N')
-  const sheet = page.getByRole('dialog', { name: 'New Session' })
-  await expect(sheet).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('New Session')
   await pick('Effort: Default', 'Max')
-  await expect(sheet.getByRole('button', { name: 'Effort: Max' })).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(sheet).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Effort: Max' })).toBeVisible()
 
   await triggerShortcut(app, 'CmdOrCtrl+,')
   const settings = page.getByRole('dialog', { name: 'Settings' })
@@ -272,22 +270,26 @@ test('New Session starts in a folder you trust, and runs from its first message'
   }, fresh)
 
   await triggerShortcut(app, 'CmdOrCtrl+N')
-  const sheet = page.getByRole('dialog', { name: 'New Session' })
-  // The last folder you worked in comes first; Claude has run there, so no trust question.
-  await expect(sheet.getByRole('button', { name: /^Working folder: / })).toContainText(cwd.split(/[\\/]/).pop()!)
-  await expect(sheet.getByRole('button', { name: 'Start Session' })).toBeVisible()
-  await sheet.getByRole('button', { name: /^Working folder: / }).click()
-  await page.getByRole('menuitem', { name: 'Choose Folder…' }).click()
-  await expect(sheet.getByText(/Claude hasn’t worked here before/)).toBeVisible()
-  await sheet.getByRole('button', { name: 'Trust and Start' }).click()
-
-  await expect(sheet).toHaveCount(0)
+  // No dialog: the chat is the new session, ready to type, where you last worked (checked). Claude has run there, so no trust note.
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('New Session')
   const composer = page.getByRole('textbox', { name: 'Message' })
   await expect(composer).toBeFocused()
+  const where = page.getByRole('region', { name: 'Where Claude works' })
+  await expect(where.getByRole('button', { name: cwd.split(/[\\/]/).pop()!, pressed: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Environment: / })).toContainText(cwd.split(/[\\/]/).pop()!)
+  await expect(page.getByRole('note')).toHaveCount(0)
+  // Somewhere new, from Choose Environment: a folder Claude hasn't worked in, which the first message trusts.
+  await where.getByRole('button', { name: 'Choose environment' }).click()
+  await page.getByRole('combobox', { name: 'Search environments' }).fill('choose')
+  await page.getByRole('option', { name: 'Choose Folder…' }).click()
+  await expect(page.getByRole('button', { name: /^Environment: / })).toContainText(fresh.split(/[\\/]/).pop()!)
+  await expect(page.getByRole('note')).toContainText('hasn’t worked in')
+
   await composer.fill("Remember the word 'kiwi'. Reply with just: OK")
   await composer.press('Enter')
   await expect(transcript().getByText('OK', { exact: true })).toBeVisible()
+  // It ran in the folder chosen, made only when the message went.
+  expect((await page.evaluate(() => window.gloom!.live.list())).map((s) => s.cwd)).toContain(fresh)
   // It's in the sidebar, named by what you asked, before any transcript exists.
   await openGroup(page, 'All Sessions')
   await expect(sessionRow(page, "Remember the word 'kiwi'. Reply with just: OK")).toBeVisible()

@@ -95,11 +95,14 @@ test('a new session in a git repository works in a worktree of its own, with its
   await setWindowSize(app, 1280, 900)
   await expect(sessionRow(page, 'Earlier work')).toHaveCount(0)
   await triggerShortcut(app, 'CmdOrCtrl+N')
-  const sheet = page.getByRole('dialog', { name: 'New Session' })
-  await expect(sheet.getByRole('button', { name: new RegExp(`Working folder: ${repoDir.replace(/\\/g, '\\\\')}`) })).toBeVisible()
-  await expect(sheet.getByRole('checkbox', { name: /Work on a branch of its own/ })).toBeChecked({ timeout: 10_000 })
+  // The repository is where it runs, and under the composer Worktree is on.
+  await expect(page.getByRole('button', { name: /^Environment: / })).toContainText(repoDir.split(/[\\/]/).pop()!)
+  await expect(page.getByRole('button', { name: 'Worktree', pressed: true })).toBeVisible({ timeout: 10_000 })
   await page.screenshot({ path: join(screens, 'new-session-worktree.png') })
-  await sheet.getByRole('button', { name: /Start Session|Trust and Start/ }).click()
+  // Nothing's made until the first message goes; then it runs on a branch of its own.
+  const composer = page.getByRole('textbox', { name: 'Message' })
+  await composer.fill('Reply with just: OK')
+  await composer.press('Enter')
 
   const toolbar = page.locator('main header')
   await expect(toolbar.getByText(/^claude\/[a-z]+-[a-z]+$/)).toBeVisible({ timeout: 15_000 })

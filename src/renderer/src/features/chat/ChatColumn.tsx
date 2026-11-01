@@ -13,7 +13,8 @@ import { runCommand } from '../../lib/commands'
 import { useNow } from '../../lib/now'
 import { relativeTime } from '../../lib/time'
 import { useLibrary } from '../../stores/library'
-import { loadSnapshot, useElsewhere, useLive } from '../../stores/live'
+import { DRAFT_ID, loadSnapshot, useElsewhere, useLive } from '../../stores/live'
+import { NewSessionView } from '../sessions/NewSessionView'
 import { useColumnTranscriptApi } from '../../stores/transcript'
 import { useUi } from '../../stores/ui'
 import { ConceptToolbar, type Status } from '../concept/ChatToolbar'
@@ -86,7 +87,9 @@ export const ChatColumn = memo(function ChatColumn({
   const summary = useLive((s) => (session ? s.sessions[session.id] : undefined))
   const now = useNow(15_000)
   const elsewhere = useElsewhere(session, now)
-  const title = session ? (summary?.state === 'new' ? 'New Session' : displayTitle(session, entry)) : null
+  // Nothing open and a new session waiting for its first message: its screen, ready to type.
+  const drafting = useLive((s) => !session && !split && selection.length === 0 && !!s.newDraft)
+  const title = session ? (summary?.state === 'new' ? 'New Session' : displayTitle(session, entry)) : drafting ? 'New Session' : null
   const id = session?.id ?? null
   // A session made here has no transcript until its first message is written.
   const readable = !!session?.file
@@ -146,6 +149,7 @@ export const ChatColumn = memo(function ChatColumn({
               {title}
             </BarTitle>
           )}
+          {drafting && <BarTitle>New Session</BarTitle>}
           {session && <WorktreeCapsule id={session.id} />}
           <div className="flex-1" />
           <UpdateButton />
@@ -176,6 +180,11 @@ export const ChatColumn = memo(function ChatColumn({
           ) : (
             conversation(session)
           )}
+        </ErrorBoundary>
+      ) : drafting ? (
+        <ErrorBoundary part="Chat" resetKey={DRAFT_ID}>
+          <NewSessionView />
+          <Composer key={DRAFT_ID} sessionId={DRAFT_ID} meta={undefined} />
         </ErrorBoundary>
       ) : selection.length > 1 ? (
         <EmptyState icon={<MessagesSquare size={40} strokeWidth={1.25} />} title={`${selection.length} Sessions Selected`}>

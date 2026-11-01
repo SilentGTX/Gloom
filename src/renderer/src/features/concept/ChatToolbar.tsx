@@ -59,6 +59,8 @@ export function ConceptToolbar({
           </p>
         </div>
       )}
+      {/* A new session not started yet: its title alone; where it runs is under its composer. */}
+      {!session && title && <h1 className="truncate px-1 font-display text-[14px] font-bold tracking-[-0.01em] text-label">{title}</h1>}
       <div className="min-w-2 flex-1" />
       {session && (
         <Track

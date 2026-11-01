@@ -2,13 +2,11 @@ import { RewindSheet } from '../chat/Rewind'
 import { MergeSheet, RemoveWorktreeSheet } from '../chat/Worktree'
 import { SettingsSheet } from '../settings/Settings'
 import { RoutinesSheet } from '../routines/RoutinesSheet'
-import { NewSessionSheet } from './NewSession'
 
-/** The window-wide sheets: New Session, Settings, Rewind, Merge and a worktree's removal. One shows at a time. */
+/** The window-wide sheets: Settings, Rewind, Merge, a worktree's removal and Routines. One shows at a time. A new session is the chat itself (NewSessionView). */
 export function SessionsSheetsHost() {
   return (
     <>
-      <NewSessionSheet />
       <SettingsSheet />
       <RewindSheet />
       <MergeSheet />

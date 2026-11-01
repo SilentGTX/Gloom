@@ -4,11 +4,11 @@
 // to their new places when the order changes.
 import { createContext, useContext, useEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type Ref } from 'react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
-import { Archive, CalendarClock, ChevronRight, Clock3, Folder as FolderIcon, Inbox, MessagesSquare, Pin, type LucideIcon } from 'lucide-react'
+import { Archive, CalendarClock, ChevronRight, Clock3, Folder as FolderIcon, Inbox, MessagesSquare, Pin, Plus, type LucideIcon } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { SmartFolder } from '@shared/library'
+import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
-import { fullDate, relativeTime } from '../../lib/time'
 import { useElsewhere, useLive } from '../../stores/live'
 import { useFinished } from '../concept/finished'
 import { Spinner, useConcept } from '../concept/parts'
@@ -212,6 +212,28 @@ export function GroupRow({
         ) : (
           <span className={cn('min-w-0 flex-1 truncate', concept ? 'font-medium' : 'font-semibold')}>{label}</span>
         )}
+        {/* A new session in this folder, ready to type, as the Claude app's + beside a project. The row keeps the keyboard; its menu has New Session Here too. */}
+        {!renaming && folder && (
+          <Tooltip label={`New Session in ${folder.name}`}>
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label={`New session in ${folder.name}`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                useLive.getState().openNewSession(folder.id)
+              }}
+              className={cn(
+                'no-drag -my-1 flex size-6 shrink-0 items-center justify-center rounded-[6px] text-label-secondary opacity-0 outline-none',
+                'transition-opacity duration-[var(--duration-press)] hover:bg-fill-strong hover:text-label active:scale-[0.94] motion-reduce:active:scale-100',
+                'group-hover/row:opacity-100 group-focus-visible/row:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100'
+              )}
+            >
+              <Plus size={14} strokeWidth={2} aria-hidden />
+            </button>
+          </Tooltip>
+        )}
         {!renaming && <Count value={row.count} />}
         {(zone === 'before' || zone === 'after') && <InsertionLine at={zone} indent={4 + row.depth * INDENT + 22} />}
       </div>
@@ -270,7 +292,6 @@ export function SessionRow({
   const elsewhere = useElsewhere(meta, now)
   const working = live?.state === 'working' || live?.state === 'starting'
   const waiting = live?.state === 'waiting'
-  const updated = Math.max(meta.updated, live && live.state !== 'new' ? live.lastActive : 0)
   const preview = meta.lastPrompt && meta.lastPrompt !== title ? meta.lastPrompt : meta.firstPrompt !== title ? meta.firstPrompt : null
   const concept = useConcept()
   const finished = useFinished((s) => s.ids.has(id))
@@ -324,16 +345,8 @@ export function SessionRow({
           {finished && !selected && <span className="sr-only">Claude finished</span>}
           {entry?.unread && !selected && <span className="sr-only">Unread</span>}
           {inSplit && <span className="sr-only">Open in split view</span>}
-          {waiting ? (
-            <span className="row-waiting shrink-0 pl-1 text-[0.75rem] font-medium">Waiting</span>
-          ) : (
-            !working &&
-            !elsewhere && (
-              <time dateTime={new Date(updated).toISOString()} title={fullDate(updated)} className="row-secondary shrink-0 pl-1 text-[0.75rem] tabular">
-                {relativeTime(updated, now)}
-              </time>
-            )
-          )}
+          {/* No time on the right (you asked): the order says what you worked in last; Waiting still says Claude needs you. */}
+          {waiting && <span className="row-waiting shrink-0 pl-1 text-[0.75rem] font-medium">Waiting</span>}
         </div>
       </motion.li>
     )
@@ -386,14 +399,8 @@ export function SessionRow({
           {/* The shimmer says it to the eye ("Now" too, under reduced motion); this says it to a screen reader. */}
           {elsewhere && <span className="sr-only">Running in another app</span>}
           {working && <span className="sr-only">Claude is working</span>}
-          {waiting ? (
-            // Claude waits on a card: said in words, in the warning ink, where the time was.
-            <span className="row-waiting shrink-0 pl-1 text-[0.75rem] font-semibold">Waiting</span>
-          ) : (
-            <time dateTime={new Date(updated).toISOString()} title={fullDate(updated)} className="row-secondary shrink-0 pl-1 text-[0.75rem] tabular">
-              {relativeTime(updated, now)}
-            </time>
-          )}
+          {/* Claude waits on a card: said in words, in the warning ink. */}
+          {waiting && <span className="row-waiting shrink-0 pl-1 text-[0.75rem] font-semibold">Waiting</span>}
         </div>
         {preview && <p className="row-secondary truncate text-[0.8125rem] leading-snug">{preview}</p>}
       </div>

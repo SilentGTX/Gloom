@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react'
 import { ArrowUp, CircleAlert, Lock, Paperclip, Square, X, Zap } from 'lucide-react'
 import type { SessionMeta } from '@shared/library'
-import { isEffort, modelChoiceFor, type CanSend, type CommandInfo, type LiveSummary } from '@shared/live'
+import { isEffort, modelChoiceFor, type CanSend, type CommandInfo, type Effort, type LiveSummary, type ModeId } from '@shared/live'
 import { Button } from '../../components/ui/Button'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
@@ -9,7 +9,8 @@ import { setComposerSpace } from '../../lib/composer-space'
 import { runCommand } from '../../lib/commands'
 import { useNow } from '../../lib/now'
 import { notify } from '../../lib/toast'
-import { isBusy, useElsewhere, useLive, type Draft, type DraftImage } from '../../stores/live'
+import { DRAFT_ID, isBusy, useElsewhere, useLive, type Draft, type DraftImage } from '../../stores/live'
+import { DraftBar, TrustNote } from '../sessions/NewSessionView'
 import { useLibrary } from '../../stores/library'
 import { stopNoting, useNoting } from '../concept/noting'
 import { useConcept } from '../concept/parts'
@@ -105,11 +106,15 @@ export function Composer({ sessionId, meta }: { sessionId: string; meta: Session
   }, [])
 
   const cwd = summary?.cwd ?? meta?.cwd
+  // A session not made yet: it can take its first message once it has somewhere to run.
+  const draft = sessionId === DRAFT_ID
+  const draftReady = useLive((s) => !!s.newDraft?.env)
   // Asked again after the folder is made again.
   const [recreated, setRecreated] = useState(0)
   useEffect(() => {
     let alive = true
     setCan(null)
+    if (draft) return
     void window.gloom?.live.check(sessionId).then((result) => alive && setCan(result))
     return () => {
       alive = false
@@ -141,6 +146,13 @@ export function Composer({ sessionId, meta }: { sessionId: string; meta: Session
           <Notice icon={<CircleAlert size={15} strokeWidth={1.75} />} text={can.reason} path={can.path} action={action(can.kind)} />
         ) : elsewhere ? (
           <Notice icon={<Lock size={15} strokeWidth={1.75} />} text="Running in another app. Messages wait until it’s been quiet for a minute." action={{ label: 'Take Over', run: () => useLive.getState().takeOver(sessionId) }} />
+        ) : draft ? (
+          <>
+            <TrustNote />
+            <Box sessionId={sessionId} summary={undefined} ready={draftReady} />
+            {/* Where it runs and whether it gets a worktree, under the box as in the Claude app. */}
+            <DraftBar />
+          </>
         ) : (
           <>
             {summary && <Problems summary={summary} />}
@@ -239,6 +251,8 @@ function useCommands(sessionId: string, query: string | null): CommandInfo[] {
   useEffect(() => setAll(null), [sessionId])
   useEffect(() => {
     if (query === null || all) return
+    // A session not made yet has no process to ask: Gloom's own commands only.
+    if (sessionId === DRAFT_ID) return setAll([])
     let alive = true
     void window.gloom?.live.commands(sessionId).then((list) => alive && setAll(list))
     return () => {
@@ -271,6 +285,7 @@ function useFiles(sessionId: string, focused: boolean, mentionStart: number | nu
     const gained = focused && (other || !before.focused)
     const started = mentionStart !== null && (other || mentionStart !== before.start)
     if (!gained && !started) return
+    if (sessionId === DRAFT_ID) return
     window.gloom?.live.files(sessionId).then(
       (listing) => last.current?.id === sessionId && setFiles({ id: sessionId, prepared: prepareFiles(listing) }),
       (error: unknown) => console.warn('Gloom: listing files:', error)
@@ -337,15 +352,21 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
   // Never picked in Gloom: the model its transcript last ran on (Claude Code doesn't write the effort down).
   const ranOn = useColumnTranscript((s) => (s.id === sessionId ? (s.entries.findLast((e) => (e.kind === 'text' || e.kind === 'tool') && !!e.model) as { model?: string | null } | undefined)?.model : undefined))
   const fromTranscript = entry && 'model' in entry ? undefined : modelChoiceFor(ranOn, models)
-  const model = summary ? summary.model : entry && 'model' in entry ? (entry.model ?? null) : (fromTranscript ?? settings.model)
-  const mode = summary?.mode ?? settings.mode
+  // A session not made yet: what the new-session screen holds.
+  const newDraft = useLive((s) => (sessionId === DRAFT_ID ? s.newDraft : null))
+  const isDraft = sessionId === DRAFT_ID
   const kept = entry && 'effort' in entry ? entry.effort : undefined
-  const effort = summary ? summary.effort : kept !== undefined ? (isEffort(kept) ? kept : null) : settings.effort
+  const model = newDraft ? newDraft.model : summary ? summary.model : entry && 'model' in entry ? (entry.model ?? null) : (fromTranscript ?? settings.model)
+  const mode = newDraft ? newDraft.mode : (summary?.mode ?? settings.mode)
+  const effort = newDraft ? newDraft.effort : summary ? summary.effort : kept !== undefined ? (isEffort(kept) ? kept : null) : settings.effort
+  // The chips change the draft until it's a session; then the session itself.
+  const setRun = (request: { model: string | null } | { mode: ModeId } | { effort: Effort | null }) =>
+    isDraft ? useLive.getState().setNewDraft(request) : void useLive.getState().set(sessionId, request)
   const efforts = effortsFor(model, models)
   // …and kept, so the session's next process starts on it too.
   useEffect(() => {
-    if (!summary && fromTranscript) void useLibrary.getState().apply({ type: 'setSessionRun', id: sessionId, model: fromTranscript }, { record: false })
-  }, [summary, fromTranscript, sessionId])
+    if (!summary && fromTranscript && !isDraft) void useLibrary.getState().apply({ type: 'setSessionRun', id: sessionId, model: fromTranscript }, { record: false })
+  }, [summary, fromTranscript, sessionId, isDraft])
   // Fast mode, for a model that offers it (or a session already running fast, to turn it off).
   const fastOffered = !!summary?.fast || models.some((m) => m.fast && (m.value === model || m.value === summary?.activeModel))
   // A suggested next prompt (Settings › General): shown in the empty box, Tab takes it.
@@ -405,6 +426,11 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
       return
     }
     if (!canSend) return
+    // The first message of a session not made yet makes it, then goes.
+    if (isDraft) {
+      void useLive.getState().startDraft()
+      return
+    }
     if (noting) {
       const note = draft.text.trim()
       if (!note) return
@@ -536,7 +562,7 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
           onBlur={() => setCaret(null)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          placeholder={noting ? 'Tell Claude what to do instead' : suggestion ?? (summary?.state === 'new' ? 'What should Claude do?' : 'Message Claude')}
+          placeholder={noting ? 'Tell Claude what to do instead' : suggestion ?? (summary?.state === 'new' || isDraft ? 'What should Claude do?' : 'Message Claude')}
           aria-label={noting ? 'What Claude should do instead' : 'Message'}
           aria-description={suggestion ? `Suggested: ${suggestion}. Press Tab to use it.` : undefined}
           aria-autocomplete={slash !== null || mention !== null ? 'list' : undefined}
@@ -552,10 +578,10 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
             </Button>
           </Tooltip>
           <input ref={files} type="file" multiple hidden onChange={onPick} />
-          <ModePicker value={mode} onChange={(m) => void useLive.getState().set(sessionId, { mode: m })} />
-          <ModelPicker value={model} models={models} onChange={(m) => void useLive.getState().set(sessionId, { model: m })} />
-          {efforts.length > 0 && <EffortPicker value={effort} efforts={efforts} onChange={(v) => void useLive.getState().set(sessionId, { effort: v })} />}
-          {fastOffered && <FastToggle sessionId={sessionId} summary={summary} />}
+          <ModePicker value={mode} onChange={(m) => setRun({ mode: m })} />
+          <ModelPicker value={model} models={models} onChange={(m) => setRun({ model: m })} />
+          {efforts.length > 0 && <EffortPicker value={effort} efforts={efforts} onChange={(v) => setRun({ effort: v })} />}
+          {fastOffered && !isDraft && <FastToggle sessionId={sessionId} summary={summary} />}
           <div className="flex-1" />
           {suggestion && (
             <span aria-hidden className="mr-1 hidden items-center gap-1 text-[11.5px] text-label-tertiary sm:flex">

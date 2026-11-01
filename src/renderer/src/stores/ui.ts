@@ -78,6 +78,8 @@ interface UiState extends ColumnPrefs {
   inspectorFolded: InspectorPart[]
   /** The task list above the composer: open to every step, or folded to the one under way (as it starts). */
   planOpen: boolean
+  /** A new session in a git repository gets a worktree of its own: the last choice, on to begin with. */
+  newWorktree: boolean
   /** Conversations you switched to another Transcript View than Settings' default, by session. Not kept. */
   transcriptViews: Record<string, TranscriptView>
   /** The side pane on the trailing side, and which tab it shows; the diff pane and inspector step aside for it. Not kept. */
@@ -126,6 +128,7 @@ interface UiState extends ColumnPrefs {
   /** Folds or unfolds a section; with no `open`, flips it. */
   foldInspectorPart(part: InspectorPart, open?: boolean): void
   setPlanOpen(open: boolean): void
+  setNewWorktree(on: boolean): void
   setTranscriptView(id: string, view: TranscriptView): void
   openSide(tab: SideTab, viaKeyboard?: boolean): void
   /** Shows the tab, or puts the pane away if it's the one showing. */
@@ -151,8 +154,8 @@ export const useUi = create<UiState>()(
         instant: false,
         toggledAt: 0,
         search: '',
-        // Newest first: a session keeps its place while it runs (by last activity it jumped about).
-        sort: 'created',
+        // The sessions you worked in last come first (a running one rises to the top as it works).
+        sort: 'activity',
         openSmart: [],
         archive: false,
         shown: {},
@@ -176,6 +179,7 @@ export const useUi = create<UiState>()(
         // As Claude Code's panel starts: the context as its share alone, the details folded.
         inspectorFolded: ['context', 'session'],
         planOpen: false,
+        newWorktree: true,
         transcriptViews: {},
         side: null,
         sideWidth: SIDE.initial,
@@ -267,12 +271,13 @@ export const useUi = create<UiState>()(
           const fold = open === undefined ? !folded.includes(part) : !open
           if (fold !== folded.includes(part)) set({ inspectorFolded: fold ? [...folded, part] : folded.filter((p) => p !== part) })
         },
-        setPlanOpen: (open) => set({ planOpen: open })
+        setPlanOpen: (open) => set({ planOpen: open }),
+        setNewWorktree: (on) => set({ newWorktree: on })
       }
     },
     {
       name: 'gloom.ui',
-      version: 4,
+      version: 5,
       partialize: (s) => ({
         sideWidth: s.sideWidth,
         splitWidth: s.splitWidth,
@@ -290,6 +295,7 @@ export const useUi = create<UiState>()(
         inspectorOrder: s.inspectorOrder,
         inspectorFolded: s.inspectorFolded,
         planOpen: s.planOpen,
+        newWorktree: s.newWorktree,
         sort: s.sort,
         openSmart: s.openSmart,
         // The open session comes back after a restart (an update, say).
@@ -308,6 +314,8 @@ export const useUi = create<UiState>()(
         // Sorting by last activity reordered the sidebar every time a running
         // session wrote; it moves over to newest first, which holds still.
         if (version < 4 && state.sort === 'activity') state.sort = 'created'
+        // Then: the sessions you worked in last come first again, in every folder (you asked for the latest on top).
+        if (version < 5 && state.sort === 'created') state.sort = 'activity'
         return state as unknown as UiState
       }
     }
