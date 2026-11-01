@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { PetView } from '@shared/ipc'
-import { arrive, PetArt, petMotion } from './Pet'
+import { arrive, PixelPet } from './Pet'
 import './pet-window.css'
 
 /** Past this many pixels a press is a drag, not a click. */
@@ -64,7 +64,6 @@ export function PetWindow() {
   }
 
   if (!view) return null
-  const motionProps = petMotion(view.mood, reduce)
   return (
     <div className="pet-stage">
       <AnimatePresence initial={false}>
@@ -88,14 +87,8 @@ export function PetWindow() {
         )}
       </AnimatePresence>
       <div data-pet-hit className="pet-body" title="Drag to move · Click to show Gloom" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
-        <motion.div
-          key={`${view.kind}-${view.mood}`}
-          className="origin-bottom"
-          initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, ...motionProps.animate }}
-          transition={{ opacity: arrive(reduce), ...(reduce ? {} : { scale: arrive(reduce) }), ...motionProps.transition }}
-        >
-          <PetArt kind={view.kind} mood={view.mood} size={80} />
+        <motion.div key={view.kind} className="origin-bottom" initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={arrive(reduce)}>
+          <PixelPet kind={view.kind} mood={view.mood} still={!!reduce} />
         </motion.div>
       </div>
     </div>

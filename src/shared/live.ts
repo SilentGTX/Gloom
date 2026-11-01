@@ -509,8 +509,8 @@ export interface Settings {
   petKind: PetKind
 }
 
-/** The built-in pets: each is drawn in SVG, so none is a file to download. */
-export const PET_KINDS = ['blob', 'sprout', 'orb'] as const
+/** The built-in pets: pixel characters drawn with pxl (art/pets.px.js), each with a resting and a working loop. */
+export const PET_KINDS = ['blob', 'sprout', 'ghost', 'ember', 'cat', 'frog', 'bot', 'owl'] as const
 export type PetKind = (typeof PET_KINDS)[number]
 export const isPetKind = (v: unknown): v is PetKind => (PET_KINDS as readonly unknown[]).includes(v)
 

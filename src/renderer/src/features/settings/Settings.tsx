@@ -32,7 +32,16 @@ const archiveLabel = (d: number) => (d === 0 ? 'Never' : d === 1 ? 'After 1 day'
 /** The output styles Claude Code comes with, until a session lists yours too. */
 const BUILT_IN_STYLES = ['Concise', 'Explanatory', 'Learning', 'Proactive']
 
-const PET_LABELS: Record<PetKind, string> = { blob: 'Blob', sprout: 'Sprout', orb: 'Orb' }
+const PET_LABELS: Record<PetKind, { label: string; detail: string }> = {
+  blob: { label: 'Blob', detail: 'A blue cloud with a prompt for a face' },
+  sprout: { label: 'Sprout', detail: 'A seedling with two leaves' },
+  ghost: { label: 'Ghost', detail: 'A soft violet ghost' },
+  ember: { label: 'Ember', detail: 'A fire spirit' },
+  cat: { label: 'Cat', detail: 'A black cat with yellow eyes' },
+  frog: { label: 'Frog', detail: 'A frog with a wide smile' },
+  bot: { label: 'Bot', detail: 'A little screen-faced robot' },
+  owl: { label: 'Owl', detail: 'A wide-eyed owl' }
+}
 
 const LEVELS: { value: NoticeLevel; label: string; detail: string }[] = [
   { value: 'banner', label: 'Banners', detail: 'A notification and the taskbar badge' },
@@ -219,15 +228,15 @@ function General() {
         <Toggle checked={glass} onChange={() => runCommand('view.toggleGlass')} label="Always show glass" />
       </Row>
       <Heading>Pets</Heading>
-      <Row label="Show a pet" hint="A small companion that floats on top of all your apps. It bobs while a session works, and says when one needs you or is ready for review. Drag it anywhere; click it to bring Gloom back. /pet does the same.">
+      <Row label="Show a pet" hint="A small companion that floats on top of all your apps. It hops while a session works, and says when one needs you or is ready for review. Drag it anywhere; click it to bring Gloom back. /pet does the same.">
         <Toggle checked={settings.pet} onChange={(pet) => update({ pet })} label="Show a pet" />
       </Row>
       {settings.pet && (
         <Row label="Pet">
-          <Segmented
+          <Choice
             label="Pet"
             value={settings.petKind}
-            options={PET_KINDS.map((kind) => ({ value: kind, label: PET_LABELS[kind] }))}
+            options={PET_KINDS.map((kind) => ({ value: kind, ...PET_LABELS[kind] }))}
             onChange={(petKind) => isPetKind(petKind) && update({ petKind })}
           />
         </Row>
