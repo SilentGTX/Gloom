@@ -206,6 +206,16 @@ describe('the task list, the next-step box and chapters (part B)', async () => {
     ])
   })
 
+  it('checks the list off when a turn wraps up, even with steps never advanced', () => {
+    const plan = { name: 'mcp__gloom__update_plan', input: { items: [{ content: 'A', status: 'in_progress' }, { content: 'B', status: 'pending' }] } }
+    const wrap = { name: 'mcp__gloom__wrap_up', input: { recap: 'Built it.', ask: 'Ship?', actions: [{ label: 'Ship' }] } }
+    expect(planOf([plan, wrap]).map((s) => s.status)).toEqual(['completed', 'completed'])
+    // The Claude app's wrap_up does the same; a new list afterwards starts fresh.
+    expect(planOf([plan, { ...wrap, name: 'mcp__ccd_turn__wrap_up' }, plan]).map((s) => s.status)).toEqual(['in_progress', 'pending'])
+    // A malformed one (no recap) shows no box, and leaves the list.
+    expect(planOf([plan, { name: 'mcp__gloom__wrap_up', input: {} }]).map((s) => s.status)).toEqual(['in_progress', 'pending'])
+  })
+
   it('keeps a box’s buttons only with its question, two at most', () => {
     expect(wrapUpOf({ recap: 'Done.', actions: [{ label: 'X' }] })).toEqual({ recap: 'Done.', ask: null, actions: [], blocked: false })
     expect(wrapUpOf({ recap: 'Done.', ask: 'Ship?', actions: [{ label: 'Ship' }, { label: 'Wait' }, { label: 'Three' }] })?.actions).toEqual([{ label: 'Ship' }, { label: 'Wait' }])

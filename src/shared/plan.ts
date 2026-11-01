@@ -47,10 +47,18 @@ export function applyPlan(steps: readonly PlanStep[], input: unknown): PlanStep[
   return next
 }
 
-/** The list after every update_plan call in these, oldest first. */
+/** A turn's wrap_up checks the list off, as the Claude app's does: the work it planned is over. */
+export function finishPlan(steps: readonly PlanStep[]): PlanStep[] {
+  return steps.map((s) => ({ ...s, status: 'completed' }))
+}
+
+/** The list after every update_plan (and wrap_up) call in these, oldest first. */
 export function planOf(calls: readonly { name: string; input: unknown }[]): PlanStep[] {
   let steps: PlanStep[] = []
-  for (const c of calls) if (PLAN_TOOLS.has(c.name)) steps = applyPlan(steps, c.input)
+  for (const c of calls) {
+    if (PLAN_TOOLS.has(c.name)) steps = applyPlan(steps, c.input)
+    else if (WRAP_TOOLS.has(c.name) && wrapUpOf(c.input)) steps = finishPlan(steps)
+  }
   return steps
 }
 

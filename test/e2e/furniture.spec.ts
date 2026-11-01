@@ -66,9 +66,10 @@ async function open() {
 
 test('the task list, the next-step box, chapters, a widget and a proposal show as themselves', async () => {
   await open()
-  // The task list, pinned under the latest message: two steps done, the third under way.
+  // The task list, pinned under the latest message: the turn wrapped up, so every step is checked off.
   const tasks = page.getByRole('region', { name: 'Task list' })
-  await expect(tasks).toContainText('2 of 3')
+  await expect(tasks).toContainText('3 of 3')
+  await expect(tasks).toContainText('Every step is done')
   await expect(tasks.getByText('Chart response times')).toBeVisible()
   // The next-step box: the recap and the question, its buttons answering it.
   const next = page.getByRole('region', { name: 'Next step' })

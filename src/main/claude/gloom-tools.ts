@@ -10,7 +10,7 @@ import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from '@
 import { z } from 'zod'
 import type { LibraryOp } from '@shared/library'
 import { isTranscriptView, type Settings, type TranscriptView } from '@shared/live'
-import { applyPlan, planAnswer, type PlanStep } from '@shared/plan'
+import { applyPlan, finishPlan, planAnswer, type PlanStep } from '@shared/plan'
 import type { SessionPr } from '@shared/library'
 import type { Browsers } from '../browser'
 import type { PrService } from '../git/pr-service'
@@ -160,14 +160,17 @@ export function gloomServer(self: string, host: ToolHost, plans: Map<string, Pla
       ),
       tool(
         'wrap_up',
-        'Fill the next-step box Gloom shows at the end of your turn: a recap of two or three short sentences (what is now true, what is not done or not verified) and, only when the next move is the user’s call, one short question with one or two reply buttons (the first is your recommendation; a click sends its label as the user’s message). Call it once, when the turn’s work is done, before your closing message, in every turn that changed files or ran commands.',
+        'Fill the next-step box Gloom shows at the end of your turn: a recap of two or three short sentences (what is now true, what is not done or not verified) and, only when the next move is the user’s call, one short question with one or two reply buttons (the first is your recommendation; a click sends its label as the user’s message). Call it once, when the turn’s work is done, before your closing message, in every turn that changed files or ran commands. It also checks off the task list, so no closing update_plan is needed.',
         {
           recap: z.string().max(600),
           ask: z.string().max(200).optional(),
           actions: z.array(z.object({ label: z.string().max(40) })).max(2).optional(),
           blocked: z.boolean().optional()
         },
-        async (args) => say(args.ask ? 'Shown in the next-step box with your question. Write your closing message now; do not ask the question again.' : 'Shown in the next-step box. Write your closing message now.'),
+        async (args) => {
+          plans.set(self, finishPlan(plans.get(self) ?? []))
+          return say(args.ask ? 'Shown in the next-step box with your question. Write your closing message now; do not ask the question again.' : 'Shown in the next-step box. Write your closing message now.')
+        },
         { alwaysLoad: true }
       ),
       tool(
