@@ -19,7 +19,7 @@ import { runCommand } from './commands'
 import type { Pets } from './pets'
 import { isRendererUrl, rendererUrl } from './window'
 
-/** Gloom's own pets are at most 22 × 27 pixels; a pet you add can be bigger (up to 64 × 64). */
+/** Gloom's own pets are at most 22 × 27 pixels; a pet you add can be bigger (up to 128 × 128). */
 const BUILT_IN = { w: 26, h: 27 }
 
 /** The chosen pet's size in its pixels: the biggest of its loops. */

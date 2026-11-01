@@ -66,7 +66,8 @@ const isInt = (v: unknown, min: number, max: number): v is number => typeof v ==
 function readLoop(dir: string, loop: PetLoopKey, raw: unknown): PetLoopData | null {
   if (!raw || typeof raw !== 'object') return null
   const { w, h, durations, once } = raw as Record<string, unknown>
-  if (!isInt(w, 4, 64) || !isInt(h, 4, 64) || !Array.isArray(durations) || !durations.length || durations.length > 64) return null
+  // Up to 128 × 128: a sheet you slice into a pet can have big frames.
+  if (!isInt(w, 4, 128) || !isInt(h, 4, 128) || !Array.isArray(durations) || !durations.length || durations.length > 64) return null
   if (!durations.every((d) => isInt(d, 16, 10_000))) return null
   const png = join(dir, `${loop}.png`)
   if (!existsSync(png) || statSync(png).size > MAX_PNG) return null
@@ -88,7 +89,7 @@ function readPet(root: string, id: string): CustomPet | null {
     const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 40) : id
     const description = typeof raw.description === 'string' ? raw.description.trim().slice(0, 160) : ''
     const b = raw.badge as Record<string, unknown> | undefined
-    const badge = b && isInt(b.x, 0, 63) && isInt(b.y, 0, 63) ? { x: b.x, y: b.y } : undefined
+    const badge = b && isInt(b.x, 0, 127) && isInt(b.y, 0, 127) ? { x: b.x, y: b.y } : undefined
     return { id, name, description, loops, ...(badge ? { badge } : {}) }
   } catch {
     return null
