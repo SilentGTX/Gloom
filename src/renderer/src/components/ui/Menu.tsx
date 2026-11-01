@@ -31,12 +31,16 @@ export function MenuPopup({ children, align = 'start' }: { children: ReactNode; 
   )
 }
 
-/** The same glass menu, opened at the pointer by a right click. */
-export function ContextMenuPopup({ children, label }: { children: ReactNode; label: string }) {
+/**
+ * The same glass menu, opened at the pointer by a right click. `keepFocus`
+ * (true when an item hands the keyboard to something it opens, such as a
+ * rename field) stops the menu giving focus back to the row when it closes.
+ */
+export function ContextMenuPopup({ children, label, keepFocus }: { children: ReactNode; label: string; keepFocus?: () => boolean }) {
   return (
     <BaseContext.Portal>
       <BaseContext.Positioner collisionPadding={8} className="z-50 outline-none">
-        <BaseContext.Popup aria-label={label} className={`${popupClass} min-w-56`}>
+        <BaseContext.Popup aria-label={label} className={`${popupClass} min-w-56`} finalFocus={keepFocus ? () => !keepFocus() : undefined}>
           <div className="relative z-[2]">{children}</div>
         </BaseContext.Popup>
       </BaseContext.Positioner>

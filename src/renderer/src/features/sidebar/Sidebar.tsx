@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEve
 import { useDroppable } from '@dnd-kit/core'
 import { AnimatePresence, MotionConfig } from 'motion/react'
 import { Archive, FolderPlus, Search, SearchX, SquarePen, X } from 'lucide-react'
-import { subtreeIds } from '@shared/library'
+import { displayTitle, subtreeIds } from '@shared/library'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ContextMenuRoot, ContextMenuTrigger } from '../../components/ui/Menu'
@@ -253,9 +253,12 @@ function Sidebar({ width, inSheet, concept }: { width: number; inSheet?: boolean
   }
   const renameSessionEnd = (row: SessionRowData, title: string | null) => {
     useUi.getState().rename(null)
-    if (title !== null) {
-      const claude = sessions[row.item.id]?.title
-      void apply({ type: 'renameSession', id: row.item.id, title: title.trim() === claude ? null : title })
+    const id = row.item.id
+    const meta = sessions[id]
+    // Leaving the name as it was (even when it's the first prompt, not a title) changes nothing.
+    if (title !== null && meta && title.trim() !== displayTitle(meta, library.sessions[id])) {
+      const claude = meta.title
+      void apply({ type: 'renameSession', id, title: title.trim() === claude ? null : title })
     }
     requestAnimationFrame(() => focusRow(row.key))
   }

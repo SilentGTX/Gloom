@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Folder as FolderGlyph, FolderInput, FolderPlus, FolderTree, Pencil, SlidersHorizontal, SquarePen, Trash2 } from 'lucide-react'
 import { childrenOf, flattenTree, subtreeIds, type Folder } from '@shared/library'
 import { ContextMenuPopup, MenuItem, MenuSeparator, MenuSubmenu } from '../../components/ui/Menu'
@@ -10,11 +11,20 @@ import { deleteFolder, newFolder } from './folders'
 export function FolderMenu({ folder, onRules, onDefaults }: { folder: Folder; onRules(): void; onDefaults(): void }) {
   const apply = useLibrary((s) => s.apply)
   const folders = useLibrary((s) => s.library.folders)
+  // Rename hands the keyboard to the folder's field; the menu must not take it back as it closes.
+  const renaming = useRef(false)
   return (
-    <ContextMenuPopup label={`${folder.name} actions`}>
+    <ContextMenuPopup label={`${folder.name} actions`} keepFocus={() => renaming.current}>
       <MenuItem label="New Session Here…" icon={<SquarePen />} onClick={() => useLive.getState().openNewSession(folder.id)} />
       <MenuSeparator />
-      <MenuItem label="Rename" icon={<Pencil />} onClick={() => useUi.getState().rename({ kind: 'folder', id: folder.id })} />
+      <MenuItem
+        label="Rename"
+        icon={<Pencil />}
+        onClick={() => {
+          renaming.current = true
+          useUi.getState().rename({ kind: 'folder', id: folder.id })
+        }}
+      />
       <MenuItem label="New Folder Inside" icon={<FolderPlus />} onClick={() => void newFolder(folder.id)} />
       <MenuItem label="Defaults for New Sessions…" icon={<SlidersHorizontal />} onClick={onDefaults} />
       <MenuItem label="Filing Rules…" icon={<FolderTree />} onClick={onRules} />

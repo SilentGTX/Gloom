@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Archive, ArchiveRestore, CircleCheck, CircleDot, Columns2, Copy, FileArchive, FolderInput, FolderOpen, FolderPlus, MailOpen, Pencil, Pin, PinOff, SquareChevronRight } from 'lucide-react'
 import { ContextMenuPopup, MenuGroup, MenuGroupLabel, MenuItem, MenuSeparator, MenuSubmenu } from '../../components/ui/Menu'
 import { notify } from '../../lib/toast'
@@ -60,12 +61,23 @@ export function SessionMenu({ ids }: { ids: string[] }) {
   const folderIds = new Set(entries.map((e) => (e?.folderId && library.folders.some((f) => f.id === e.folderId) ? e.folderId : null)))
   const current = folderIds.size === 1 ? [...folderIds][0] : undefined
   const single = ids.length === 1 ? sessions[ids[0]] : undefined
+  // Rename hands the keyboard to the row's field; the menu must not take it back as it closes.
+  const renaming = useRef(false)
 
   return (
-    <ContextMenuPopup label={ids.length === 1 ? 'Session actions' : `${ids.length} sessions actions`}>
+    <ContextMenuPopup label={ids.length === 1 ? 'Session actions' : `${ids.length} sessions actions`} keepFocus={() => renaming.current}>
       <MenuGroup>
         {ids.length > 1 && <MenuGroupLabel>{ids.length} Sessions</MenuGroupLabel>}
-        {single && <MenuItem label="Rename" icon={<Pencil />} onClick={() => useUi.getState().rename({ kind: 'session', id: single.id })} />}
+        {single && (
+          <MenuItem
+            label="Rename"
+            icon={<Pencil />}
+            onClick={() => {
+              renaming.current = true
+              useUi.getState().rename({ kind: 'session', id: single.id })
+            }}
+          />
+        )}
         <MenuItem label={pinned ? 'Unpin' : 'Pin'} icon={pinned ? <PinOff /> : <Pin />} onClick={() => void apply({ type: 'setPinned', ids, pinned: !pinned })} />
         <MenuSubmenu label="Move To" icon={<FolderInput />}>
           <MoveTargets folders={library.folders} current={current} topLevel="Unfiled" onPick={(folderId) => void apply({ type: 'moveSessions', ids, folderId })} />
