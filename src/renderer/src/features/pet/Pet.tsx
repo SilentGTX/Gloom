@@ -19,6 +19,15 @@ export function loopsOf(kind: PetKind, custom: CustomPet | null | undefined): Re
   return custom && `custom:${custom.id}` === kind ? custom.loops : PET_SPRITES.blob
 }
 
+/** How tall Gloom's own pets are, in their pixels. A taller pet you add is drawn at this height, so every pet shows the same size. */
+export const PET_HEIGHT = 27
+
+/** The screen pixels per pet pixel a pet is drawn at, for a size: the size itself for a Gloom-sized pet; less for a taller one, so it shows as tall as they do. */
+export function petScale(kind: PetKind, custom: CustomPet | null | undefined, size: number): number {
+  const tallest = Math.max(...Object.values(loopsOf(kind, custom)).map((l) => l.h))
+  return tallest > PET_HEIGHT ? (size * PET_HEIGHT) / tallest : size
+}
+
 /** Badge colours: amber for "needs you", green for "ready". */
 const BADGE: Partial<Record<Mood, string>> = { needs: '#FF9F0A', ready: '#34C759' }
 
@@ -50,6 +59,8 @@ export function PixelPet({
   onDone?: () => void
 }) {
   const loop = loopsOf(kind, custom)[name]
+  // A taller pet is drawn smaller, as tall as Gloom's own; the dot keeps its size.
+  const px = petScale(kind, custom, scale)
   const [frame, setFrame] = useState(0)
   const done = useRef(onDone)
   done.current = onDone
@@ -75,17 +86,17 @@ export function PixelPet({
   const badge = BADGE[mood]
   // A pet you added may say where its dot goes; else the top right of a Gloom-sized pet.
   const spot = custom && `custom:${custom.id}` === kind ? custom.badge : undefined
-  const place = spot ? { left: spot.x * scale, top: spot.y * scale } : { top: (loop.h - 17) * scale, right: 0 }
+  const place = spot ? { left: spot.x * px, top: spot.y * px } : { top: (loop.h - 17) * px, right: 0 }
   return (
-    <div className="relative" style={{ width: loop.w * scale, height: loop.h * scale }} aria-hidden>
+    <div className="relative" style={{ width: loop.w * px, height: loop.h * px }} aria-hidden>
       <div
         style={{
           width: '100%',
           height: '100%',
           backgroundImage: `url(${loop.src})`,
           backgroundRepeat: 'no-repeat',
-          backgroundSize: `${loop.w * loop.durations.length * scale}px ${loop.h * scale}px`,
-          backgroundPosition: `${-frame * loop.w * scale}px 0`,
+          backgroundSize: `${loop.w * loop.durations.length * px}px ${loop.h * px}px`,
+          backgroundPosition: `${-frame * loop.w * px}px 0`,
           imageRendering: 'pixelated',
           transform: flip ? 'scaleX(-1)' : undefined
         }}

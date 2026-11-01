@@ -34,7 +34,9 @@ function petPixels(): { w: number; h: number } {
 /** The window for the pet at `size` screen pixels per pixel: the pet, its toolbar and its card under it. */
 function sizeFor(size: number) {
   const pet = petPixels()
-  return { width: Math.max(320, pet.w * size + 24), height: 148 + pet.h * size }
+  // A pet taller than Gloom's own is drawn at their height (Pet.tsx's petScale): the window follows.
+  const k = pet.h > BUILT_IN.h ? BUILT_IN.h / pet.h : 1
+  return { width: Math.max(320, Math.round(pet.w * size * k) + 24), height: 148 + Math.round(pet.h * size * k) }
 }
 /** From the work area's corner: clear of the taskbar and the screen's edge. */
 const MARGIN = 12
