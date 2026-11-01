@@ -17,6 +17,7 @@
     "dist:dir": "npm run build && electron-builder --win --dir",
     "release": "node scripts/release.mjs",
     "pets": "node art/build-pets.mjs",
+    "starter-pets": "node art/build-starter-pets.mjs",
     "spike": "tsx tools/sdk-spike/run.mts",
     "fake-claude:test": "tsx tools/fake-claude/selftest.mts"
   },

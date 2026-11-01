@@ -1,0 +1,87 @@
+{
+  "name": "Charko",
+  "description": "Your animations: types at a laptop while it works, a ring of fire when you click it",
+  "badge": {
+    "x": 62,
+    "y": 17
+  },
+  "loops": {
+    "idle": {
+      "durations": [
+        180,
+        180,
+        180,
+        180,
+        180,
+        180,
+        180,
+        180
+      ],
+      "w": 85,
+      "h": 81
+    },
+    "busy": {
+      "durations": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "w": 85,
+      "h": 81
+    },
+    "walk": {
+      "durations": [
+        110,
+        110,
+        110,
+        110,
+        110,
+        110,
+        110,
+        110
+      ],
+      "w": 85,
+      "h": 81
+    },
+    "happy": {
+      "durations": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "w": 85,
+      "h": 81
+    },
+    "jump": {
+      "durations": [
+        80,
+        80,
+        80,
+        80,
+        80,
+        80,
+        80,
+        80
+      ],
+      "once": true,
+      "w": 85,
+      "h": 81
+    },
+    "fall": {
+      "durations": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "w": 85,
+      "h": 81
+    }
+  }
+}

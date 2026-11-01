@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { isPetKind, PET_KINDS, type LiveSummary } from '@shared/live'
 import type { TranscriptEntry } from '@shared/transcript'
 import { othersLine, petCards, petDetail, petPick, petQueue, petState, plain } from '../../src/renderer/src/features/pet/mood'
-import { petIdFor } from '../../src/main/pets'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { petIdFor, Pets } from '../../src/main/pets'
 import { nextFrame } from '../../src/renderer/src/features/pet/frames'
 
 const summary = (state: LiveSummary['state'], extra: Partial<LiveSummary> = {}): LiveSummary =>
@@ -122,6 +125,36 @@ describe('pet kinds', () => {
     expect(petIdFor('Patch the Fox!', () => false)).toBe('patch-the-fox')
     expect(petIdFor('Patch', (id) => id === 'patch')).toBe('patch-2')
     expect(petIdFor('✨', () => false)).toBe('pet')
+  })
+})
+
+describe('starter pets', () => {
+  const started = (userData: string): Pets => {
+    const pets = new Pets(userData, () => {}, () => {})
+    pets.start()
+    pets.stop()
+    return pets
+  }
+
+  it('come with Gloom: George and Charko are in a new pets folder, built and ready', () => {
+    const pets = started(mkdtempSync(join(tmpdir(), 'gloom-pets-')))
+    expect(pets.all().map((p) => p.name)).toEqual(['Charko', 'George'])
+  })
+
+  it('go in once: one you delete stays deleted', () => {
+    const userData = mkdtempSync(join(tmpdir(), 'gloom-pets-'))
+    started(userData)
+    rmSync(join(userData, 'pets', 'george'), { recursive: true })
+    expect(started(userData).all().map((p) => p.name)).toEqual(['Charko'])
+  })
+
+  it('leave a folder of the same name alone', () => {
+    const userData = mkdtempSync(join(tmpdir(), 'gloom-pets-'))
+    mkdirSync(join(userData, 'pets', 'charko'), { recursive: true })
+    writeFileSync(join(userData, 'pets', 'charko', 'pet.json'), '{"name":"Mine"}')
+    started(userData)
+    expect(readFileSync(join(userData, 'pets', 'charko', 'pet.json'), 'utf8')).toBe('{"name":"Mine"}')
+    expect(existsSync(join(userData, 'pets', 'charko', 'idle.png'))).toBe(false)
   })
 })
 

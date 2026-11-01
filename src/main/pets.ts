@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import { PET_LOOPS, type CustomPet, type PetLoopData, type PetLoopKey } from '@shared/ipc'
 import { PET_ID } from '@shared/live'
 import { PET_EXAMPLES, PET_KIT } from './pet-kit'
+import { STARTER_PETS } from './starter-pets'
 
 /** Builds a pet: runs pxl on <id>/pet.px.js, copies its loops beside it, and fills in pet.json's loops. */
 const BUILD_SCRIPT = `// Builds a Gloom pet: node _kit/build-pet.mjs <id>
@@ -58,6 +59,7 @@ const README = `Gloom's pets folder. Each pet you create has a folder here:
 Build one: node _kit/build-pet.mjs <folder>. Gloom picks it up by itself.
 A tall pet can say where its status dot goes: "badge": { "x": 36, "y": 8 } in pet.json (its own pixels).
 _kit/examples.px.js is Gloom's own pets, to learn from. Delete a folder to delete its pet.
+starter-pets.json lists the pets that came with Gloom, so one you delete isn't put back.
 `
 
 const MAX_PNG = 1024 * 1024
@@ -129,6 +131,7 @@ export class Pets {
     writeFileSync(join(kit, 'examples.px.js'), PET_EXAMPLES)
     writeFileSync(join(kit, 'build-pet.mjs'), BUILD_SCRIPT)
     writeFileSync(join(this.dir, 'README.txt'), README)
+    this.seed()
     this.list = this.read()
     try {
       this.watcher = watch(this.dir, { recursive: true }, (_event, file) => {
@@ -139,6 +142,24 @@ export class Pets {
     } catch (error) {
       console.warn('Gloom: can’t watch the pets folder:', error)
     }
+  }
+
+  /**
+   * The pets that come with Gloom (art/starter-pets) go into the folder once each,
+   * as yours: a folder of that name is left alone, and one you delete stays deleted.
+   */
+  private seed(): void {
+    const record = join(this.dir, 'starter-pets.json')
+    const offered: string[] = existsSync(record) ? JSON.parse(readFileSync(record, 'utf8')) : []
+    const fresh = Object.keys(STARTER_PETS).filter((id) => !offered.includes(id))
+    if (!fresh.length) return
+    for (const id of fresh) {
+      const dir = join(this.dir, id)
+      if (existsSync(dir)) continue
+      mkdirSync(dir)
+      for (const [file, data] of Object.entries(STARTER_PETS[id])) writeFileSync(join(dir, file), Buffer.from(data, 'base64'))
+    }
+    writeFileSync(record, JSON.stringify([...offered, ...fresh]))
   }
 
   stop(): void {
