@@ -109,7 +109,8 @@ test('a packaged build opens a session, its panes and its keyboard', async () =>
   try {
     await page.waitForSelector('main')
     await expect(page.locator('[inert]')).toHaveCount(0)
-    expect(page.url()).toBe('app://gloom/index.html')
+    // Gloom's own page (the look it opens in rides along as ?design=).
+    expect(page.url().split('?')[0]).toBe('app://gloom/index.html')
     expect(gloom.output()).not.toMatch(/Debugger listening/)
     // The settings moved over from file://.
     expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--text-scale'))).toBe('1.0625')
