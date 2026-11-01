@@ -970,6 +970,8 @@ export class Runner {
       const before = `${this.activity}/${this.mode}`
       if (m.status === 'compacting') this.activity = 'compacting'
       else if (m.status === 'requesting') this.activity = 'requesting'
+      // Compaction over with no turn under way (idle compaction): nothing is going on any more.
+      else if (m.status == null && !this.busy) this.activity = null
       if (isMode(m.permissionMode)) this.mode = m.permissionMode
       if (`${this.activity}/${this.mode}` !== before) this.emit()
     }

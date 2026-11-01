@@ -110,3 +110,22 @@ export function claudeDefaults(): ClaudeDefaults {
     return { effort: null, perModel: {} }
   }
 }
+
+/**
+ * Whether Claude Code compacts a long conversation left idle (Claude Code
+ * 2.1.299, in the Claude app's Code tab since 2.1.314): on unless
+ * `"idleCompaction": false` in its settings or DISABLE_AUTO_COMPACT. Its
+ * minimum is 200K tokens, or CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS.
+ */
+export function idleCompaction(): { on: boolean; minTokens: number } {
+  const env = Number(process.env.CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS)
+  const minTokens = Number.isFinite(env) && env > 0 ? env : 200_000
+  if (process.env.DISABLE_AUTO_COMPACT && process.env.DISABLE_AUTO_COMPACT !== '0') return { on: false, minTokens }
+  try {
+    const dir = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+    const raw = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8')) as Record<string, unknown>
+    return { on: raw.idleCompaction !== false && raw.autoCompactEnabled !== false, minTokens }
+  } catch {
+    return { on: true, minTokens }
+  }
+}

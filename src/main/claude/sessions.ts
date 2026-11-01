@@ -28,7 +28,7 @@ import {
   type AccountSummary
 } from '@shared/live'
 import { parseRef } from '@shared/transcript'
-import { readAccount, usageFromRateLimits } from './account'
+import { idleCompaction, readAccount, usageFromRateLimits } from './account'
 import { claudeInfo, findClaude } from './binary'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import { askModels, askUsage, Runner, type RunnerEvents } from './runner'
@@ -36,6 +36,8 @@ import { sshExe } from '../exec'
 import { knownModels, learnedModels, modelsFrom, rememberModels, settings } from './settings'
 
 const MAX_PROCESSES = 6
+/** A long conversation's idle process closes this many minutes in: after Claude Code's idle compaction (about 54), before the prompt cache's hour. */
+const IDLE_COMPACT_CLOSE_MIN = 58
 /** The plan's usage is asked for at most this often. */
 const USAGE_EVERY_MS = 5 * 60 * 1000
 /** Whether the CLI has changed (and has new models) is checked at most this often. */
@@ -435,13 +437,20 @@ export class Sessions {
       this.clearIdle(id)
       const minutes = settings().idleMinutes
       if (runner.alive && !runner.busy && minutes > 0) {
-        this.idleTimers.set(
-          id,
-          setTimeout(() => {
-            this.idleTimers.delete(id)
-            if (!runner.busy) runner.close()
-          }, minutes * 60_000)
-        )
+        // A long conversation stays up until Claude Code's idle compaction has run (about 54
+        // minutes in, before the hour's prompt cache expires), as in the Claude app: your next
+        // message then starts from its summary instead of reprocessing everything.
+        const idle = idleCompaction()
+        const waitsToCompact = idle.on && (runner.summary().context?.used ?? 0) >= idle.minTokens
+        const closeAt = waitsToCompact ? Math.max(minutes, IDLE_COMPACT_CLOSE_MIN) : minutes
+        const close = () => {
+          this.idleTimers.delete(id)
+          if (runner.busy) return
+          // Still summarising: a minute more.
+          if (runner.summary().activity === 'compacting') return void this.idleTimers.set(id, setTimeout(close, 60_000))
+          runner.close()
+        }
+        this.idleTimers.set(id, setTimeout(close, closeAt * 60_000))
       }
       if (runner.alive && Date.now() - this.usageAt > USAGE_EVERY_MS) {
         this.usageAt = Date.now()
