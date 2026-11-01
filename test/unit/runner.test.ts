@@ -116,6 +116,24 @@ describe('the session runner', () => {
     expect(t.texts().at(-1)).toBe('still here')
   })
 
+  it('says an error once: the CLI’s own row, no banner repeating it', async () => {
+    const t = run('thrash')
+    current = t.runner
+    t.runner.send('Reply with exactly the word: pong', [])
+    await t.until((s) => s.state === 'idle')
+    expect(t.entries.filter((e) => e.kind === 'notice' && e.tone === 'error')).toHaveLength(1)
+    expect(t.summaries.at(-1)?.error).toBeNull()
+    expect(t.attention).toEqual(['failed'])
+  })
+
+  it('keeps the banner for an expired login: it carries the Log In button', async () => {
+    const t = run('auth-expired')
+    current = t.runner
+    t.runner.send('Reply with exactly the word: pong', [])
+    await t.until((s) => s.state === 'idle')
+    expect(t.summaries.at(-1)?.error?.kind).toBe('login')
+  })
+
   it('asks before tools run, and goes on with your answer', async () => {
     const t = run('permission')
     current = t.runner

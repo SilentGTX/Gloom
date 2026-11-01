@@ -357,6 +357,8 @@ export class Runner {
   private cards = new Map<string, PendingCard>()
   private context: ContextInfo | null = null
   private error: LiveError | null = null
+  /** This turn's error, already in the transcript as the CLI's own row: the banner would say it twice. */
+  private shownError: string | null = null
   private version: string | null = null
   lastActive = Date.now()
   /** Interrupted by you: the turn's end isn't news, and nothing queued follows it. */
@@ -827,7 +829,9 @@ export class Runner {
         // The streamed copy goes before its finished line arrives, so the two never show together.
         this.setStream(finishStreamBlock(this.stream, m.message.id))
         const line = m as unknown as Record<string, unknown>
-        this.show({ ...line, isApiErrorMessage: model === '<synthetic>' || !!line.error })
+        const failed = model === '<synthetic>' || !!line.error
+        if (failed) this.shownError = m.message.content.flatMap((b) => (b.type === 'text' ? [b.text.trim()] : [])).join('\n')
+        this.show({ ...line, isApiErrorMessage: failed })
         return
       }
       case 'user': {
@@ -1083,6 +1087,8 @@ export class Runner {
         this.forkAt = null
         this.rewound = null
         this.error = { kind: 'failed', message: 'Something arrived in that turn after you rewound, so Claude can’t carry on from there. Send your message again to continue from the end.', detail: said }
+      } else if (said.trim() && said.trim() === this.shownError && status !== 401 && !/log ?in|authenticat/i.test(said)) {
+        // Shown already; the banner is for what the transcript doesn't say (or what needs a Log In button).
       } else {
         this.error =
           status === 401 || /log ?in|authenticat/i.test(said)
@@ -1090,6 +1096,7 @@ export class Runner {
             : { kind: 'failed', message: said.split('\n')[0] || 'The turn ended with an error.', detail: said.includes('\n') ? said : undefined }
       }
     }
+    this.shownError = null
     // Stop hands the queue back to the composer first; anything still queued goes now.
     const next = this.queued.shift()
     if (next) {
