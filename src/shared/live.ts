@@ -55,6 +55,19 @@ export const DEFAULT_MODELS: ModelChoice[] = [
   { value: 'haiku', label: 'Haiku', description: 'Fastest, for quick answers', efforts: [] }
 ]
 
+/** The models the picker lists, by their names: the 5.5 family and Fable 5.1, as Claude Code's desktop app offers them. */
+const SHOWN_MODEL = /^(Opus|Sonnet|Haiku) 5\.5$|^Fable 5\.1$/
+
+/**
+ * Keeps the picker to the models Gloom offers. Of what the CLI reports, Default
+ * and those models stay; older versions are dropped. If nothing current is
+ * left, Claude Code's own aliases stand in.
+ */
+export function shownModels(models: readonly ModelChoice[]): ModelChoice[] {
+  const kept = models.filter((m) => m.value === 'default' || SHOWN_MODEL.test(m.label))
+  return kept.some((m) => m.value !== 'default') ? kept : DEFAULT_MODELS
+}
+
 /** The picker's name for a model value: its listed label, else the value made readable. */
 export function modelLabel(value: string | null, models: readonly ModelChoice[]): string {
   if (!value) return 'Default'

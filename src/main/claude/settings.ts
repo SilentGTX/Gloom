@@ -9,7 +9,7 @@
 import { app, nativeTheme } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
-import { branchPrefixProblem, DEFAULT_MODELS, DEFAULT_SETTINGS, EFFORTS, isEffort, isMode, isPetKind, PET_SIZE, isTranscriptView, type ModelChoice, type NoticeLevel, type Settings } from '@shared/live'
+import { branchPrefixProblem, DEFAULT_MODELS, DEFAULT_SETTINGS, EFFORTS, isEffort, isMode, isPetKind, PET_SIZE, isTranscriptView, shownModels, type ModelChoice, type NoticeLevel, type Settings } from '@shared/live'
 import { isShell } from '@shared/terminal'
 
 interface SettingsFile {
@@ -86,7 +86,7 @@ function cleanModels(raw: unknown): ModelChoice[] {
         ]
       : []
   )
-  return models.length ? models : DEFAULT_MODELS
+  return models.length ? shownModels(models) : DEFAULT_MODELS
 }
 
 export function loadSettings(): void {
@@ -148,7 +148,9 @@ export function learnedModels(): boolean {
 /** What a session (or the CLI, asked at launch) reported, and which CLI said it; kept for the next New Session. */
 export function rememberModels(models: ModelChoice[], version: string | null = null): void {
   const from = version ?? current.modelsFrom ?? null
-  if (!models.length || (JSON.stringify(models) === JSON.stringify(current.models) && from === current.modelsFrom)) return
-  current = { ...current, models, modelsFrom: from }
+  if (!models.length) return
+  const shown = shownModels(models)
+  if (JSON.stringify(shown) === JSON.stringify(current.models) && from === current.modelsFrom) return
+  current = { ...current, models: shown, modelsFrom: from }
   save()
 }
