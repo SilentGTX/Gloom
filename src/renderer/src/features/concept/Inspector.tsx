@@ -349,7 +349,6 @@ function ContextPart({ session, onMove }: PartProps) {
   const usage = useLive((s) => s.usage)
   const context = summary?.context ?? null
   const percent = context ? Math.round(context.percent) : null
-  const busy = summary?.state === 'working' || summary?.state === 'starting'
   return (
     <Section
       part="context"
@@ -390,7 +389,7 @@ function ContextPart({ session, onMove }: PartProps) {
         </div>
       )}
       {summary && context && (
-        <Button size="text" tone="secondary" className="mt-2.5 w-full" disabled={busy} onClick={() => void useLive.getState().sendText(session.id, '/compact')}>
+        <Button size="text" tone="secondary" className="mt-2.5 w-full" onClick={() => void useLive.getState().sendText(session.id, '/compact')}>
           Compact Now
         </Button>
       )}

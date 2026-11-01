@@ -99,6 +99,18 @@ describe('the session runner', () => {
     expect(t.entries.filter((e) => e.kind === 'prompt')).toHaveLength(2)
   })
 
+  it('holds a slash command sent mid-turn (Compact Now) for the turn’s end: folded in, it would be words', async () => {
+    const t = run('steer-next')
+    current = t.runner
+    t.runner.send('Run these Bash commands one at a time…', [])
+    await t.until((s) => s.activity === 'tool')
+    t.runner.send('/compact', [])
+    expect(t.summaries.at(-1)?.queued).toEqual([expect.objectContaining({ text: '/compact', sent: false })])
+    // A message still goes to Claude at once.
+    t.runner.send('Change of plan: run no more commands and reply exactly: steered', [])
+    expect(t.summaries.at(-1)?.queued.map((q) => q.sent)).toEqual([false, true])
+  })
+
   it('sends a message mid-turn straight to Claude Code, which folds it into the turn', async () => {
     const t = run('steer-next')
     current = t.runner

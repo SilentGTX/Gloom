@@ -65,7 +65,7 @@ export function ContextMeter({ sessionId, summary }: { sessionId: string; summar
                   <p className="mt-1.5 text-[11.5px] text-label-secondary">Near full, Claude Code compacts the conversation to make room.</p>
                   <Popover.Close
                     render={
-                      <Button size="text" tone="secondary" className="mt-2" disabled={summary?.state === 'working' || summary?.state === 'starting'} onClick={() => void compact(sessionId)}>
+                      <Button size="text" tone="secondary" className="mt-2" onClick={() => void compact(sessionId)}>
                         Compact Now
                       </Button>
                     }

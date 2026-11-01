@@ -509,7 +509,10 @@ export class Runner {
       uuid: randomUUID() as SDKUserMessage['uuid']
     }
     this.error = null
-    if (this.busy && this.inbox && this.version && compareVersions(this.version, LIFECYCLE_VERSION) >= 0) {
+    // A slash command (/compact, /model…) waits for the turn's end instead: folded into a turn
+    // it would reach Claude as words, not run.
+    const command = !images.length && text.trimStart().startsWith('/')
+    if (!command && this.busy && this.inbox && this.version && compareVersions(this.version, LIFECYCLE_VERSION) >= 0) {
       // Claude Code folds it into the turn after the step under way (observed on CLI 2.1.316,
       // `npm run spike -- steer-next`), or runs it next if the turn ends first.
       message.priority = 'next'
