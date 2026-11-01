@@ -255,14 +255,24 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
     pinned.current = false
     cancelAnimationFrame(settle.current)
   }, [])
+  // Content arriving never lets go of the bottom either, however big it is: only you do.
   const onScroll = useCallback((e: Event) => {
     const s = e.currentTarget as HTMLElement
     const gap = s.scrollHeight - s.clientHeight - s.scrollTop
     const down = s.scrollTop > lastTop.current
     lastTop.current = s.scrollTop
     const yours = held.current || performance.now() - intent.current < 400
-    if (gap >= bottomSpace() + 64 || (yours && !down)) pinned.current = false
+    if (yours && !down && gap >= 2) pinned.current = false
     else if (gap < 2 || (yours && down)) pinned.current = true
+  }, [])
+  // At the bottom, the view keeps to the end as the list grows, on the frame it grows (before it's
+  // painted), not a frame or a second later: text laying out, a tool row opening, a code block.
+  const sizes = useRef<ResizeObserver | null>(null)
+  const follow = useCallback(() => {
+    const s = scroller.current
+    if (!s || !pinned.current) return
+    const end = s.scrollHeight - s.clientHeight
+    if (Math.abs(s.scrollTop - end) > 1) s.scrollTop = end
   }, [])
   const onWheel = useCallback(
     (e: WheelEvent) => {
@@ -290,8 +300,15 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
       fn('pointerdown', onPress)
       const win = on ? window.addEventListener.bind(window) : window.removeEventListener.bind(window)
       win('pointerup', onRelease)
+      sizes.current?.disconnect()
+      sizes.current = null
+      if (on) {
+        sizes.current = new ResizeObserver(follow)
+        sizes.current.observe(el)
+        if (el.firstElementChild) sizes.current.observe(el.firstElementChild)
+      }
     },
-    [onScroll, onWheel, onKey, onPress, onRelease]
+    [onScroll, onWheel, onKey, onPress, onRelease, follow]
   )
 
   // ─── Find ──────────────────────────────────────────────────────────────────
@@ -347,6 +364,7 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
       // A run opens, and so does each of its steps whose details hold the match.
       if (row?.kind === 'tools') for (const step of row.steps) if (countMatches(rowText(step).hidden, query)) setExpanded(step.key, true)
     }
+    leave()
     virtuoso.current?.scrollIntoView({
       index: match.rowIndex,
       align: 'center',
@@ -373,7 +391,9 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
   // The table of contents takes you to a chapter's divider, through the list (it draws only rows near the screen).
   const goToChapter = (key: string) => {
     const index = rows.findIndex((r) => r.key === key)
-    if (index >= 0) virtuoso.current?.scrollIntoView({ index, align: 'start', behavior: 'auto' })
+    if (index < 0) return
+    leave()
+    virtuoso.current?.scrollIntoView({ index, align: 'start', behavior: 'auto' })
   }
 
   return (
