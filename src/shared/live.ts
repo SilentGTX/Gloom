@@ -68,6 +68,20 @@ export function shownModels(models: readonly ModelChoice[]): ModelChoice[] {
   return kept.some((m) => m.value !== 'default') ? kept : DEFAULT_MODELS
 }
 
+/**
+ * The picker's choice for a model a transcript names ("claude-opus-5-5"): its alias when the
+ * alias is that model ("opus" for Opus 5.5), else the ID itself when the list has it; null otherwise.
+ */
+export function modelChoiceFor(id: string | null | undefined, models: ModelChoice[]): string | null {
+  if (!id) return null
+  const m = /^claude-([a-z]+)-(\d+)-(\d+)/.exec(id)
+  if (m) {
+    const name = `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}.${m[3]}`
+    if (models.find((c) => c.value === m[1])?.description.includes(name)) return m[1]
+  }
+  return models.some((c) => c.value === id) ? id : null
+}
+
 /** The picker's name for a model value: its listed label, else the value made readable. */
 export function modelLabel(value: string | null, models: readonly ModelChoice[]): string {
   if (!value) return 'Default'
@@ -524,6 +538,8 @@ export interface Settings {
   petKind: PetKind
   /** How big the pet is drawn: each of its pixels is this many screen pixels (PET_SIZE). */
   petSize: number
+  /** The look (View › Design), copied here from the window's own setting so a window opens in it from its first frame. */
+  design: 'concept' | 'classic'
 }
 
 /** The built-in pets: pixel characters drawn with pxl (art/pets.px.js), each with a resting and a working loop. */
@@ -564,6 +580,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shell: 'powershell',
   pet: false,
   petKind: 'blob',
+  design: 'concept',
   petSize: PET_SIZE.initial
 }
 

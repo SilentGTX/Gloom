@@ -10,6 +10,11 @@ import { loadUpdateScreen } from './lib/update'
 
 const root = createRoot(document.getElementById('root')!)
 const params = new URLSearchParams(location.search)
+// Before anything paints: the pet's window is clear from its first frame (Electron shows it on that
+// frame), and the main window is in your look while its settings are still out of reach (an update).
+if (params.has('pet')) document.documentElement.dataset.pet = ''
+const design = params.get('design')
+if (design === 'concept' || design === 'classic') document.documentElement.dataset.design = design
 
 // The pet's own window, on top of every app (main/pet.ts): only the pet. It has
 // no update screen and keeps nothing in storage, so it starts straight away.

@@ -67,6 +67,7 @@ export function cleanSettings(raw: unknown, base: Settings = DEFAULT_SETTINGS): 
     shell: isShell(s.shell) ? s.shell : base.shell,
     pet: typeof s.pet === 'boolean' ? s.pet : base.pet,
     petKind: isPetKind(s.petKind) ? s.petKind : base.petKind,
+    design: s.design === 'classic' || s.design === 'concept' ? s.design : base.design,
     petSize: typeof s.petSize === 'number' && Number.isFinite(s.petSize) ? Math.max(PET_SIZE.min, Math.min(PET_SIZE.max, Math.round(s.petSize))) : base.petSize
   }
 }

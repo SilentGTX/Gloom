@@ -8,6 +8,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC, type WindowState } from '@shared/ipc'
 import { APP_PAGE, APP_SCHEME } from './protocol'
+import { settings } from './claude/settings'
 
 export const TITLE_BAR_HEIGHT = 48
 const DEFAULT_SIZE = { width: 1280, height: 820 }
@@ -248,6 +249,7 @@ export function createMainWindow({ handover = false, onShown }: { handover?: boo
   win.webContents.session.setPermissionRequestHandler((_contents, permission, grant) => grant(allowed(permission)))
   win.webContents.session.setPermissionCheckHandler((_contents, permission) => allowed(permission))
 
-  void win.loadURL(`${rendererUrl()}${handover ? '?handover' : ''}`)
+  // The look goes in the address, so the first frame (the update screen, too) is already in it.
+  void win.loadURL(`${rendererUrl()}?design=${settings().design}${handover ? '&handover' : ''}`)
   return win
 }

@@ -14,7 +14,7 @@ import { useUpdateScreen } from './lib/update'
 import { useApplyWindowState, useWindowState } from './lib/window-state'
 import { useLibraryBridge } from './stores/library'
 import { startScreens } from './features/terminal/registry'
-import { useLiveBridge } from './stores/live'
+import { useLive, useLiveBridge } from './stores/live'
 import { usePalette, useSessionVisits } from './stores/palette'
 import { useTerminalsBridge } from './stores/terminals'
 import { useTranscriptBridge } from './stores/transcript'
@@ -47,6 +47,11 @@ export function App() {
   useLayoutEffect(() => {
     document.documentElement.dataset.design = design
   }, [design])
+  // Kept by main too, for the next window's first frame.
+  const keptDesign = useLive((s) => s.settings.design)
+  useEffect(() => {
+    if (keptDesign !== design) void useLive.getState().updateSettings({ design })
+  }, [design, keptDesign])
 
   return (
     <TooltipProvider>

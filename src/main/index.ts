@@ -364,6 +364,10 @@ if (smokeArg) {
     handle(IPC.liveSend, (_event, raw) => {
       const request = parseSend(raw)
       sessions.send(request.id, request.text, request.images)
+      // What it runs on is kept with it, picked or not, so reopening it later shows the same.
+      const run = sessions.snapshot(request.id)?.summary
+      const kept = library.entry(request.id)
+      if (run && (kept?.model !== run.model || kept?.effort !== run.effort)) library.apply({ type: 'setSessionRun', id: request.id, model: run.model, effort: run.effort })
     })
     handle(IPC.liveInterrupt, (_event, id) => sessions.interrupt(sessionId(id)))
     handle(IPC.liveUnqueue, (_event, id, queuedId) => sessions.unqueue(sessionId(id), String(queuedId)))

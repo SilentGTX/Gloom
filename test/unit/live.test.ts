@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyStreamEvent, compareVersions, finishStreamBlock, mergeProvisional, modelLabel, type StreamState } from '../../src/shared/live'
+import { applyStreamEvent, compareVersions, finishStreamBlock, mergeProvisional, modelChoiceFor, modelLabel, type StreamState } from '../../src/shared/live'
 import type { TranscriptEntry } from '../../src/shared/transcript'
 
 const text = (key: string, t = 0): TranscriptEntry => ({ kind: 'text', key, time: t, text: key, messageId: null, model: null })
@@ -78,5 +78,21 @@ describe('names and versions', () => {
     expect(compareVersions('2.1.186', '2.1.314')).toBeLessThan(0)
     expect(compareVersions('2.1.314', '2.1.314')).toBe(0)
     expect(compareVersions('2.2.0', '2.1.314')).toBeGreaterThan(0)
+  })
+})
+
+describe('the model a transcript names, as the picker offers it', () => {
+  const models = [
+    { value: 'default', label: 'Default', description: 'Opus 5.5 with 1M context', efforts: [] },
+    { value: 'opus', label: 'Opus', description: 'Opus 5.5 · Most capable', efforts: [] },
+    { value: 'haiku', label: 'Haiku', description: 'Haiku 5.5 · Fastest', efforts: [] },
+    { value: 'claude-opus-4-8', label: 'Opus 4.8', description: 'Older', efforts: [] }
+  ]
+  it('takes the alias that is that model, else the ID the list has, else nothing', () => {
+    expect(modelChoiceFor('claude-opus-5-5', models)).toBe('opus')
+    expect(modelChoiceFor('claude-haiku-5-5-20261001', models)).toBe('haiku')
+    expect(modelChoiceFor('claude-opus-4-8', models)).toBe('claude-opus-4-8')
+    expect(modelChoiceFor('claude-sonnet-5-5', models)).toBeNull()
+    expect(modelChoiceFor(null, models)).toBeNull()
   })
 })

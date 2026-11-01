@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react'
 import { ArrowUp, CircleAlert, Lock, Paperclip, Square, X, Zap } from 'lucide-react'
 import type { SessionMeta } from '@shared/library'
-import { isEffort, type CanSend, type CommandInfo, type LiveSummary } from '@shared/live'
+import { isEffort, modelChoiceFor, type CanSend, type CommandInfo, type LiveSummary } from '@shared/live'
 import { Button } from '../../components/ui/Button'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
@@ -16,6 +16,7 @@ import { useConcept } from '../concept/parts'
 import { ContextMeter } from './ContextMeter'
 import { insertMention, mentionAt, prepareFiles, rankFiles, type PreparedFiles } from './mentions'
 import { EffortPicker, effortsFor, ModelPicker, ModePicker } from './pickers'
+import { useColumnTranscript } from '../../stores/transcript'
 import { TurnFurniture } from './Furniture'
 import { PromptCards } from './PromptCards'
 import { EditBanner } from './Rewind'
@@ -333,11 +334,18 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
 
   // Not running here yet: what you last picked for it (kept in the library), else Settings' defaults.
   const entry = useLibrary((s) => s.library.sessions[sessionId])
-  const model = summary ? summary.model : entry && 'model' in entry ? (entry.model ?? null) : settings.model
+  // Never picked in Gloom: the model its transcript last ran on (Claude Code doesn't write the effort down).
+  const ranOn = useColumnTranscript((s) => (s.id === sessionId ? (s.entries.findLast((e) => (e.kind === 'text' || e.kind === 'tool') && !!e.model) as { model?: string | null } | undefined)?.model : undefined))
+  const fromTranscript = entry && 'model' in entry ? undefined : modelChoiceFor(ranOn, models)
+  const model = summary ? summary.model : entry && 'model' in entry ? (entry.model ?? null) : (fromTranscript ?? settings.model)
   const mode = summary?.mode ?? settings.mode
   const kept = entry && 'effort' in entry ? entry.effort : undefined
   const effort = summary ? summary.effort : kept !== undefined ? (isEffort(kept) ? kept : null) : settings.effort
   const efforts = effortsFor(model, models)
+  // …and kept, so the session's next process starts on it too.
+  useEffect(() => {
+    if (!summary && fromTranscript) void useLibrary.getState().apply({ type: 'setSessionRun', id: sessionId, model: fromTranscript }, { record: false })
+  }, [summary, fromTranscript, sessionId])
   // Fast mode, for a model that offers it (or a session already running fast, to turn it off).
   const fastOffered = !!summary?.fast || models.some((m) => m.fast && (m.value === model || m.value === summary?.activeModel))
   // A suggested next prompt (Settings › General): shown in the empty box, Tab takes it.

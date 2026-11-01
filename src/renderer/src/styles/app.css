@@ -51,6 +51,12 @@
   #root {
     height: 100%;
   }
+  /* The pet's own window is clear from its first frame (main.tsx marks it before anything paints). */
+  html[data-pet],
+  html[data-pet] body,
+  html[data-pet] #root {
+    background: transparent !important;
+  }
   body {
     margin: 0;
     overflow: hidden;
