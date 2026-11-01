@@ -16,10 +16,10 @@ let page: Page
 test.afterEach(async () => app?.close())
 
 /** Gloom with one earlier session in a real folder, and the fake claude playing `fixture`. */
-async function start(fixture: string) {
+async function start(fixture: string, speed = 0) {
   process.env.GLOOM_CLAUDE_EXE = FAKE
   process.env.FAKE_CLAUDE_FIXTURE = fixture
-  process.env.FAKE_CLAUDE_SPEED = '0'
+  process.env.FAKE_CLAUDE_SPEED = String(speed)
   const cwd = tempDir('gloom-live-')
   const claudeDir = fakeClaude([{ id: SESSION, cwd, prompt: 'Look at the notes', title: TITLE, created: minutesAgo(90), updated: minutesAgo(60) }])
   ;({ app, page } = await launch({ claudeDir }))
@@ -106,6 +106,27 @@ test('Stop ends the turn, and a message queued meanwhile comes back to the compo
   await expect(composer).toHaveValue('And then say hi')
   await expect(transcript().getByText('Interrupted')).toBeVisible()
   await expect(page.getByRole('list', { name: 'Queued messages' })).toHaveCount(0)
+})
+
+test('a message sent while Claude works reaches it mid-turn', async () => {
+  // A third of the recording's pace: Claude takes the message about 2 s after it goes.
+  await start('steer-next', 0.33)
+  const composer = await openSession()
+  await composer.fill('Run five slow commands')
+  await composer.press('Enter')
+  await expect(transcript().getByText('sleep 3; echo one').first()).toBeVisible()
+  await composer.fill('Change of plan: run no more commands and reply exactly: steered')
+  await composer.press('Enter')
+  const sent = page.getByRole('list', { name: 'Queued messages' })
+  await expect(sent).toContainText('Sent')
+  await expect(sent).toContainText('Change of plan')
+  await page.screenshot({ path: join(__dirname, '..', '..', 'test-screens', 'steer', 'sent.png') })
+  // Claude takes it at its next step: it joins the turn, once, and the chip goes.
+  await expect(transcript().getByText('Sent while Claude was working')).toHaveCount(1)
+  await expect(sent).toHaveCount(0)
+  await expect(transcript().getByText('steered', { exact: true })).toBeVisible()
+  await expect(page.locator('main > header').getByRole('status')).not.toHaveText('Working…')
+  await expect(transcript().getByText('Sent while Claude was working')).toHaveCount(1)
 })
 
 test('in the background, a card waiting for you sends a notification', async () => {

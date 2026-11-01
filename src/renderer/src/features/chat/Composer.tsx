@@ -584,10 +584,10 @@ function QueuedList({ sessionId, summary }: { sessionId: string; summary: LiveSu
     <ul aria-label="Queued messages" className="flex flex-col gap-1 px-3 pt-2.5">
       {summary.queued.map((q) => (
         <li key={q.id} className="flex items-center gap-2 rounded-[10px] bg-fill py-1 pr-1 pl-2.5 text-[13px]">
-          <span className="shrink-0 text-[11.5px] font-medium text-label-secondary">Queued</span>
+          <span className="shrink-0 text-[11.5px] font-medium text-label-secondary">{q.sent ? 'Sent' : 'Queued'}</span>
           <span className="min-w-0 flex-1 truncate text-label">{q.text || (q.images === 1 ? 'An image' : `${q.images} images`)}</span>
-          <Tooltip label="Don’t Send">
-            <Button size="small" shape="round" aria-label="Don’t send this message" onClick={() => void useLive.getState().unqueue(sessionId, q.id)}>
+          <Tooltip label={q.sent ? 'Take Back' : 'Don’t Send'}>
+            <Button size="small" shape="round" aria-label={q.sent ? 'Take this message back' : 'Don’t send this message'} onClick={() => void useLive.getState().unqueue(sessionId, q.id)}>
               <X size={13} strokeWidth={2} />
             </Button>
           </Tooltip>

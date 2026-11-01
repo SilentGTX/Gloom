@@ -8,6 +8,8 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { LiveSummary, PromptCard, StreamState } from '../../src/shared/live'
 import type { ToolResult, TranscriptEntry } from '../../src/shared/transcript'
 import { describeUpdate, Runner } from '../../src/main/claude/runner'
+import { mergeProvisional } from '../../src/shared/live'
+import { lineEntries } from '../../src/shared/transcript'
 
 const fake = join(__dirname, '..', '..', 'tools', 'fake-claude', 'fake-claude.mjs')
 
@@ -95,6 +97,40 @@ describe('the session runner', () => {
     await t.until((s) => s.state === 'idle')
     expect(t.texts()).toEqual(['OK', 'kiwi'])
     expect(t.entries.filter((e) => e.kind === 'prompt')).toHaveLength(2)
+  })
+
+  it('sends a message mid-turn straight to Claude Code, which folds it into the turn', async () => {
+    const t = run('steer-next')
+    current = t.runner
+    t.runner.send('Run these Bash commands one at a time…', [])
+    await t.until((s) => s.activity === 'tool')
+    t.runner.send('Change of plan: run no more commands and reply exactly: steered', [])
+    // With Claude Code already: no waiting for the turn's end.
+    expect(t.summaries.at(-1)?.queued).toEqual([expect.objectContaining({ text: 'Change of plan: run no more commands and reply exactly: steered', sent: true })])
+    await t.until((s) => s.state === 'idle')
+    expect(t.summaries.at(-1)?.queued).toEqual([])
+    const prompts = t.entries.filter((e) => e.kind === 'prompt')
+    expect(prompts).toHaveLength(2)
+    expect(prompts[1]).toMatchObject({ queued: true, text: 'Change of plan: run no more commands and reply exactly: steered' })
+    expect(t.entries.filter((e) => e.kind === 'tool')).toHaveLength(1)
+    expect(t.texts().at(-1)).toBe('steered')
+    // One turn, so one "finished".
+    expect(t.attention).toEqual(['finished'])
+  })
+
+  it('keeps working when a message sent mid-turn runs as the next turn', async () => {
+    const t = run('queue-cli2.1.314')
+    current = t.runner
+    t.runner.send('Count from 1 to 120, one number per line. No other text.', [])
+    await t.until((s) => s.state === 'working' && s.activity !== 'requesting')
+    t.runner.send('Reply with exactly: queued message seen', [])
+    expect(t.summaries.at(-1)?.queued.map((q) => q.sent)).toEqual([true])
+    await t.until((s) => s.state === 'idle')
+    // Between the two turns it never went idle: only the last turn called for you.
+    expect(t.attention).toEqual(['finished'])
+    const prompts = t.entries.filter((e) => e.kind === 'prompt')
+    expect(prompts.map((p) => (p as { text: string }).text)).toEqual(['Count from 1 to 120, one number per line. No other text.', 'Reply with exactly: queued message seen'])
+    expect(t.texts().at(-1)).toBe('queued message seen')
   })
 
   it('stops a turn and hands back what was queued', async () => {
@@ -188,5 +224,22 @@ describe('Always Allow, in words', () => {
     })
     expect(describeUpdate({ type: 'setMode', mode: 'acceptEdits', destination: 'session' }).label).toBe('Allow All Edits')
     expect(describeUpdate({ type: 'addDirectories', directories: ['C:\\work\\api'], destination: 'session' }).label).toBe('Allow Access to api')
+  })
+})
+
+describe('a message folded into a turn', () => {
+  it('shows once: the transcript’s line takes over from Gloom’s copy of it', () => {
+    const sent = randomUUID()
+    const line = (uuid: string) => ({
+      type: 'attachment',
+      uuid,
+      timestamp: '2026-11-01T12:03:51.718Z',
+      attachment: { type: 'queued_command', prompt: 'Change of plan', source_uuid: sent, commandMode: 'prompt' }
+    })
+    const mine = lineEntries(line(sent), { offset: 0, length: 0 }).entries
+    // Claude Code writes it under a uuid of its own, naming yours as source_uuid (CLI 2.1.316).
+    const file = lineEntries(line(randomUUID()), { offset: 10, length: 100 }).entries
+    expect(file[0]).toMatchObject({ kind: 'prompt', key: sent, queued: true })
+    expect(mergeProvisional(file, {}, { entries: mine, results: {} }).entries).toHaveLength(1)
   })
 })

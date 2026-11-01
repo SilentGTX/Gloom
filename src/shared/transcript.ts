@@ -650,7 +650,9 @@ export function lineEntries(e: Raw, at: LineAt): LineEntries {
     const a = e.attachment
     const prompt = a.prompt
     if (a.commandMode === 'prompt' || a.commandMode === undefined) {
-      return { entries: userEntries(e, uuid, t, at, prompt, ['attachment', 'prompt'], true), results: [] }
+      // Keyed by the message you sent (source_uuid, CLI 2.1.316), so Gloom's own copy of it gives way.
+      const key = typeof a.source_uuid === 'string' ? a.source_uuid : uuid
+      return { entries: userEntries(e, key, t, at, prompt, ['attachment', 'prompt'], true), results: [] }
     }
     if (typeof prompt === 'string' && prompt.includes('<task-notification>')) return { entries: userEntries(e, uuid, t, at, prompt, ['attachment', 'prompt'], false), results: [] }
   }

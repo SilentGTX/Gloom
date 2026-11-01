@@ -142,6 +142,8 @@ export interface Queued {
   id: string
   text: string
   images: number
+  /** With Claude Code already: Claude reads it after the step under way. Otherwise Gloom holds it for the turn's end. */
+  sent: boolean
 }
 
 export interface ContextInfo {

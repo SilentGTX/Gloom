@@ -10,7 +10,8 @@ import {
   query,
   type Options,
   type PermissionResult,
-  type SDKMessage
+  type SDKMessage,
+  type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import { baseOptions, fixtureFile, Inbox, projectDirFor, Pump, sandbox, sandboxRoot, textOf } from './lib.mts'
 
@@ -262,6 +263,46 @@ const queue: Check = async () => {
     }))
   const sid = (pump.messages.find(isInit) as any)?.session_id
   return { sequence, histogram: histogram(pump.messages), transcript: sid ? readTranscript(dir, sid) : null }
+}
+
+/** A message sent while Claude works through tool calls: does it reach Claude mid-turn, and how? */
+const steer = (priority: SDKUserMessage['priority']): Check => async () => {
+  const name = `steer-${priority ?? 'default'}`
+  const dir = sandbox(name, { fresh: true })
+  const inbox = new Inbox()
+  const q = query({ prompt: inbox, options: baseOptions(name, { cwd: dir, permissionMode: 'bypassPermissions' }) })
+  const pump = new Pump(q, true)
+  inbox.send(
+    'Run these Bash commands one at a time, each as its own tool call, in order: `sleep 3; echo one`, `sleep 3; echo two`, `sleep 3; echo three`, `sleep 3; echo four`, `sleep 3; echo five`. After all five, reply exactly: all done'
+  )
+  await pump.waitFor((m) => m.type === 'assistant' && JSON.stringify(m.message.content).includes('tool_use'))
+  const sentAt = pump.messages.length
+  inbox.send('Change of plan: run no more commands and reply exactly: steered', priority ? { priority } : {})
+  const deadline = Date.now() + 120_000
+  while (Date.now() < deadline) {
+    const results = pump.messages.filter((m) => m.type === 'result').length
+    if (results >= 2 || (results >= 1 && pump.messages.slice(sentAt).some((m) => textOf(m).includes('steered')))) break
+    await sleep(250)
+  }
+  await sleep(1500)
+  inbox.close()
+  await pump.done
+  const sequence = pump.messages
+    .map((m, i) => ({ i, m }))
+    .filter(({ m }) => m.type !== 'stream_event')
+    .map(({ i, m }) => ({
+      i,
+      type: m.type,
+      subtype: (m as any).subtype,
+      extra: m.type === 'system' ? JSON.stringify(m).slice(0, 300) : undefined,
+      text: textOf(m).slice(0, 80),
+      user: m.type === 'user' ? JSON.stringify((m as any).message?.content).slice(0, 200) : undefined,
+      replay: (m as any).isReplay,
+      priority: (m as any).priority
+    }))
+  const bashCalls = pump.messages.filter((m) => m.type === 'assistant' && JSON.stringify(m.message.content).includes('"name":"Bash"')).length
+  const sid = (pump.messages.find(isInit) as any)?.session_id
+  return { priority, sentAt, bashCalls, results: pump.messages.filter((m) => m.type === 'result').length, sequence, transcript: sid ? readTranscript(dir, sid) : null }
 }
 
 const resume: Check = async () => {
@@ -907,6 +948,9 @@ export const checks: Record<string, Check> = {
   'two-turns': twoTurns,
   interrupt,
   queue,
+  'steer-default': steer(undefined),
+  'steer-next': steer('next'),
+  'steer-now': steer('now'),
   resume,
   permission,
   plan,

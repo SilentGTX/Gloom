@@ -51,7 +51,8 @@ import {
   type PromptCard,
   type Queued,
   type RunState,
-  type StreamState
+  type StreamState,
+  compareVersions
 } from '@shared/live'
 import { lineEntries, resolveRef, type LineAt, type ToolResult, type TranscriptEntry } from '@shared/transcript'
 import type { CodeRewind } from '@shared/live'
@@ -76,6 +77,8 @@ const CARD_STRING = 6000
 /** A code rewind waits this long for the CLI (one started for it takes a second or two). */
 const REWIND_MS = 60_000
 /** How the CLI refuses a fork that would drop more than the turn named (newer CLIs). */
+/** The first CLI seen to say where a message sent mid-turn is (command_lifecycle); older ones get Gloom's own queue. */
+const LIFECYCLE_VERSION = '2.1.314'
 const DROPS_REFUSED = 'Resume rejected by --resume-drops-turn:'
 
 export interface RunnerOptions {
@@ -451,7 +454,7 @@ export class Runner {
       effort: this.effort,
       turnStarted: this.turnStarted,
       activity: this.activity,
-      queued: this.queued.map(({ id, text, images }) => ({ id, text, images })),
+      queued: this.queued.map(({ id, text, images, sent }) => ({ id, text, images, sent })),
       cards: [...this.cards.values()].map((c) => c.card),
       context: this.context,
       error: this.error,
@@ -503,8 +506,17 @@ export class Runner {
       uuid: randomUUID() as SDKUserMessage['uuid']
     }
     this.error = null
+    if (this.busy && this.inbox && this.version && compareVersions(this.version, LIFECYCLE_VERSION) >= 0) {
+      // Claude Code folds it into the turn after the step under way (observed on CLI 2.1.316,
+      // `npm run spike -- steer-next`), or runs it next if the turn ends first.
+      message.priority = 'next'
+      this.queued.push({ id: message.uuid!, text, images: images.length, sent: true, message })
+      this.inbox.push(message)
+      this.emit()
+      return
+    }
     if (this.busy) {
-      this.queued.push({ id: message.uuid!, text, images: images.length, message })
+      this.queued.push({ id: message.uuid!, text, images: images.length, sent: false, message })
       this.emit()
       return
     }
@@ -524,20 +536,32 @@ export class Runner {
     this.emit()
   }
 
-  /** Drops a queued message before it goes. */
+  /** Takes a queued message back before Claude reads it. One Claude already took stays. */
   unqueue(queuedId: string): void {
-    const before = this.queued.length
-    this.queued = this.queued.filter((q) => q.id !== queuedId)
-    if (this.queued.length !== before) this.emit()
+    const item = this.queued.find((q) => q.id === queuedId)
+    if (!item) return
+    const drop = () => {
+      const before = this.queued.length
+      this.queued = this.queued.filter((q) => q.id !== queuedId)
+      if (this.queued.length !== before) this.emit()
+    }
+    if (!item.sent || !this.q) return drop()
+    // In the SDK (cancel_async_message), not yet in its published types.
+    const q = this.q as unknown as { cancelAsyncMessage(uuid: string): Promise<boolean> }
+    q.cancelAsyncMessage(queuedId)
+      .then((cancelled) => cancelled && drop())
+      .catch((error: unknown) => console.warn('Gloom: cancel queued message:', error))
   }
 
   /** Stops the turn under way. What was queued comes back, for the composer. */
   interrupt(): Queued[] {
-    const taken = this.queued.map(({ id, text, images }) => ({ id, text, images }))
+    const taken = this.queued.map(({ id, text, images }) => ({ id, text, images, sent: false }))
     this.queued = []
     if (this.q && this.busy) {
       this.stopping = true
-      this.q.interrupt().catch((error: unknown) => console.warn('Gloom: interrupt:', error))
+      // Stop means everything: what Claude Code holds for later goes too (older CLIs ignore the flag).
+      const q = this.q as unknown as { interrupt(options: { cancelQueued: boolean }): Promise<unknown> }
+      q.interrupt({ cancelQueued: true }).catch((error: unknown) => console.warn('Gloom: interrupt:', error))
     }
     this.emit()
     return taken
@@ -774,6 +798,11 @@ export class Runner {
    */
   private ended(q: Query): void {
     if (this.q !== q) return
+    // What the process held never reached Claude: Gloom holds it now.
+    for (const item of this.queued) {
+      item.sent = false
+      delete item.message.priority
+    }
     this.q = null
     this.inbox = null
     this.pid = undefined
@@ -854,7 +883,33 @@ export class Runner {
         }
         return
       default:
+        if ((m as { type: string }).type === 'command_lifecycle') this.onLifecycle(m as unknown as Record<string, unknown>)
         return
+    }
+  }
+
+  /** Where a message sent mid-turn is: Claude took it (in this turn, or as the next), or it was cancelled. */
+  private onLifecycle(m: Record<string, unknown>): void {
+    const i = this.queued.findIndex((q) => q.sent && q.id === m.command_uuid)
+    if (i < 0) return
+    if (m.state === 'started') {
+      const [item] = this.queued.splice(i, 1)
+      if (this.turnStarted === null) {
+        // The turn had ended first: it runs as one of its own.
+        this.state = 'working'
+        this.turnStarted = Date.now()
+        this.activity = 'requesting'
+        this.newTurn()
+        this.show(item.message as unknown as Record<string, unknown>)
+      } else {
+        // Folded into the turn under way, written as Claude Code writes it.
+        const { message } = item
+        this.show({ type: 'attachment', uuid: message.uuid, attachment: { type: 'queued_command', prompt: message.message.content, source_uuid: message.uuid, commandMode: 'prompt' } })
+      }
+      this.emit()
+    } else if (m.state === 'cancelled' || m.state === 'completed') {
+      this.queued.splice(i, 1)
+      this.emit()
     }
   }
 
@@ -1097,9 +1152,15 @@ export class Runner {
       }
     }
     this.shownError = null
-    // Stop hands the queue back to the composer first; anything still queued goes now.
-    const next = this.queued.shift()
-    if (next) {
+    // Stop hands the queue back to the composer first. What Claude Code holds runs next, on its own;
+    // what Gloom held goes now.
+    const held = this.queued.findIndex((q) => !q.sent)
+    if (this.queued.some((q) => q.sent)) {
+      this.state = 'working'
+      this.activity = 'requesting'
+      this.emit()
+    } else if (held >= 0) {
+      const [next] = this.queued.splice(held, 1)
       this.deliver(next.message)
     } else {
       this.state = this.cards.size ? 'waiting' : 'idle'
