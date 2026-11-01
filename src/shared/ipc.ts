@@ -279,6 +279,8 @@ export interface CustomPet {
   name: string
   description: string
   loops: Record<PetLoopKey, PetLoopData>
+  /** Where its status dot goes, in its own pixels (the dot's top-left); else the top right of a Gloom-sized pet. */
+  badge?: { x: number; y: number }
 }
 
 export interface PetView {

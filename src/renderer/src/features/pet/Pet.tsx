@@ -73,6 +73,9 @@ export function PixelPet({
     return () => clearTimeout(timer)
   }, [loop, still])
   const badge = BADGE[mood]
+  // A pet you added may say where its dot goes; else the top right of a Gloom-sized pet.
+  const spot = custom && `custom:${custom.id}` === kind ? custom.badge : undefined
+  const place = spot ? { left: spot.x * scale, top: spot.y * scale } : { top: (loop.h - 17) * scale, right: 0 }
   return (
     <div className="relative" style={{ width: loop.w * scale, height: loop.h * scale }} aria-hidden>
       <div
@@ -90,7 +93,7 @@ export function PixelPet({
       {badge && (
         <span
           className="absolute rounded-full"
-          style={{ width: 3 * scale, height: 3 * scale, top: (loop.h - 17) * scale, right: 0, background: badge, boxShadow: `0 0 0 ${scale / 2}px #1b1630` }}
+          style={{ width: 3 * scale, height: 3 * scale, ...place, background: badge, boxShadow: `0 0 0 ${scale / 2}px #1b1630` }}
         />
       )}
     </div>

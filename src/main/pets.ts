@@ -56,6 +56,7 @@ const README = `Gloom's pets folder. Each pet you create has a folder here:
   <loop>.png  its six loops: idle, busy, walk, fall, happy, jump
 
 Build one: node _kit/build-pet.mjs <folder>. Gloom picks it up by itself.
+A tall pet can say where its status dot goes: "badge": { "x": 36, "y": 8 } in pet.json (its own pixels).
 _kit/examples.px.js is Gloom's own pets, to learn from. Delete a folder to delete its pet.
 `
 
@@ -86,7 +87,9 @@ function readPet(root: string, id: string): CustomPet | null {
     }
     const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 40) : id
     const description = typeof raw.description === 'string' ? raw.description.trim().slice(0, 160) : ''
-    return { id, name, description, loops }
+    const b = raw.badge as Record<string, unknown> | undefined
+    const badge = b && isInt(b.x, 0, 63) && isInt(b.y, 0, 63) ? { x: b.x, y: b.y } : undefined
+    return { id, name, description, loops, ...(badge ? { badge } : {}) }
   } catch {
     return null
   }
