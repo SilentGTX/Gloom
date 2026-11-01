@@ -3,6 +3,7 @@ import { isPetKind, PET_KINDS, type LiveSummary } from '@shared/live'
 import type { TranscriptEntry } from '@shared/transcript'
 import { othersLine, petCards, petDetail, petPick, petQueue, petState, plain } from '../../src/renderer/src/features/pet/mood'
 import { petIdFor } from '../../src/main/pets'
+import { nextFrame } from '../../src/renderer/src/features/pet/frames'
 
 const summary = (state: LiveSummary['state'], extra: Partial<LiveSummary> = {}): LiveSummary =>
   ({ state, activity: null, cards: [], queued: [], error: null, lastActive: 0, context: null, ...extra }) as unknown as LiveSummary
@@ -121,5 +122,27 @@ describe('pet kinds', () => {
     expect(petIdFor('Patch the Fox!', () => false)).toBe('patch-the-fox')
     expect(petIdFor('Patch', (id) => id === 'patch')).toBe('patch-2')
     expect(petIdFor('✨', () => false)).toBe('pet')
+  })
+})
+
+describe('nextFrame', () => {
+  it('loops every frame by default', () => {
+    expect([0, 1, 2, 3].map((at) => nextFrame(at, 4))).toEqual([1, 2, 3, 0])
+  })
+
+  it('plays an intro once, then loops from loopFrom', () => {
+    // 8 frames: 0-3 bring the laptop out, 4-7 type.
+    const seen: number[] = []
+    let at = 0
+    for (let i = 0; i < 14; i++) {
+      seen.push(at)
+      at = nextFrame(at, 8, 4)
+    }
+    expect(seen).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 4, 5, 6, 7, 4, 5])
+  })
+
+  it('ignores a loopFrom outside the loop', () => {
+    expect(nextFrame(3, 4, 9)).toBe(0)
+    expect(nextFrame(3, 4, 0)).toBe(0)
   })
 })

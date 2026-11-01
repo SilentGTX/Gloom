@@ -65,14 +65,15 @@ const isInt = (v: unknown, min: number, max: number): v is number => typeof v ==
 
 function readLoop(dir: string, loop: PetLoopKey, raw: unknown): PetLoopData | null {
   if (!raw || typeof raw !== 'object') return null
-  const { w, h, durations, once } = raw as Record<string, unknown>
+  const { w, h, durations, once, loopFrom } = raw as Record<string, unknown>
   // Up to 128 × 128: a sheet you slice into a pet can have big frames.
   if (!isInt(w, 4, 128) || !isInt(h, 4, 128) || !Array.isArray(durations) || !durations.length || durations.length > 64) return null
   if (!durations.every((d) => isInt(d, 16, 10_000))) return null
   const png = join(dir, `${loop}.png`)
   if (!existsSync(png) || statSync(png).size > MAX_PNG) return null
   const src = `data:image/png;base64,${readFileSync(png).toString('base64')}`
-  return { src, w, h, durations: durations as number[], ...(once === true ? { once: true } : {}) }
+  const from = isInt(loopFrom, 1, durations.length - 1) ? { loopFrom } : {}
+  return { src, w, h, durations: durations as number[], ...(once === true ? { once: true } : {}), ...from }
 }
 
 /** A pet's folder, read: null until it's built (every loop there and sound). */

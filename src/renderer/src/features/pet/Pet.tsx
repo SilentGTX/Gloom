@@ -10,6 +10,7 @@ import { isBuiltInPet, type PetKind } from '@shared/live'
 import { useFinished } from '../concept/finished'
 import { useLibrary } from '../../stores/library'
 import { useLive } from '../../stores/live'
+import { nextFrame } from './frames'
 import { petCards, type Mood } from './mood'
 import { PET_SPRITES, type PetLoopName } from './sprites'
 
@@ -75,7 +76,8 @@ export function PixelPet({
     const next = () => {
       timer = setTimeout(() => {
         if (loop.once && at === loop.durations.length - 1) return done.current?.()
-        at = (at + 1) % loop.durations.length
+        // A loop with an intro (loopFrom) starts again after it: the intro plays once.
+        at = nextFrame(at, loop.durations.length, 'loopFrom' in loop ? loop.loopFrom : undefined)
         setFrame(at)
         next()
       }, loop.durations[at])

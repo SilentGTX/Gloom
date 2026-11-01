@@ -271,6 +271,8 @@ export interface PetLoopData {
   h: number
   durations: number[]
   once?: boolean
+  /** After the first time through, the loop starts again from this frame: an intro that plays once (a laptop appearing), then the rest repeats. */
+  loopFrom?: number
 }
 export const PET_LOOPS = ['idle', 'busy', 'walk', 'fall', 'happy', 'jump'] as const
 export type PetLoopKey = (typeof PET_LOOPS)[number]
