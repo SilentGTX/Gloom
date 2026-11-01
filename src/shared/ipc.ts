@@ -232,8 +232,10 @@ export const IPC = {
   petHover: 'pet:hover',
   /** send('start' | 'move' | 'end'): the pet is being dragged; main moves its window with the cursor */
   petDrag: 'pet:drag',
-  /** send: the pet was clicked; Gloom comes forward */
-  petOpen: 'pet:open'
+  /** send: the pet was clicked; Gloom minimizes when it is in front, else comes forward */
+  petOpen: 'pet:open',
+  /** send(PetAction): a button on the toolbar the pet shows under the pointer */
+  petAction: 'pet:action'
 } as const
 
 /** What the pet shows: the most urgent state across the sessions, and the bubble's words (empty at rest). */
@@ -241,6 +243,9 @@ export interface PetState {
   mood: 'rest' | 'busy' | 'needs' | 'ready'
   text: string
 }
+
+/** The pet toolbar's buttons: a new session in Gloom, the next pet, or no pet. */
+export type PetAction = 'new-session' | 'next-pet' | 'hide'
 
 export interface PetView extends PetState {
   kind: PetKind

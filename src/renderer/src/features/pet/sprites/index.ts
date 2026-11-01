@@ -2,36 +2,72 @@
 import type { PetKind } from '@shared/live'
 import blob_idle from './blob_idle.png'
 import blob_busy from './blob_busy.png'
+import blob_walk from './blob_walk.png'
+import blob_fall from './blob_fall.png'
+import blob_happy from './blob_happy.png'
+import blob_jump from './blob_jump.png'
 import sprout_idle from './sprout_idle.png'
 import sprout_busy from './sprout_busy.png'
+import sprout_walk from './sprout_walk.png'
+import sprout_fall from './sprout_fall.png'
+import sprout_happy from './sprout_happy.png'
+import sprout_jump from './sprout_jump.png'
 import ghost_idle from './ghost_idle.png'
 import ghost_busy from './ghost_busy.png'
+import ghost_walk from './ghost_walk.png'
+import ghost_fall from './ghost_fall.png'
+import ghost_happy from './ghost_happy.png'
+import ghost_jump from './ghost_jump.png'
 import ember_idle from './ember_idle.png'
 import ember_busy from './ember_busy.png'
+import ember_walk from './ember_walk.png'
+import ember_fall from './ember_fall.png'
+import ember_happy from './ember_happy.png'
+import ember_jump from './ember_jump.png'
 import cat_idle from './cat_idle.png'
 import cat_busy from './cat_busy.png'
+import cat_walk from './cat_walk.png'
+import cat_fall from './cat_fall.png'
+import cat_happy from './cat_happy.png'
+import cat_jump from './cat_jump.png'
 import frog_idle from './frog_idle.png'
 import frog_busy from './frog_busy.png'
+import frog_walk from './frog_walk.png'
+import frog_fall from './frog_fall.png'
+import frog_happy from './frog_happy.png'
+import frog_jump from './frog_jump.png'
 import bot_idle from './bot_idle.png'
 import bot_busy from './bot_busy.png'
+import bot_walk from './bot_walk.png'
+import bot_fall from './bot_fall.png'
+import bot_happy from './bot_happy.png'
+import bot_jump from './bot_jump.png'
 import owl_idle from './owl_idle.png'
 import owl_busy from './owl_busy.png'
+import owl_walk from './owl_walk.png'
+import owl_fall from './owl_fall.png'
+import owl_happy from './owl_happy.png'
+import owl_jump from './owl_jump.png'
 
-/** One loop: a horizontal strip of w × h frames, each shown for its duration (ms). */
+/** One loop: a horizontal strip of w × h frames, each shown for its duration (ms); `once` plays it a single time. */
 export interface PetLoop {
   src: string
   w: number
   h: number
   durations: readonly number[]
+  once?: boolean
 }
 
-export const PET_SPRITES: Record<PetKind, { idle: PetLoop; busy: PetLoop }> = {
-  blob: { idle: { src: blob_idle, w: 18, h: 21, durations: [530, 530] }, busy: { src: blob_busy, w: 18, h: 21, durations: [180, 180, 180, 180, 180, 180] } },
-  sprout: { idle: { src: sprout_idle, w: 18, h: 24, durations: [2000, 120, 240, 120] }, busy: { src: sprout_busy, w: 18, h: 24, durations: [180, 180, 180, 180, 180, 180] } },
-  ghost: { idle: { src: ghost_idle, w: 18, h: 21, durations: [2000, 120, 240, 120] }, busy: { src: ghost_busy, w: 18, h: 21, durations: [180, 180, 180, 180, 180, 180] } },
-  ember: { idle: { src: ember_idle, w: 18, h: 25, durations: [2000, 120, 240, 120] }, busy: { src: ember_busy, w: 18, h: 25, durations: [180, 180, 180, 180, 180, 180] } },
-  cat: { idle: { src: cat_idle, w: 18, h: 23, durations: [2000, 120, 240, 120] }, busy: { src: cat_busy, w: 18, h: 23, durations: [180, 180, 180, 180, 180, 180] } },
-  frog: { idle: { src: frog_idle, w: 18, h: 21, durations: [2000, 120, 240, 120] }, busy: { src: frog_busy, w: 18, h: 21, durations: [180, 180, 180, 180, 180, 180] } },
-  bot: { idle: { src: bot_idle, w: 18, h: 21, durations: [2000, 120, 240, 120] }, busy: { src: bot_busy, w: 18, h: 21, durations: [180, 180, 180, 180, 180, 180] } },
-  owl: { idle: { src: owl_idle, w: 18, h: 23, durations: [2000, 120, 240, 120] }, busy: { src: owl_busy, w: 18, h: 23, durations: [180, 180, 180, 180, 180, 180] } }
+/** idle: resting; busy: working; walk: carried sideways (facing right); fall: held up; happy: under the pointer; jump: clicked. */
+export type PetLoopName = 'idle' | 'busy' | 'walk' | 'fall' | 'happy' | 'jump'
+
+export const PET_SPRITES: Record<PetKind, Record<PetLoopName, PetLoop>> = {
+  blob: { idle: { src: blob_idle, w: 18, h: 22, durations: [125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125] }, busy: { src: blob_busy, w: 18, h: 22, durations: [100, 100, 100, 100, 100, 100, 100, 100] }, walk: { src: blob_walk, w: 18, h: 22, durations: [125, 125, 125, 125] }, fall: { src: blob_fall, w: 18, h: 22, durations: [125, 125, 125, 125] }, happy: { src: blob_happy, w: 18, h: 22, durations: [125, 125, 125, 125, 125, 125] }, jump: { src: blob_jump, w: 18, h: 22, durations: [83, 83, 83, 83, 83, 83], once: true } },
+  sprout: { idle: { src: sprout_idle, w: 18, h: 25, durations: [125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125] }, busy: { src: sprout_busy, w: 18, h: 25, durations: [100, 100, 100, 100, 100, 100, 100, 100] }, walk: { src: sprout_walk, w: 18, h: 25, durations: [125, 125, 125, 125] }, fall: { src: sprout_fall, w: 18, h: 25, durations: [125, 125, 125, 125] }, happy: { src: sprout_happy, w: 18, h: 25, durations: [125, 125, 125, 125, 125, 125] }, jump: { src: sprout_jump, w: 18, h: 25, durations: [83, 83, 83, 83, 83, 83], once: true } },
+  ghost: { idle: { src: ghost_idle, w: 18, h: 22, durations: [125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125] }, busy: { src: ghost_busy, w: 18, h: 22, durations: [100, 100, 100, 100, 100, 100, 100, 100] }, walk: { src: ghost_walk, w: 18, h: 22, durations: [125, 125, 125, 125] }, fall: { src: ghost_fall, w: 18, h: 22, durations: [125, 125, 125, 125] }, happy: { src: ghost_happy, w: 18, h: 22, durations: [125, 125, 125, 125, 125, 125] }, jump: { src: ghost_jump, w: 18, h: 22, durations: [83, 83, 83, 83, 83, 83], once: true } },
+  ember: { idle: { src: ember_idle, w: 18, h: 27, durations: [125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125] }, busy: { src: ember_busy, w: 18, h: 27, durations: [100, 100, 100, 100, 100, 100, 100, 100] }, walk: { src: ember_walk, w: 18, h: 27, durations: [125, 125, 125, 125] }, fall: { src: ember_fall, w: 18, h: 27, durations: [125, 125, 125, 125] }, happy: { src: ember_happy, w: 18, h: 27, durations: [125, 125, 125, 125, 125, 125] }, jump: { src: ember_jump, w: 18, h: 27, durations: [83, 83, 83, 83, 83, 83], once: true } },
+  cat: { idle: { src: cat_idle, w: 22, h: 24, durations: [125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125] }, busy: { src: cat_busy, w: 22, h: 24, durations: [100, 100, 100, 100, 100, 100, 100, 100] }, walk: { src: cat_walk, w: 22, h: 24, durations: [125, 125, 125, 125] }, fall: { src: cat_fall, w: 22, h: 24, durations: [125, 125, 125, 125] }, happy: { src: cat_happy, w: 22, h: 24, durations: [125, 125, 125, 125, 125, 125] }, jump: { src: cat_jump, w: 22, h: 24, durations: [83, 83, 83, 83, 83, 83], once: true } },
+  frog: { idle: { src: frog_idle, w: 18, h: 22, durations: [125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125] }, busy: { src: frog_busy, w: 18, h: 22, durations: [100, 100, 100, 100, 100, 100, 100, 100] }, walk: { src: frog_walk, w: 18, h: 22, durations: [125, 125, 125, 125] }, fall: { src: frog_fall, w: 18, h: 22, durations: [125, 125, 125, 125] }, happy: { src: frog_happy, w: 18, h: 22, durations: [125, 125, 125, 125, 125, 125] }, jump: { src: frog_jump, w: 18, h: 22, durations: [83, 83, 83, 83, 83, 83], once: true } },
+  bot: { idle: { src: bot_idle, w: 18, h: 22, durations: [125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125] }, busy: { src: bot_busy, w: 18, h: 22, durations: [100, 100, 100, 100, 100, 100, 100, 100] }, walk: { src: bot_walk, w: 18, h: 22, durations: [125, 125, 125, 125] }, fall: { src: bot_fall, w: 18, h: 22, durations: [125, 125, 125, 125] }, happy: { src: bot_happy, w: 18, h: 22, durations: [125, 125, 125, 125, 125, 125] }, jump: { src: bot_jump, w: 18, h: 22, durations: [83, 83, 83, 83, 83, 83], once: true } },
+  owl: { idle: { src: owl_idle, w: 18, h: 24, durations: [125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125] }, busy: { src: owl_busy, w: 18, h: 24, durations: [100, 100, 100, 100, 100, 100, 100, 100] }, walk: { src: owl_walk, w: 18, h: 24, durations: [125, 125, 125, 125] }, fall: { src: owl_fall, w: 18, h: 24, durations: [125, 125, 125, 125] }, happy: { src: owl_happy, w: 18, h: 24, durations: [125, 125, 125, 125, 125, 125] }, jump: { src: owl_jump, w: 18, h: 24, durations: [83, 83, 83, 83, 83, 83], once: true } }
 }

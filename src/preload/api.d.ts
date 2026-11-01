@@ -49,7 +49,7 @@ import type {
 } from '../shared/live'
 import type { BlobRef, TranscriptPage } from '../shared/transcript'
 import type { PrStatus } from '../shared/pr'
-import type { PetState, PetView } from '../shared/ipc'
+import type { PetAction, PetState, PetView } from '../shared/ipc'
 import type { Routine } from '../shared/routines'
 
 /** The sessions Gloom runs. */
@@ -212,8 +212,10 @@ export interface GloomApi {
     hover(over: boolean): void
     /** Dragging the pet: main moves its window with the cursor. */
     drag(phase: 'start' | 'move' | 'end'): void
-    /** The pet was clicked: Gloom comes forward. */
+    /** The pet was clicked: Gloom minimizes when it is in front, else comes forward. */
     open(): void
+    /** A button on the pet's toolbar. */
+    action(what: PetAction): void
   }
   /** An inline widget's page (show_widget): the URL its sandboxed frame loads. */
   widget(id: string, code: string, title: string, theme: { dark: boolean; accent: string }): Promise<string>

@@ -11,11 +11,13 @@ import { app, BrowserWindow, ipcMain, screen, shell, type IpcMainEvent, type Ipc
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC, type PetState, type PetView } from '@shared/ipc'
-import type { Settings } from '@shared/live'
-import { onSettings, settings } from './claude/settings'
+import { PET_KINDS, type Settings } from '@shared/live'
+import { onSettings, settings, updateSettings } from './claude/settings'
+import { runCommand } from './commands'
 import { isRendererUrl, rendererUrl } from './window'
 
-const SIZE = { width: 220, height: 180 }
+/** Room for the bubble above the pet and its toolbar below. */
+const SIZE = { width: 240, height: 236 }
 /** From the work area's corner: clear of the taskbar and the screen's edge. */
 const MARGIN = 12
 const MOODS = new Set(['rest', 'busy', 'needs', 'ready'])
@@ -128,13 +130,26 @@ function apply(next: Settings) {
  */
 export function startPet({
   trusted,
-  mainWindow,
-  bringForward
+  mainWindow
 }: {
   trusted: (event: IpcMainEvent | IpcMainInvokeEvent) => boolean
   mainWindow: BrowserWindow
-  bringForward: () => void
 }): void {
+  const show = () => {
+    if (mainWindow.isDestroyed()) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+  // Clicking the pet never takes the focus (its window can't), so Gloom in front
+  // is still the focused window: then it minimizes; minimized or behind another app,
+  // it comes forward.
+  const toggle = () => {
+    if (mainWindow.isDestroyed()) return
+    if (mainWindow.isVisible() && !mainWindow.isMinimized() && mainWindow.isFocused()) mainWindow.minimize()
+    else show()
+  }
+
   const fromPet = (event: IpcMainEvent) => trusted(event) && !!win && !win.isDestroyed() && event.sender === win.webContents
 
   ipcMain.on(IPC.petReport, (event, next: unknown) => {
@@ -166,7 +181,17 @@ export function startPet({
     }
   })
   ipcMain.on(IPC.petOpen, (event) => {
-    if (fromPet(event)) bringForward()
+    if (fromPet(event)) toggle()
+  })
+  ipcMain.on(IPC.petAction, (event, what: unknown) => {
+    if (!fromPet(event)) return
+    if (what === 'new-session') {
+      show()
+      runCommand('session.new', mainWindow, false)
+    } else if (what === 'next-pet') {
+      const at = PET_KINDS.indexOf(settings().petKind)
+      updateSettings({ petKind: PET_KINDS[(at + 1) % PET_KINDS.length] })
+    } else if (what === 'hide') updateSettings({ pet: false })
   })
 
   onSettings(apply)

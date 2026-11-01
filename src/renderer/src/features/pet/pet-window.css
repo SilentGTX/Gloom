@@ -58,3 +58,73 @@ html[data-pet] #root {
 .pet-body:active {
   cursor: grabbing;
 }
+
+/* The pet over its toolbar's slot, which keeps its room so the pet never moves as the toolbar comes and goes. */
+.pet-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.pet-toolbar-slot {
+  height: 38px;
+  padding-top: 4px;
+}
+
+/* Codex-style: a small capsule of icon buttons under the pet, while the pointer is on it. */
+.pet-toolbar {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  transform-origin: top center;
+  background: rgb(30 30 34 / 0.94);
+  color: #fff;
+  box-shadow:
+    0 0 0 0.5px rgb(255 255 255 / 0.14),
+    0 6px 18px rgb(0 0 0 / 0.28);
+}
+.pet-tool {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.85;
+  cursor: default;
+}
+.pet-tool:hover {
+  background: rgb(255 255 255 / 0.12);
+  opacity: 1;
+}
+.pet-tool:active {
+  background: rgb(255 255 255 / 0.2);
+}
+.pet-tool:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 0;
+}
+
+@media (prefers-color-scheme: light) {
+  .pet-toolbar {
+    background: rgb(255 255 255 / 0.97);
+    color: #1d1d1f;
+    box-shadow:
+      0 0 0 0.5px rgb(0 0 0 / 0.12),
+      0 6px 18px rgb(0 0 0 / 0.18);
+  }
+  .pet-tool:hover {
+    background: rgb(0 0 0 / 0.07);
+  }
+  .pet-tool:active {
+    background: rgb(0 0 0 / 0.12);
+  }
+}
+
+@media (prefers-contrast: more) {
+  .pet-toolbar {
+    box-shadow: 0 0 0 1.5px currentColor;
+  }
+}

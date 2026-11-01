@@ -1,21 +1,39 @@
 // The page in the pet's own window (main/pet.ts): the pet in the bottom-right
-// corner of a clear window, its bubble above it. Everything else in the window
-// lets clicks through to the app underneath, so the page tells main whenever the
-// pointer is over the pet or its bubble. Drag the pet to move it; click it, or
-// its bubble, and Gloom comes forward.
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
+// corner of a clear window, its bubble above it and, under the pointer, a small
+// toolbar below it. Everything else in the window lets clicks through to the
+// app underneath, so the page tells main whenever the pointer is over the pet,
+// its bubble or its toolbar.
+//
+// The pet acts out what happens to it: carried sideways it walks (facing the way
+// it's going), held up or carried up and down it dangles, under the pointer it's
+// happy, and clicked it jumps. Clicking it also minimizes Gloom, or brings it back.
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import type { PetView } from '@shared/ipc'
+import { EyeOff, Shuffle, SquarePen } from 'lucide-react'
+import type { PetAction, PetView } from '@shared/ipc'
 import { arrive, PixelPet } from './Pet'
+import type { PetLoopName } from './sprites'
 import './pet-window.css'
 
 /** Past this many pixels a press is a drag, not a click. */
 const DRAG_SLOP = 4
+/** Faster than this sideways (px/ms, smoothed), and more sideways than up or down, the pet walks. */
+const WALK_SPEED = 0.12
+/** Held still this long while carried, it dangles. */
+const STILL_MS = 160
+/** The toolbar stays this long after the pointer leaves, so it can be reached. */
+const TOOLBAR_LINGER_MS = 350
+
+type Carry = { loop: 'walk' | 'fall'; left: boolean } | null
 
 export function PetWindow() {
   const [view, setView] = useState<PetView | null>(null)
+  const [hover, setHover] = useState(false)
+  const [carry, setCarry] = useState<Carry>(null)
+  const [jumping, setJumping] = useState(0)
   const reduce = useReducedMotion()
-  const press = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+  const press = useRef<{ x: number; y: number; t: number; vx: number; vy: number; moved: boolean; left: boolean } | null>(null)
+  const stillTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
     document.documentElement.dataset.pet = ''
@@ -25,49 +43,76 @@ export function PetWindow() {
     return api.onView(setView)
   }, [])
 
-  // Whether the pointer is over something that takes clicks; moves arrive even while clicks pass through.
+  // Whether the pointer is over something that takes clicks (moves arrive even while
+  // clicks pass through): main lets the window take them, and the toolbar shows.
   useEffect(() => {
     let over = false
+    let linger: ReturnType<typeof setTimeout> | undefined
     const report = (next: boolean) => {
       if (next === over) return
       over = next
       window.gloom?.pet.hover(next)
+      clearTimeout(linger)
+      if (next) setHover(true)
+      else linger = setTimeout(() => setHover(false), TOOLBAR_LINGER_MS)
     }
     const onMove = (e: MouseEvent) => report(press.current !== null || !!(e.target as Element | null)?.closest?.('[data-pet-hit]'))
     const onLeave = () => press.current === null && report(false)
     window.addEventListener('mousemove', onMove)
     document.addEventListener('mouseleave', onLeave)
     return () => {
+      clearTimeout(linger)
       window.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseleave', onLeave)
     }
   }, [])
 
+  const dangleSoon = () => {
+    clearTimeout(stillTimer.current)
+    stillTimer.current = setTimeout(() => press.current?.moved && setCarry({ loop: 'fall', left: press.current.left }), STILL_MS)
+  }
   const down = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
     e.currentTarget.setPointerCapture(e.pointerId)
-    press.current = { x: e.screenX, y: e.screenY, moved: false }
+    press.current = { x: e.screenX, y: e.screenY, t: e.timeStamp, vx: 0, vy: 0, moved: false, left: false }
     window.gloom?.pet.drag('start')
   }
   const move = (e: PointerEvent<HTMLDivElement>) => {
     const p = press.current
     if (!p) return
-    if (!p.moved && Math.hypot(e.screenX - p.x, e.screenY - p.y) < DRAG_SLOP) return
-    p.moved = true
+    const dx = e.screenX - p.x
+    const dy = e.screenY - p.y
+    if (!p.moved && Math.hypot(dx, dy) < DRAG_SLOP) return
+    const dt = Math.max(1, e.timeStamp - p.t)
+    // Smoothed velocity, so one jittery move doesn't flip the pet around.
+    p.vx = p.vx * 0.6 + (dx / dt) * 0.4
+    p.vy = p.vy * 0.6 + (dy / dt) * 0.4
+    Object.assign(p, { x: e.screenX, y: e.screenY, t: e.timeStamp, moved: true })
     window.gloom?.pet.drag('move')
+    const sideways = Math.abs(p.vx) > WALK_SPEED && Math.abs(p.vx) > Math.abs(p.vy) * 1.2
+    if (sideways) p.left = p.vx < 0
+    setCarry({ loop: sideways ? 'walk' : 'fall', left: p.left })
+    dangleSoon()
   }
   const up = () => {
     const p = press.current
     press.current = null
+    clearTimeout(stillTimer.current)
+    setCarry(null)
     window.gloom?.pet.drag('end')
-    if (p && !p.moved) window.gloom?.pet.open()
+    if (p && !p.moved) {
+      setJumping((n) => n + 1)
+      window.gloom?.pet.open()
+    }
   }
+  const act = (what: PetAction) => window.gloom?.pet.action(what)
 
   if (!view) return null
+  const loop: PetLoopName = carry ? carry.loop : jumping ? 'jump' : hover ? 'happy' : view.mood === 'busy' ? 'busy' : 'idle'
   return (
     <div className="pet-stage">
       <AnimatePresence initial={false}>
-        {view.text && (
+        {view.text && !carry && (
           <motion.button
             key="bubble"
             type="button"
@@ -86,11 +131,56 @@ export function PetWindow() {
           </motion.button>
         )}
       </AnimatePresence>
-      <div data-pet-hit className="pet-body" title="Drag to move · Click to show Gloom" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
-        <motion.div key={view.kind} className="origin-bottom" initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={arrive(reduce)}>
-          <PixelPet kind={view.kind} mood={view.mood} still={!!reduce} />
-        </motion.div>
+      <div className="pet-column">
+        <div data-pet-hit className="pet-body" title="Drag to move · Click to hide or show Gloom" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+          <motion.div key={view.kind} className="origin-bottom" initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={arrive(reduce)}>
+            <PixelPet
+              key={`${loop}-${jumping}`}
+              kind={view.kind}
+              mood={view.mood}
+              loop={loop}
+              flip={!!carry?.left}
+              still={!!reduce}
+              onDone={() => setJumping(0)}
+            />
+          </motion.div>
+        </div>
+        <div className="pet-toolbar-slot">
+          <AnimatePresence>
+            {hover && !carry && (
+              <motion.div
+                key="toolbar"
+                data-pet-hit
+                role="toolbar"
+                aria-label="Pet"
+                className="pet-toolbar"
+                initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: -2 }}
+                transition={arrive(reduce)}
+              >
+                <ToolButton label="New session" onClick={() => act('new-session')}>
+                  <SquarePen size={15} strokeWidth={2} />
+                </ToolButton>
+                <ToolButton label="Next pet" onClick={() => act('next-pet')}>
+                  <Shuffle size={15} strokeWidth={2} />
+                </ToolButton>
+                <ToolButton label="Hide pet" onClick={() => act('hide')}>
+                  <EyeOff size={15} strokeWidth={2} />
+                </ToolButton>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
+  )
+}
+
+function ToolButton({ label, onClick, children }: { label: string; onClick(): void; children: ReactNode }) {
+  return (
+    <button type="button" className="pet-tool" aria-label={label} title={label} onClick={onClick}>
+      {children}
+    </button>
   )
 }

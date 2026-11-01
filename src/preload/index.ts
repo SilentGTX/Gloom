@@ -109,7 +109,8 @@ const api: GloomApi = {
     onView: (listener) => subscribe<PetView>(IPC.petView, listener),
     hover: (over) => ipcRenderer.send(IPC.petHover, over),
     drag: (phase) => ipcRenderer.send(IPC.petDrag, phase),
-    open: () => ipcRenderer.send(IPC.petOpen)
+    open: () => ipcRenderer.send(IPC.petOpen),
+    action: (what) => ipcRenderer.send(IPC.petAction, what)
   },
   cloud: {
     start: (folder, task) => ipcRenderer.invoke(IPC.cloudStart, folder, task),

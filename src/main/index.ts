@@ -773,17 +773,7 @@ if (smokeArg) {
     mainWindow.on('focus', checkOnFocus)
     mainWindow.on('focus', () => mainWindow?.flashFrame(false))
     // The pet: a window of its own on top of every app, which Settings › Pets or /pet shows.
-    startPet({
-      trusted,
-      mainWindow,
-      bringForward: () => {
-        const win = mainWindow
-        if (!win) return
-        if (win.isMinimized()) win.restore()
-        win.show()
-        win.focus()
-      }
-    })
+    startPet({ trusted, mainWindow })
     // Quitting mid-turn stops Claude where it is: say so first.
     let quitAnyway = false
     mainWindow.on('close', (event) => {

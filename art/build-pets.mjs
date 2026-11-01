@@ -15,7 +15,9 @@ const art = join(root, 'art')
 const target = join(root, 'src/renderer/src/features/pet/sprites')
 const pxl = process.env.PXL ?? join(homedir(), '.claude/skills/pxl-pixel-art/bin/pxl.js')
 const PETS = ['blob', 'sprout', 'ghost', 'ember', 'cat', 'frog', 'bot', 'owl']
-const LOOPS = ['idle', 'busy']
+const LOOPS = ['idle', 'busy', 'walk', 'fall', 'happy', 'jump']
+/** Played once, then the pet goes back to what it was doing. */
+const ONCE = new Set(['jump'])
 
 const [major, minor] = process.versions.node.split('.').map(Number)
 const modern = major > 22 || (major === 22 && minor >= 18)
@@ -38,7 +40,7 @@ for (const pet of PETS) {
     const frames = Object.values(sheet.frames)
     const { w, h } = frames[0].frame
     imports.push(`import ${name} from './${name}.png'`)
-    loops.push(`${loop}: { src: ${name}, w: ${w}, h: ${h}, durations: [${frames.map((f) => f.duration).join(', ')}] }`)
+    loops.push(`${loop}: { src: ${name}, w: ${w}, h: ${h}, durations: [${frames.map((f) => f.duration).join(', ')}]${ONCE.has(loop) ? ', once: true' : ''} }`)
   }
   entries.push(`  ${pet}: { ${loops.join(', ')} }`)
 }
@@ -48,15 +50,19 @@ writeFileSync(
 import type { PetKind } from '@shared/live'
 ${imports.join('\n')}
 
-/** One loop: a horizontal strip of w × h frames, each shown for its duration (ms). */
+/** One loop: a horizontal strip of w × h frames, each shown for its duration (ms); \`once\` plays it a single time. */
 export interface PetLoop {
   src: string
   w: number
   h: number
   durations: readonly number[]
+  once?: boolean
 }
 
-export const PET_SPRITES: Record<PetKind, { idle: PetLoop; busy: PetLoop }> = {
+/** idle: resting; busy: working; walk: carried sideways (facing right); fall: held up; happy: under the pointer; jump: clicked. */
+export type PetLoopName = ${LOOPS.map((l) => `'${l}'`).join(' | ')}
+
+export const PET_SPRITES: Record<PetKind, Record<PetLoopName, PetLoop>> = {
 ${entries.join(',\n')}
 }
 `
