@@ -7,11 +7,11 @@
 // - chapter dividers and a table of contents (mark_chapter),
 // - inline widgets in a sandboxed frame (show_widget),
 // - sessions Claude proposed, with Start (start_session, own initiative).
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Bookmark, Check, ChevronDown, CircleDashed, ListTree, LoaderCircle, Play, SplitSquareHorizontal, X } from 'lucide-react'
 import { create } from 'zustand'
-import { chapterOf, CHAPTER_TOOLS, planOf, PLAN_TOOLS, widgetOf, WIDGET_TOOLS, WRAP_TOOLS, wrapUpOf, type PlanStep, type WrapUp } from '@shared/plan'
+import { chapterOf, CHAPTER_TOOLS, planOf, planShown, PLAN_TOOLS, widgetOf, WIDGET_TOOLS, WRAP_TOOLS, wrapUpOf, type PlanStep, type WrapUp } from '@shared/plan'
 import type { ToolEntry, ToolResult, TranscriptEntry } from '@shared/transcript'
 import { Button } from '../../components/ui/Button'
 import { Tooltip } from '../../components/ui/Tooltip'
@@ -73,7 +73,11 @@ export function isFurniture(name: string): boolean {
 
 // ─── Under the latest message ───────────────────────────────────────────────
 
-/** The task list and the next-step box, above the composer: the conversation's foot. */
+/**
+ * The task list and the next-step box, above the composer: the conversation's
+ * foot. The list shows only while a step is left to do; once every step is
+ * done it goes (the Tasks pane keeps it), so a finished turn leaves just its box.
+ */
 export function TurnFurniture({ sessionId }: { sessionId: string }) {
   const furniture = useFurniture((s) => s[sessionId])
   const summary = useLive((s) => s.sessions[sessionId])
@@ -81,45 +85,53 @@ export function TurnFurniture({ sessionId }: { sessionId: string }) {
   const busy = isBusy(summary)
   return (
     <>
-      {furniture.plan.length > 0 && <PlanList steps={furniture.plan} working={busy} />}
+      {/* The list sits on top of the stack, which hangs from the bottom: coming and going, it moves nothing below it. */}
+      <AnimatePresence initial={false}>{planShown(furniture.plan) && <PlanList key="plan" steps={furniture.plan} working={busy} />}</AnimatePresence>
       {!busy && furniture.wrap && furniture.wrapKey && <NextStep key={furniture.wrapKey} sessionId={sessionId} wrap={furniture.wrap} />}
     </>
   )
 }
 
 /**
- * The task list Claude keeps (update_plan), pinned under its latest message:
- * folded to the step under way, open to show them all. Done steps are struck
- * through; the one under way says so in words and a spinning ring.
+ * The task list Claude keeps (update_plan): one line by default, saying the
+ * step under way and how many are done; open, every step, done ones struck
+ * through. Open or folded is remembered for every session.
  */
 function PlanList({ steps, working }: { steps: PlanStep[]; working: boolean }) {
   const concept = useConcept()
-  const [open, setOpen] = useState(true)
+  const reduce = useReducedMotion()
+  const open = useUi((s) => s.planOpen)
+  const listId = useId()
   const done = steps.filter((s) => s.status === 'completed').length
-  const current = steps.find((s) => s.status === 'in_progress')
-  const finished = done === steps.length
+  // The step under way, else the next one to do (a turn stopped between steps).
+  const current = steps.find((s) => s.status === 'in_progress') ?? steps.find((s) => s.status === 'pending')
   return (
-    <section aria-label="Task list" className={cn('flex flex-col text-[13px] text-label', concept ? 'concept-composer rounded-[14px] px-3 py-2' : 'glass-strong rounded-[14px] px-3.5 py-2')}>
+    <motion.section
+      aria-label="Task list"
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, y: 6 }}
+      transition={{ type: 'spring', bounce: 0, duration: 0.25 }}
+      className={cn('flex flex-col text-[13px] text-label', concept ? 'concept-composer rounded-[12px] px-3 py-1.5' : 'glass-strong rounded-[12px] px-3 py-1.5')}
+    >
       <div className="relative z-[2]">
-        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="no-drag flex w-full items-center gap-2 rounded-[6px] text-left outline-none focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)]">
-          <ListTree size={14} strokeWidth={1.75} aria-hidden className="shrink-0 text-label-secondary" />
-          <span className="min-w-0 flex-1 truncate">
-            {open || !current ? (
-              <span className="font-medium">{finished ? 'Every step is done' : 'Tasks'}</span>
-            ) : (
-              <>
-                <span className="text-label-secondary">Now: </span>
-                {current.content}
-              </>
-            )}
-          </span>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => useUi.getState().setPlanOpen(!open)}
+          className="no-drag flex min-h-6 w-full items-center gap-2 rounded-[6px] text-left outline-none focus-visible:outline-2 focus-visible:outline-[var(--accent-ring)]"
+        >
+          {open || !current ? <ListTree size={14} strokeWidth={1.75} aria-hidden className="shrink-0 text-label-secondary" /> : <StepMark status={current.status} working={working} inline />}
+          <span className="min-w-0 flex-1 truncate">{open || !current ? <span className="font-medium">Tasks</span> : current.content}</span>
           <span className="shrink-0 text-[12px] text-label-secondary tabular">
             {done} of {steps.length}
+            <span className="sr-only"> done</span>
           </span>
           <ChevronDown size={12} strokeWidth={2.25} aria-hidden className={cn('shrink-0 text-label-secondary transition-transform duration-[var(--duration-tooltip)] motion-reduce:transition-none', !open && '-rotate-90')} />
         </button>
         {open && (
-          <ol className="mt-1.5 flex flex-col gap-0.5 pb-0.5">
+          <ol id={listId} className="mt-1 flex flex-col gap-0.5 pb-1">
             {steps.map((step, i) => (
               <li key={i} className="flex items-start gap-2 py-px">
                 <StepMark status={step.status} working={working} />
@@ -130,35 +142,51 @@ function PlanList({ steps, working }: { steps: PlanStep[]; working: boolean }) {
           </ol>
         )}
       </div>
-    </section>
+    </motion.section>
   )
 }
 
-function StepMark({ status, working }: { status: PlanStep['status']; working: boolean }) {
+/** A step's mark: a check, a ring that spins while Claude works on it, or an empty circle. `inline` drops the nudge that lines it up with wrapped text. */
+function StepMark({ status, working, inline }: { status: PlanStep['status']; working: boolean; inline?: boolean }) {
+  const nudge = inline ? '' : 'mt-[2px]'
   if (status === 'completed')
     return (
-      <span aria-hidden className="mt-[2px] flex size-[14px] shrink-0 items-center justify-center rounded-full bg-accent text-[var(--on-accent)]">
+      <span aria-hidden className={cn(nudge, 'flex size-[14px] shrink-0 items-center justify-center rounded-full bg-accent text-[var(--on-accent)]')}>
         <Check size={9} strokeWidth={3.5} />
       </span>
     )
   if (status === 'in_progress')
     return working ? (
-      <LoaderCircle size={14} strokeWidth={2} aria-hidden className="mt-[2px] shrink-0 animate-spin text-accent-text motion-reduce:animate-none" />
+      <LoaderCircle size={14} strokeWidth={2} aria-hidden className={cn(nudge, 'shrink-0 animate-spin text-accent-text motion-reduce:animate-none')} />
     ) : (
-      <CircleDashed size={14} strokeWidth={2} aria-hidden className="mt-[2px] shrink-0 text-accent-text" />
+      <CircleDashed size={14} strokeWidth={2} aria-hidden className={cn(nudge, 'shrink-0 text-accent-text')} />
     )
-  return <span aria-hidden className="mt-[2px] size-[14px] shrink-0 rounded-full shadow-[inset_0_0_0_1.5px_var(--label-tertiary)]" />
+  return <span aria-hidden className={cn(nudge, 'size-[14px] shrink-0 rounded-full shadow-[inset_0_0_0_1.5px_var(--label-tertiary)]')} />
 }
 
 /**
  * The next-step box (wrap_up): what's now true and where it stands, then the
  * one decision Claude leaves you, with its answers as buttons (the first is
- * Claude's pick). A button's words go to Claude as your message.
+ * Claude's pick). A button's words go to Claude as your message. The recap
+ * shows two lines; a longer one opens with Show More.
  */
 function NextStep({ sessionId, wrap }: { sessionId: string; wrap: WrapUp }) {
   const concept = useConcept()
   const reduce = useReducedMotion()
   const [sent, setSent] = useState(false)
+  const [more, setMore] = useState(false)
+  const [clamped, setClamped] = useState(false)
+  const recap = useRef<HTMLParagraphElement>(null)
+  // Whether two lines cut the recap short, measured again as the column's width changes.
+  useLayoutEffect(() => {
+    const el = recap.current
+    if (!el || more) return
+    const measure = () => setClamped(el.scrollHeight > el.clientHeight + 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [wrap.recap, more])
   const answer = async (label: string) => {
     setSent(true)
     if (!(await useLive.getState().sendText(sessionId, label))) setSent(false)
@@ -169,10 +197,21 @@ function NextStep({ sessionId, wrap }: { sessionId: string; wrap: WrapUp }) {
       initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
-      className={cn('text-[13px] text-label', concept ? 'concept-composer rounded-[14px] px-3.5 py-3' : 'glass-strong rounded-[14px] px-3.5 py-3')}
+      className={cn('text-[13px] text-label', concept ? 'concept-composer rounded-[12px] px-3 py-2' : 'glass-strong rounded-[12px] px-3 py-2')}
     >
-      <div className="relative z-[2] flex flex-col gap-2">
-        <p className="leading-snug text-label-secondary">{wrap.recap}</p>
+      <div className="relative z-[2] flex flex-col gap-1.5">
+        <div className="flex items-start gap-1.5">
+          <p ref={recap} className={cn('min-w-0 flex-1 leading-snug text-label-secondary', !more && 'line-clamp-2')}>
+            {wrap.recap}
+          </p>
+          {(clamped || more) && (
+            <Tooltip label={more ? 'Show Less' : 'Show More'}>
+              <Button shape="round" size="small" aria-label={more ? 'Show Less' : 'Show More'} aria-expanded={more} onClick={() => setMore(!more)} className="-my-0.5 -mr-1 shrink-0">
+                <ChevronDown size={12} strokeWidth={2.25} aria-hidden className={cn('transition-transform duration-[var(--duration-tooltip)] motion-reduce:transition-none', more && 'rotate-180')} />
+              </Button>
+            </Tooltip>
+          )}
+        </div>
         {wrap.ask && (
           <div className="flex flex-wrap items-center gap-2">
             <p className="min-w-0 flex-1 font-medium leading-snug">{wrap.ask}</p>

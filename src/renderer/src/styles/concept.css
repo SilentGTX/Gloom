@@ -428,6 +428,10 @@
   box-shadow: inset 0 0.5px 0 var(--separator-strong);
   animation: concept-fade 150ms var(--curve-out);
 }
+/* A folded step's detail, opened under its line: the card without a header above it. */
+.concept-step.is-detail > .concept-step-body {
+  box-shadow: none;
+}
 @keyframes concept-fade {
   from {
     opacity: 0;

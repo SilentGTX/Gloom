@@ -35,13 +35,19 @@ test('a transcript opens at its newest reply, its tool calls open, and its image
   await expect(transcript.locator('img[alt="Attached image"]')).toHaveAttribute('src', /^data:image\/png;base64,/)
 
   await toTop(transcript)
-  const edit = transcript.getByRole('button', { name: 'Edited server.ts +3 −1' })
+  // A run of calls is one line; it opens to its steps, and a step to what it did.
+  const run = transcript.getByRole('button', { name: /^Created limits\.ts, edited a file, ran a command/ })
+  // A failed step says so in words on the run's line, not only in colour.
+  await expect(run).toContainText('1 failed')
+  await run.click()
+  const edit = transcript.getByRole('button', { name: /^Edited server\.ts/ })
+  await expect(edit).toContainText('+3')
   await expect(edit).toHaveAttribute('aria-expanded', 'false')
   await edit.click()
   await expect(edit).toHaveAttribute('aria-expanded', 'true')
   await expect(transcript.getByText("app.register(rateLimit, { perMinute: 100 })").first()).toBeVisible()
-  // A failed run says so in words, not only in colour.
-  await expect(transcript.getByRole('button', { name: /Ran\s*npm test.*Failed/ })).toBeVisible()
+  // The failed command reads as its description, in the past, and says Failed.
+  await expect(transcript.getByRole('button', { name: /Ran the route tests.*Failed/ })).toBeVisible()
 })
 
 test('Find searches the whole loaded transcript, opening folded output to show a match', async () => {
@@ -52,8 +58,9 @@ test('Find searches the whole loaded transcript, opening folded output to show a
   await field.fill('expected 429')
   const status = page.getByRole('search').getByRole('status')
   await expect(status).toHaveText(/^1 of \d+$/)
-  // The match is in a failed run's output, so that row opens.
-  await expect(transcript.getByRole('button', { name: /Ran\s*npm test.*Failed/ })).toHaveAttribute('aria-expanded', 'true')
+  // The match is in a failed command's output, inside a run: the run opens, and so does that step.
+  await expect(transcript.getByRole('button', { name: /^Created limits\.ts, edited a file, ran a command/ })).toHaveAttribute('aria-expanded', 'true')
+  await expect(transcript.getByRole('button', { name: /Ran the route tests.*Failed/ })).toHaveAttribute('aria-expanded', 'true')
   await field.fill('nothing like this')
   await expect(status).toHaveText('No matches')
   await field.fill('limit')

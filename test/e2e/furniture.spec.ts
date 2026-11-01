@@ -66,14 +66,13 @@ async function open() {
 
 test('the task list, the next-step box, chapters, a widget and a proposal show as themselves', async () => {
   await open()
-  // The task list, pinned under the latest message: the turn wrapped up, so every step is checked off.
-  const tasks = page.getByRole('region', { name: 'Task list' })
-  await expect(tasks).toContainText('3 of 3')
-  await expect(tasks).toContainText('Every step is done')
-  await expect(tasks.getByText('Chart response times')).toBeVisible()
-  // The next-step box: the recap and the question, its buttons answering it.
+  // The turn wrapped up and every step is done, so the task list has gone (the Tasks pane keeps it).
+  await expect(page.getByRole('region', { name: 'Next step' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Task list' })).toHaveCount(0)
+  // The next-step box: the recap and the question, its buttons answering it. A short recap needs no Show More.
   const next = page.getByRole('region', { name: 'Next step' })
   await expect(next).toContainText('The health page answers at /health')
+  await expect(next.getByRole('button', { name: 'Show More' })).toHaveCount(0)
   await expect(next.getByRole('button', { name: 'Commit it' })).toBeVisible()
   // The widget, in its frame, drawn by Gloom's widget scheme.
   const frame = page.frameLocator('iframe[title="response_times"]')
@@ -88,6 +87,81 @@ test('the task list, the next-step box, chapters, a widget and a proposal show a
   await capture('furniture-contents')
   await chapters.getByRole('button', { name: /Exploration/ }).click()
   await expect(page.getByRole('separator', { name: 'Chapter: Exploration' })).toBeVisible()
+})
+
+const STOPPED = 'dddddddd-0000-4000-8000-000000000002'
+const LONG = 'dddddddd-0000-4000-8000-000000000003'
+
+/** Two more conversations: one stopped in the middle of its plan, one whose wrap-up says a lot. */
+function more(cwd: string): ChatBuilder[] {
+  const stopped = new ChatBuilder(STOPPED, cwd, minutesAgo(20))
+  stopped.title('Stopped mid-plan')
+  stopped.prompt('Add a health check page and chart the response times.')
+  stopped.respond().text('I’ll plan it first.')
+  stopped.tool({ name: 'mcp__gloom__update_plan', input: { items: [{ content: 'Read the routes', status: 'in_progress' }, { content: 'Add the health page', status: 'pending' }, { content: 'Chart response times', status: 'pending' }] }, content: 'Plan shown (3 steps).' })
+  stopped.tool({ name: 'mcp__gloom__update_plan', input: { advance: true }, content: 'Plan updated: step 2 of 3 is in progress.' })
+  stopped.text('Reading done; the page is next.')
+
+  const long = new ChatBuilder(LONG, cwd, minutesAgo(10))
+  long.title('A long wrap-up')
+  long.prompt('Ship it.')
+  long.respond().text('Shipping.')
+  const recap =
+    'Gloom 0.15.8 is published: sessions reopen on their last model and effort, and updates no longer flash a purple pet square or shift the window’s colour. ' +
+    'The packaged check passed 4/4 before release, after fixing a test that expected the old window address. The installer is not code-signed, so SmartScreen may warn. ' +
+    'The dev-app-id checkout still has the old uncommitted rename change, left alone.'
+  long.tool({ name: 'mcp__gloom__wrap_up', input: { recap }, content: 'Shown in the next-step box.' })
+  long.text('Released.')
+  return [stopped, long]
+}
+
+test('an unfinished task list is one line, opens to every step, and stays open after a restart', async () => {
+  const cwd = tempDir('gloom-furniture-')
+  const claudeDir = fakeClaude([])
+  for (const c of more(cwd)) c.write(join(claudeDir, 'projects'))
+  const userData = tempDir('gloom-furniture-profile-')
+  ;({ app, page } = await launch({ claudeDir, userData, design: 'concept' }))
+  await setWindowSize(app, 1440, 900)
+  await openGroup(page, 'All Sessions')
+  await sessionRow(page, 'Stopped mid-plan').click()
+  // Folded: the step under way and how many are done, no steps listed.
+  const tasks = page.getByRole('region', { name: 'Task list' })
+  await expect(tasks).toContainText('Add the health page')
+  await expect(tasks).toContainText('1 of 3')
+  await expect(tasks.getByRole('listitem')).toHaveCount(0)
+  const toggle = tasks.getByRole('button', { expanded: false })
+  // One line: as tall as a chip, not a card.
+  expect((await tasks.boundingBox())!.height).toBeLessThan(44)
+  await capture('furniture-folded')
+  await toggle.click()
+  await expect(tasks.getByRole('listitem')).toHaveCount(3)
+  await expect(tasks.getByRole('button', { expanded: true })).toBeVisible()
+  await capture('furniture-open')
+  // Remembered: a restart (and any other session's list) opens the same way.
+  await app.close()
+  ;({ app, page } = await launch({ claudeDir, userData, design: 'concept' }))
+  await openGroup(page, 'All Sessions')
+  await sessionRow(page, 'Stopped mid-plan').click()
+  await expect(page.getByRole('region', { name: 'Task list' }).getByRole('listitem')).toHaveCount(3)
+})
+
+test('a long recap shows two lines, and Show More opens the rest', async () => {
+  const cwd = tempDir('gloom-furniture-')
+  const claudeDir = fakeClaude([])
+  for (const c of more(cwd)) c.write(join(claudeDir, 'projects'))
+  ;({ app, page } = await launch({ claudeDir, design: 'concept' }))
+  await setWindowSize(app, 1440, 900)
+  await openGroup(page, 'All Sessions')
+  await sessionRow(page, 'A long wrap-up').click()
+  const next = page.getByRole('region', { name: 'Next step' })
+  const recap = next.locator('p').first()
+  await expect(recap).toContainText('Gloom 0.15.8 is published')
+  const lines = async () => recap.evaluate((el) => Math.round(el.clientHeight / parseFloat(getComputedStyle(el).lineHeight)))
+  expect(await lines()).toBe(2)
+  await capture('furniture-recap')
+  await next.getByRole('button', { name: 'Show More' }).click()
+  await expect(next.getByRole('button', { name: 'Show Less' })).toHaveAttribute('aria-expanded', 'true')
+  expect(await lines()).toBeGreaterThan(2)
 })
 
 test('Verbose shows the tool calls behind the furniture', async () => {

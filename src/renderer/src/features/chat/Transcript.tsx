@@ -16,7 +16,7 @@ import { clearMatches, findMatches, paintMatches, popMatch, useFind } from './fi
 import { FindBar } from './FindBar'
 import { PromptCards } from './PromptCards'
 import { cutAt, RewindAllowed } from './Rewind'
-import { buildRows, liveRows, type Row } from './rows'
+import { buildRows, countMatches, groupTools, liveRows, rowText, type Row } from './rows'
 import { RowView } from './RowView'
 import { useTranscriptView } from '../sessions/actions'
 import { PLAN_TOOLS } from '@shared/plan'
@@ -64,8 +64,9 @@ export function Transcript({ sessionId, live }: { sessionId: string; live: boole
   // View › Transcript View, as the Claude app's: Normal leaves Claude's thinking out, Thinking shows it, Verbose opens everything.
   const view = useTranscriptView(sessionId)
   // Normal leaves thinking out; the task list's own calls show only in Verbose (the list itself is pinned at the foot).
+  // Outside Verbose, each run of tool calls folds into one line, as the Claude app shows them.
   const shown = useMemo(
-    () => (view === 'verbose' ? rows : rows.filter((r) => (view === 'normal' ? r.kind !== 'thinking' : true) && !(r.kind === 'tool' && PLAN_TOOLS.has(r.entry.name)))),
+    () => (view === 'verbose' ? rows : groupTools(rows.filter((r) => (view === 'normal' ? r.kind !== 'thinking' : true) && !(r.kind === 'tool' && PLAN_TOOLS.has(r.entry.name))))),
     [rows, view]
   )
   // The task list, the latest next-step box and the chapters, for the composer and the contents.
@@ -339,9 +340,12 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
     if (!match) return
     // A row is open when it's the other way round from the view's default (a thinking or tool row Verbose opens is already).
     if (match.hidden) {
-      const kind = rows[match.rowIndex]?.kind
+      const row = rows[match.rowIndex]
+      const kind = row?.kind
       const opens = kind === 'thinking' ? openByDefault.thinking : kind === 'tool' ? openByDefault.tools : false
       setExpanded(match.key, !opens)
+      // A run opens, and so does each of its steps whose details hold the match.
+      if (row?.kind === 'tools') for (const step of row.steps) if (countMatches(rowText(step).hidden, query)) setExpanded(step.key, true)
     }
     virtuoso.current?.scrollIntoView({
       index: match.rowIndex,

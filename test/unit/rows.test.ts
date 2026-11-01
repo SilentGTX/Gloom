@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { ToolResult, TranscriptEntry } from '../../src/shared/transcript'
 import { findMatches } from '../../src/renderer/src/features/chat/find'
-import { buildRows, countMatches, stripMarkdown } from '../../src/renderer/src/features/chat/rows'
-import { describeTool, modelName } from '../../src/renderer/src/features/chat/tools'
+import { buildRows, countMatches, groupTools, stripMarkdown } from '../../src/renderer/src/features/chat/rows'
+import { describeGroup, describeTool, modelName, pastTense } from '../../src/renderer/src/features/chat/tools'
 
 const T0 = Date.parse('2026-10-30T09:00:00Z')
 const at = (s: number) => T0 + s * 1000
@@ -81,5 +81,80 @@ describe('tool lines', () => {
     expect(modelName('claude-haiku-4-5-20251001')).toBe('Haiku 4.5')
     expect(modelName('claude-fable-5')).toBe('Fable 5')
     expect(modelName(null)).toBeNull()
+  })
+})
+
+describe('runs of tool calls', () => {
+  const call = (key: string, s: number, name: string, input: Record<string, unknown>): TranscriptEntry => ({ kind: 'tool', key, time: at(s), id: key, name, input, messageId: 'm', model: 'claude-opus-5-5' })
+  const edited = (id: string, added: number, removed: number): ToolResult => ({ toolUseId: id, isError: false, parts: [], info: { added, removed }, time: 0 })
+  const created = (id: string, added: number): ToolResult => ({ toolUseId: id, isError: false, parts: [], info: { added, created: true }, time: 0 })
+
+  it('fold into one row, as the Claude app sums them up: each kind once, counted, files by path', () => {
+    const entries = [
+      prompt('p', 0),
+      call('b1', 1, 'Bash', { command: 'git status' }),
+      call('g1', 2, 'Grep', { pattern: 'Fold' }),
+      call('r1', 3, 'Read', { file_path: 'D:/a/one.ts' }),
+      call('b2', 4, 'Bash', { command: 'npm test' }),
+      call('r2', 5, 'Read', { file_path: 'D:/a/two.ts' }),
+      call('e1', 6, 'Edit', { file_path: 'D:/a/one.ts' }),
+      text('a', 7)
+    ]
+    const rows = groupTools(buildRows(entries, { e1: edited('e1', 3, 0) }))
+    expect(rows.map((r) => r.kind)).toEqual(['time', 'prompt', 'tools', 'text', 'turn'])
+    const run = rows[2]
+    if (run.kind !== 'tools') throw new Error('no run')
+    expect(run.steps.map((s) => s.key)).toEqual(['b1', 'g1', 'r1', 'b2', 'r2', 'e1'])
+    expect(describeGroup(run.steps.map((s) => ({ call: s.entry, result: s.result, running: s.running })))).toMatchObject({ text: 'Ran 2 commands, searched code, read 2 files, edited a file', added: 3, removed: 0 })
+  })
+
+  it('name the first kind’s file when there is one, and count five edits to one file as one file', () => {
+    const steps = (entries: TranscriptEntry[], results: Record<string, ToolResult>) => {
+      const run = groupTools(buildRows(entries, results)).find((r) => r.kind === 'tools')
+      if (run?.kind !== 'tools') throw new Error('no run')
+      return describeGroup(run.steps.map((s) => ({ call: s.entry, result: s.result, running: s.running })))
+    }
+    expect(steps([prompt('p', 0), call('w', 1, 'Write', { file_path: 'D:/x/main.js' }), call('b', 2, 'Bash', { command: 'node main.js' })], { w: created('w', 22) })).toMatchObject({ text: 'Created main.js, ran a command', added: 22 })
+    const edits = [1, 2, 3, 4, 5].map((n) => call(`e${n}`, n, 'Edit', { file_path: 'D:/x/Furniture.tsx' }))
+    expect(steps([prompt('p', 0), ...edits], Object.fromEntries(edits.map((e) => [e.key, edited(e.key, 7, 2)])))).toMatchObject({ text: 'Edited Furniture.tsx', added: 35, removed: 10 })
+  })
+
+  it('leave a lone call, an agent, and the task list’s furniture standing alone', () => {
+    const rows = groupTools(
+      buildRows(
+        [
+          prompt('p', 0),
+          call('b1', 1, 'Bash', { command: 'ls' }),
+          text('a', 2),
+          call('b2', 3, 'Bash', { command: 'ls' }),
+          call('ag', 4, 'Agent', { description: 'Look around', prompt: 'x' }),
+          call('b3', 5, 'Bash', { command: 'ls' }),
+          call('ch', 6, 'mcp__gloom__mark_chapter', { title: 'Next' }),
+          call('b4', 7, 'Bash', { command: 'ls' })
+        ],
+        {}
+      )
+    )
+    expect(rows.filter((r) => r.kind !== 'time' && r.kind !== 'turn').map((r) => r.key)).toEqual(['p', 'b1', 'a', 'b2', 'ag', 'b3', 'ch', 'b4'])
+  })
+
+  it('say a lone command by its description, in the past', () => {
+    expect(pastTense('Run the unit and end-to-end suites')).toBe('Ran the unit and end-to-end suites')
+    expect(pastTense('Check for new shortcuts and Gloom’s app name')).toBe('Checked for new shortcuts and Gloom’s app name')
+    expect(pastTense('Find which test run creates the Electron shortcut')).toBe('Found which test run creates the Electron shortcut')
+    expect(pastTense('Copy the build')).toBe('Copied the build')
+    expect(pastTense('Stop the dev server')).toBe('Stopped the dev server')
+    expect(pastTense('Create the release')).toBe('Created the release')
+    // Not a verb we know: left as written.
+    expect(pastTense('Git status')).toBe('Git status')
+    expect(pastTense('Typecheck, unit tests, build, and furniture e2e')).toBe('Typecheck, unit tests, build, and furniture e2e')
+  })
+
+  it('count a failed step, and spin while one runs', () => {
+    const failed: ToolResult = { toolUseId: 'b1', isError: true, parts: [], info: {}, time: 0 }
+    const rows = groupTools(buildRows([prompt('p', 0), call('b1', 1, 'Bash', { command: 'x' }), call('b2', 2, 'Bash', { command: 'y' })], { b1: failed }, { live: true }))
+    const run = rows.find((r) => r.kind === 'tools')
+    if (run?.kind !== 'tools') throw new Error('no run')
+    expect(describeGroup(run.steps.map((s) => ({ call: s.entry, result: s.result, running: s.running })))).toMatchObject({ text: 'Ran 2 commands', failed: 1, running: true })
   })
 })

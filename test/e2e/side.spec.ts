@@ -57,7 +57,9 @@ test('a file step opens the file in the side pane, at its line, and the diff pan
     })
     await page.waitForTimeout(100)
   }
-  await transcript.getByRole('button', { name: /Read server\.ts/ }).first().click()
+  // It's in a run ("Read server.ts, searched code"): open the run, then the step, then Open File.
+  await transcript.getByRole('button', { name: /^Read server\.ts, searched code/ }).first().click()
+  await transcript.getByRole('button', { name: 'Read server.ts', exact: true }).first().click()
   await transcript.getByRole('button', { name: 'Open File' }).first().click()
   await expect(pane()).toBeVisible()
   await expect(pane().getByText('app.listen({ port: 3000 })')).toBeVisible()

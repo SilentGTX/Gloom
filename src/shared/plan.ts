@@ -52,6 +52,15 @@ export function finishPlan(steps: readonly PlanStep[]): PlanStep[] {
   return steps.map((s) => ({ ...s, status: 'completed' }))
 }
 
+/**
+ * Whether the list still belongs above the composer: while a step is left to
+ * do. A finished list goes, as a progress indicator does once the work is
+ * over (the Claude app hides it too); the Tasks pane keeps showing it.
+ */
+export function planShown(steps: readonly PlanStep[]): boolean {
+  return steps.some((s) => s.status !== 'completed')
+}
+
 /** The list after every update_plan (and wrap_up) call in these, oldest first. */
 export function planOf(calls: readonly { name: string; input: unknown }[]): PlanStep[] {
   let steps: PlanStep[] = []

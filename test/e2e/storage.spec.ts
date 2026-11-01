@@ -23,7 +23,8 @@ test('the settings kept under file:// come across to app://gloom, once', async (
   writeFileSync(join(userData, 'window-state.json'), JSON.stringify({ width: 1280, height: 820, maximized: false }))
 
   let { app, page } = await launch({ userData })
-  expect(page.url()).toBe('app://gloom/index.html')
+  // The address carries the look since 0.15.8 (?design=…), so the first frame is drawn in it.
+  expect(page.url()).toMatch(/^app:\/\/gloom\/index\.html(\?|$)/)
   await expect.poll(() => textScale(page)).toBe('1.125')
   expect(await page.locator('aside[aria-label="Sidebar"]').evaluate((el) => Math.round(el.getBoundingClientRect().width))).toBe(340)
   // The version it last ran came too, so the update note still knows what's new.

@@ -9,7 +9,7 @@ import { Markdown } from './Markdown'
 import { ImageStrip, ShowAll, useFullText } from './media'
 import { PromptActions, RewindAllowed } from './Rewind'
 import type { Row } from './rows'
-import { formatDuration, TextCard, ToolRow, useOpen } from './ToolRow'
+import { formatDuration, TextCard, ToolRow, ToolRunRow, useOpen } from './ToolRow'
 import { describeMention, modelName } from './tools'
 
 /** One row of the transcript. Rows only ever fade; Virtuoso measures them, so nothing animates their size. */
@@ -42,6 +42,8 @@ function RowBody({ row, sessionId }: { row: Row; sessionId: string }) {
       return <ThinkingRow rowKey={row.key} entry={row.entry} />
     case 'tool':
       return <ToolRow sessionId={sessionId} rowKey={row.key} call={row.entry} result={row.result} running={row.running} />
+    case 'tools':
+      return <ToolRunRow sessionId={sessionId} rowKey={row.key} steps={row.steps} />
     case 'notice':
       return <NoticeRow rowKey={row.key} entry={row.entry} repeats={row.repeats} />
     case 'output':

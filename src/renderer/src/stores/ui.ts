@@ -76,6 +76,8 @@ interface UiState extends ColumnPrefs {
   /** The inspector's sections in the order you dragged them into, and the ones you folded. */
   inspectorOrder: InspectorPart[]
   inspectorFolded: InspectorPart[]
+  /** The task list above the composer: open to every step, or folded to the one under way (as it starts). */
+  planOpen: boolean
   /** Conversations you switched to another Transcript View than Settings' default, by session. Not kept. */
   transcriptViews: Record<string, TranscriptView>
   /** The side pane on the trailing side, and which tab it shows; the diff pane and inspector step aside for it. Not kept. */
@@ -123,6 +125,7 @@ interface UiState extends ColumnPrefs {
   setInspectorOrder(order: InspectorPart[]): void
   /** Folds or unfolds a section; with no `open`, flips it. */
   foldInspectorPart(part: InspectorPart, open?: boolean): void
+  setPlanOpen(open: boolean): void
   setTranscriptView(id: string, view: TranscriptView): void
   openSide(tab: SideTab, viaKeyboard?: boolean): void
   /** Shows the tab, or puts the pane away if it's the one showing. */
@@ -172,6 +175,7 @@ export const useUi = create<UiState>()(
         inspectorOrder: INSPECTOR_PARTS,
         // As Claude Code's panel starts: the context as its share alone, the details folded.
         inspectorFolded: ['context', 'session'],
+        planOpen: false,
         transcriptViews: {},
         side: null,
         sideWidth: SIDE.initial,
@@ -262,7 +266,8 @@ export const useUi = create<UiState>()(
           const folded = get().inspectorFolded
           const fold = open === undefined ? !folded.includes(part) : !open
           if (fold !== folded.includes(part)) set({ inspectorFolded: fold ? [...folded, part] : folded.filter((p) => p !== part) })
-        }
+        },
+        setPlanOpen: (open) => set({ planOpen: open })
       }
     },
     {
@@ -284,6 +289,7 @@ export const useUi = create<UiState>()(
         inspectorOpen: s.inspectorOpen,
         inspectorOrder: s.inspectorOrder,
         inspectorFolded: s.inspectorFolded,
+        planOpen: s.planOpen,
         sort: s.sort,
         openSmart: s.openSmart,
         // The open session comes back after a restart (an update, say).

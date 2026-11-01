@@ -3,7 +3,8 @@
 // under its reply. Pure, so it's tested without a window.
 import type { Activity, StreamBlock, StreamState } from '@shared/live'
 import type { CompactEntry, MentionEntry, NoticeEntry, OutputEntry, PromptEntry, SummaryEntry, TextEntry, ThinkingEntry, ToolEntry, ToolResult, TranscriptEntry } from '@shared/transcript'
-import { describeMention, describeTool } from './tools'
+import { CHAPTER_TOOLS, PLAN_TOOLS, WIDGET_TOOLS, WRAP_TOOLS } from '@shared/plan'
+import { describeGroup, describeMention, describeTool, toolKind } from './tools'
 
 /** Space above a row, in pixels: tight inside a run of tool calls, loose before a new turn. */
 export type Space = 2 | 6 | 12 | 20 | 28
@@ -23,6 +24,8 @@ export type Row = RowBase &
     | { kind: 'thinking'; entry: ThinkingEntry }
     /** `running`: no result yet in a session that's live elsewhere. */
     | { kind: 'tool'; entry: ToolEntry; result: ToolResult | undefined; running: boolean }
+    /** Two or more tool calls in a row, folded into one line ("Ran 2 commands, read a file"); they open under it. */
+    | { kind: 'tools'; steps: ToolRowData[] }
     /** `repeats`: the same notice in a row (an API error retried), shown once. */
     | { kind: 'notice'; entry: NoticeEntry; repeats: number }
     | { kind: 'output'; entry: OutputEntry }
@@ -33,6 +36,37 @@ export type Row = RowBase &
     /** The turn under way: since when, and what Claude is doing. */
     | { kind: 'working'; since: number; activity: Activity | null }
   )
+
+export type ToolRowData = Extract<Row, { kind: 'tool' }>
+
+/** Calls that draw as themselves (the task list, the next-step box, chapters, widgets, sessions) never fold into a run. */
+const STANDS_ALONE = new Set([...PLAN_TOOLS, ...WRAP_TOOLS, ...CHAPTER_TOOLS, ...WIDGET_TOOLS, 'mcp__gloom__start_session', 'mcp__ccd_session__start_session'])
+
+const foldable = (row: Row): row is ToolRowData => row.kind === 'tool' && !STANDS_ALONE.has(row.entry.name) && toolKind(row.entry, row.result) !== null
+
+/**
+ * Folds each run of two or more tool calls into one row, as the Claude app
+ * shows them: a line that sums the run up and opens to its steps. A call on
+ * its own stays a row of its own; an agent, a question or a plan always does.
+ */
+export function groupTools(rows: readonly Row[]): Row[] {
+  const out: Row[] = []
+  let run: ToolRowData[] = []
+  const flush = () => {
+    if (run.length > 1) out.push({ kind: 'tools', key: `${run[0].key}:run`, space: run[0].space, steps: run })
+    else out.push(...run)
+    run = []
+  }
+  for (const row of rows) {
+    if (foldable(row)) run.push(row)
+    else {
+      flush()
+      out.push(row)
+    }
+  }
+  flush()
+  return out
+}
 
 /** The space above a row, from the row before it: tight inside a run of tool calls, loose before a new turn. */
 function spaceAfter(before: Row | undefined, kind: Row['kind']): Space {
@@ -51,7 +85,7 @@ function startsTurn(e: TranscriptEntry): boolean {
 }
 
 const isReply = (e: TranscriptEntry) => e.kind === 'text' || e.kind === 'tool' || e.kind === 'thinking'
-const compact = (kind: Row['kind']) => kind === 'tool' || kind === 'thinking'
+const compact = (kind: Row['kind']) => kind === 'tool' || kind === 'tools' || kind === 'thinking'
 
 /** `live`: the last turn is still going, so its calls without results are running and it has no time yet. */
 export function buildRows(entries: readonly TranscriptEntry[], results: Readonly<Record<string, ToolResult>>, { live = false } = {}): Row[] {
@@ -173,6 +207,11 @@ export function rowText(row: Row): { shown: string; hidden: string } {
       const view = describeTool(row.entry, row.result)
       const shown = [view.verb, view.target, view.note].filter(Boolean).join(' ')
       return { shown, hidden: toolText(row.entry, row.result) }
+    }
+    case 'tools': {
+      // The run's line shows; its steps, and what each did, open under it.
+      const steps = row.steps.map((s) => rowText(s))
+      return { shown: describeGroup(row.steps.map((s) => ({ call: s.entry, result: s.result, running: s.running }))).text, hidden: steps.map((s) => `${s.shown}\n${s.hidden}`).join('\n') }
     }
     case 'notice':
       return { shown: row.entry.text, hidden: row.entry.detail ?? '' }

@@ -1,4 +1,4 @@
-import { createContext, Fragment, useContext, useId, useState } from 'react'
+import { createContext, Fragment, useContext, useId, useState, type ReactNode } from 'react'
 import { ChevronRight, Circle, CircleCheck, CircleDot, LoaderCircle } from 'lucide-react'
 import type { Hunk, Part, TextPart, ToolEntry, ToolResult } from '@shared/transcript'
 import { hunksOf } from '@shared/transcript'
@@ -7,7 +7,8 @@ import { useColumnTranscript, useColumnTranscriptApi } from '../../stores/transc
 import { Spinner, useConcept } from '../concept/parts'
 import { Markdown } from './Markdown'
 import { ImageStrip, ShowAll, useBlob, useFullText } from './media'
-import { describeTool, type ToolView } from './tools'
+import type { ToolRowData } from './rows'
+import { describeGroup, describeTool, pastTense, toolKind, type ToolView } from './tools'
 import { FurnitureRow, isFurniture, ProposalCard } from './Furniture'
 import { FileCode2 } from 'lucide-react'
 import { useUi } from '../../stores/ui'
@@ -24,7 +25,116 @@ export function ToolRow(props: { sessionId: string; rowKey: string; call: ToolEn
   const verbose = useContext(OpenByDefault).tools
   if (!verbose && isFurniture(call.name)) return <FurnitureRow sessionId={props.sessionId} call={call} result={props.result} />
   if (!verbose && call.name === 'mcp__gloom__start_session' && call.input.initiation === 'own_initiative' && !props.running) return <ProposalCard sessionId={props.sessionId} call={call} result={props.result} />
+  // A command, a read, an edit… reads as a quiet line, as the Claude app shows it; an agent, a question or a plan keeps its card.
+  if (!verbose && toolKind(call, props.result) !== null) return <CompactStep {...props} />
   return <ToolStep {...props} />
+}
+
+/**
+ * The line a folded step or run shows, as the Claude app draws them: what
+ * happened in secondary ink, the lines it added and removed, and a triangle
+ * after it that opens it.
+ */
+function Fold({
+  open,
+  panel,
+  onToggle,
+  running,
+  failed,
+  added,
+  removed,
+  children
+}: {
+  open: boolean
+  panel: string
+  onToggle(): void
+  running: boolean
+  failed: string | null
+  added?: number
+  removed?: number
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-controls={panel}
+      onClick={onToggle}
+      className={cn(
+        'no-drag -mx-1.5 flex max-w-[calc(100%+12px)] min-w-0 items-center gap-1.5 rounded-[6px] px-1.5 py-[2px] text-left text-[0.875rem] leading-[1.5] text-label-secondary outline-none',
+        'hover:text-label active:text-label focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent-ring)]'
+      )}
+    >
+      {running && <LoaderCircle size={13} strokeWidth={2} aria-label="Running" className="shrink-0 animate-spin motion-reduce:animate-none" />}
+      <span className="min-w-0 truncate">{children}</span>
+      {failed && <span className="shrink-0 text-[0.78125rem] font-medium text-[var(--removed-text)]">{failed}</span>}
+      <Counts added={added} removed={removed} />
+      <ChevronRight size={12} strokeWidth={2.25} aria-hidden className={cn('shrink-0 transition-transform duration-[var(--duration-tooltip)] ease-out motion-reduce:transition-none', open && 'rotate-90')} />
+    </button>
+  )
+}
+
+/** What a step did, opened under its line: in the concept, on the step's card; in the classic look, indented under it. */
+function FoldBody({ id, children }: { id: string; children: ReactNode }) {
+  const concept = useConcept()
+  return concept ? (
+    <div id={id} className="concept-step is-detail mt-1 mb-1.5">
+      <div className="concept-step-body">{children}</div>
+    </div>
+  ) : (
+    <div id={id} className="pt-1 pb-2">
+      {children}
+    </div>
+  )
+}
+
+/** One tool call as a quiet line: "Edited Furniture.tsx +35 −23 ›", or a lone command by its description, "Ran the unit suites". */
+function CompactStep({ sessionId, rowKey, call, result, running }: { sessionId: string; rowKey: string; call: ToolEntry; result: ToolResult | undefined; running: boolean }) {
+  const [open, flip] = useOpen(rowKey, 'tools')
+  const view = describeTool(call, result, running)
+  const panel = useId()
+  const description = (call.name === 'Bash' || call.name === 'PowerShell') && typeof call.input.description === 'string' && call.input.description.trim() ? call.input.description : null
+  return (
+    <div className="min-w-0">
+      <Fold open={open} panel={panel} onToggle={flip} running={running && !result} failed={result?.isError ? 'Failed' : null} added={view.added} removed={view.removed}>
+        {description && !(running && !result) ? (
+          pastTense(description)
+        ) : (
+          <>
+            {view.verb}
+            {view.target && <span className={cn(view.mono && 'font-mono text-[0.8125rem]')}> {view.target}</span>}
+            {view.note && <span className="text-[0.8125rem]"> · {view.note}</span>}
+          </>
+        )}
+      </Fold>
+      {open && (
+        <FoldBody id={panel}>
+          <Details sessionId={sessionId} call={call} result={result} view={view} running={running} />
+        </FoldBody>
+      )}
+    </div>
+  )
+}
+
+/** A run of tool calls as one line, "Ran 2 commands, read a file, edited a file +3 ›"; it opens to each step, a line of its own. */
+export function ToolRunRow({ sessionId, rowKey, steps }: { sessionId: string; rowKey: string; steps: ToolRowData[] }) {
+  const [open, flip] = useOpen(rowKey, 'tools')
+  const panel = useId()
+  const view = describeGroup(steps.map((s) => ({ call: s.entry, result: s.result, running: s.running })))
+  return (
+    <div className="min-w-0">
+      <Fold open={open} panel={panel} onToggle={flip} running={view.running} failed={view.failed ? `${view.failed} failed` : null} added={view.added} removed={view.removed}>
+        {view.text}
+      </Fold>
+      {open && (
+        <div id={panel} className="mt-0.5 mb-1 ml-1 flex flex-col border-l border-separator-strong pl-3">
+          {steps.map((s) => (
+            <ToolRow key={s.key} sessionId={sessionId} rowKey={s.key} call={s.entry} result={s.result} running={s.running} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function ToolStep({ sessionId, rowKey, call, result, running }: { sessionId: string; rowKey: string; call: ToolEntry; result: ToolResult | undefined; running: boolean }) {

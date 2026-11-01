@@ -220,6 +220,169 @@ function describeDone(call: ToolEntry, result: ToolResult | undefined): ToolView
   return view(Wrench, humanize(call.name), firstArg(input))
 }
 
+// ─── A run of tool calls as one line ─────────────────────────────────────────
+
+/** Verbs whose past isn't "-ed", as command descriptions start ("Find the…" → "Found the…"). */
+const IRREGULAR: Record<string, string> = {
+  bind: 'bound', bring: 'brought', build: 'built', buy: 'bought', catch: 'caught', choose: 'chose', cut: 'cut', dig: 'dug', do: 'did', draw: 'drew',
+  feed: 'fed', find: 'found', forget: 'forgot', freeze: 'froze', get: 'got', give: 'gave', go: 'went', grow: 'grew', hang: 'hung', hide: 'hid',
+  hit: 'hit', hold: 'held', keep: 'kept', know: 'knew', lead: 'led', leave: 'left', let: 'let', light: 'lit', make: 'made', mean: 'meant',
+  meet: 'met', overwrite: 'overwrote', put: 'put', quit: 'quit', read: 'read', rebuild: 'rebuilt', reread: 'reread', rerun: 'reran', reset: 'reset', rewrite: 'rewrote',
+  run: 'ran', say: 'said', see: 'saw', seek: 'sought', send: 'sent', set: 'set', shut: 'shut', sleep: 'slept', split: 'split', spin: 'spun',
+  strike: 'struck', sweep: 'swept', take: 'took', teach: 'taught', tell: 'told', think: 'thought', throw: 'threw', undo: 'undid', unset: 'unset', upset: 'upset',
+  wake: 'woke', wind: 'wound', write: 'wrote'
+}
+
+/** Verbs that double their last letter: "stop" → "stopped". */
+const DOUBLES = new Set(['admit', 'chop', 'commit', 'drop', 'grep', 'log', 'map', 'pin', 'plan', 'prefer', 'refer', 'scan', 'ship', 'skip', 'step', 'stop', 'strip', 'submit', 'swap', 'tag', 'trim', 'unpin', 'unwrap', 'unzip', 'wrap', 'zip'])
+
+/** Regular verbs a command's description starts with. Anything else is left as written: "Git status" doesn't become "Git statused". */
+const REGULAR = new Set([
+  'add', 'append', 'apply', 'archive', 'back', 'benchmark', 'bump', 'capture', 'change', 'check', 'clean', 'clear', 'clone', 'close', 'compare', 'compile', 'configure', 'confirm',
+  'convert', 'copy', 'count', 'create', 'debug', 'delete', 'deploy', 'diff', 'disable', 'download', 'dump', 'edit', 'enable', 'end', 'export', 'extract', 'fetch', 'fix',
+  'format', 'generate', 'import', 'initialize', 'insert', 'inspect', 'install', 'kill', 'launch', 'link', 'lint', 'list', 'load', 'look', 'measure', 'merge', 'monitor',
+  'mount', 'move', 'open', 'package', 'parse', 'patch', 'poll', 'print', 'probe', 'profile', 'prune', 'publish', 'pull', 'push', 'query', 'rebase', 'record', 'register',
+  'release', 'reload', 'remove', 'rename', 'render', 'repair', 'replace', 'restart', 'restore', 'retry', 'revert', 'sample', 'save', 'search', 'show', 'sign', 'sort',
+  'stage', 'start', 'stash', 'switch', 'test', 'toggle', 'touch', 'trace', 'try', 'uninstall', 'unlink', 'unpack', 'update', 'upload', 'use', 'verify', 'view', 'wait',
+  'watch'
+])
+
+/** A verb's past: "check" → "checked", "copy" → "copied", "run" → "ran"; null when it isn't a verb we know. */
+function pastOf(verb: string): string | null {
+  const v = verb.toLowerCase()
+  if (IRREGULAR[v]) return IRREGULAR[v]
+  if (DOUBLES.has(v)) return `${v}${v.at(-1)}ed`
+  if (!REGULAR.has(v)) return null
+  if (v.endsWith('e')) return `${v}d`
+  if (/[^aeiou]y$/.test(v)) return `${v.slice(0, -1)}ied`
+  return `${v}ed`
+}
+
+/**
+ * A command's description as something done, the way the Claude app sums up
+ * a lone command: "Run the unit suites" → "Ran the unit suites". A
+ * description that doesn't start with a verb we know stays as written.
+ */
+export function pastTense(description: string): string {
+  const text = firstLine(description, 120)
+  const m = /^([A-Za-z]+)(\b.*)$/s.exec(text)
+  if (!m) return text
+  const past = pastOf(m[1])
+  if (!past) return text
+  return (m[1][0] === m[1][0].toUpperCase() ? past[0].toUpperCase() + past.slice(1) : past) + m[2]
+}
+
+type Kind = 'command' | 'search' | 'read' | 'edit' | 'create' | 'fetch' | 'web' | 'skill' | 'tool'
+
+/** What a call counts as in a run's line; null for calls that stand alone (an agent, a question, a plan). */
+export function toolKind(call: ToolEntry, result: ToolResult | undefined): Kind | null {
+  switch (call.name) {
+    case 'Bash':
+    case 'PowerShell':
+    case 'SlashCommand':
+    case 'BashOutput':
+    case 'TaskOutput':
+    case 'KillShell':
+    case 'KillBash':
+    case 'TaskStop':
+    case 'Monitor':
+    case 'mcp__gloom__run_in_terminal':
+    case 'mcp__terminal__run_in_terminal':
+    case 'mcp__gloom__read_terminal':
+    case 'mcp__terminal__read_terminal':
+      return 'command'
+    case 'Grep':
+    case 'Glob':
+    case 'LS':
+      return 'search'
+    case 'Read':
+      return 'read'
+    case 'Edit':
+    case 'MultiEdit':
+    case 'NotebookEdit':
+      return 'edit'
+    case 'Write':
+      return result?.info.created ? 'create' : 'edit'
+    case 'WebFetch':
+      return 'fetch'
+    case 'WebSearch':
+      return 'web'
+    case 'Skill':
+      return 'skill'
+    case 'Agent':
+    case 'Task':
+    case 'TodoWrite':
+    case 'AskUserQuestion':
+    case 'ExitPlanMode':
+    case 'EnterPlanMode':
+      return null
+  }
+  return 'tool'
+}
+
+const PHRASE: Record<Kind, { one: string; many: (n: number) => string; named?: string }> = {
+  command: { one: 'ran a command', many: (n) => `ran ${n} commands` },
+  search: { one: 'searched code', many: () => 'searched code' },
+  read: { one: 'read a file', many: (n) => `read ${n} files`, named: 'read' },
+  edit: { one: 'edited a file', many: (n) => `edited ${n} files`, named: 'edited' },
+  create: { one: 'created a file', many: (n) => `created ${n} files`, named: 'created' },
+  fetch: { one: 'fetched a page', many: (n) => `fetched ${n} pages` },
+  web: { one: 'searched the web', many: () => 'searched the web' },
+  skill: { one: 'used a skill', many: (n) => `used ${n} skills` },
+  tool: { one: 'used a tool', many: (n) => `used ${n} tools` }
+}
+
+export interface GroupView {
+  /** "Ran 2 commands, searched code, read 2 files, edited a file". */
+  text: string
+  added: number
+  removed: number
+  failed: number
+  running: boolean
+}
+
+/**
+ * A run of tool calls as one line, as the Claude app sums them up: each kind
+ * once, in the order it first came, counted ("read 2 files"; files by path,
+ * so five edits to one file are "edited a file"). The first kind names its
+ * file when there's only one: "Created main.js, ran a command".
+ */
+export function describeGroup(calls: readonly { call: ToolEntry; result: ToolResult | undefined; running: boolean }[]): GroupView {
+  const order: Kind[] = []
+  const counts = new Map<Kind, { calls: number; files: Set<string> }>()
+  let added = 0
+  let removed = 0
+  let failed = 0
+  for (const { call, result } of calls) {
+    const kind = toolKind(call, result) ?? 'tool'
+    let entry = counts.get(kind)
+    if (!entry) {
+      entry = { calls: 0, files: new Set() }
+      counts.set(kind, entry)
+      order.push(kind)
+    }
+    entry.calls++
+    const path = typeof call.input.file_path === 'string' ? call.input.file_path : typeof call.input.notebook_path === 'string' ? call.input.notebook_path : null
+    if (path) entry.files.add(path.replace(/\\/g, '/').toLowerCase())
+    added += result?.info.added ?? 0
+    removed += result?.info.removed ?? 0
+    if (result?.isError) failed++
+  }
+  const phrases = order.map((kind, i) => {
+    const { calls: n, files } = counts.get(kind)!
+    const phrase = PHRASE[kind]
+    const many = files.size || n
+    if (i === 0 && phrase.named && files.size === 1) {
+      const first = calls.find((c) => (toolKind(c.call, c.result) ?? 'tool') === kind)!.call
+      const path = (first.input.file_path ?? first.input.notebook_path) as string
+      return `${phrase.named} ${baseName(path)}`
+    }
+    return many === 1 ? phrase.one : phrase.many(many)
+  })
+  const text = phrases.join(', ')
+  return { text: text[0].toUpperCase() + text.slice(1), added, removed, failed, running: calls.some((c) => c.running && !c.result) }
+}
+
 /**
  * A file or folder you mentioned, in Claude Code's words under your message:
  * "Read notes/a.txt · 2 lines" ("lines 3–4" for part of one), "Listed docs/".
