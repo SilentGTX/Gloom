@@ -49,7 +49,7 @@ import type {
 } from '../shared/live'
 import type { BlobRef, TranscriptPage } from '../shared/transcript'
 import type { PrStatus } from '../shared/pr'
-import type { PetAction, PetState, PetView } from '../shared/ipc'
+import type { CustomPet, PetAction, PetState, PetView } from '../shared/ipc'
 import type { Routine } from '../shared/routines'
 
 /** The sessions Gloom runs. */
@@ -216,6 +216,16 @@ export interface GloomApi {
     open(): void
     /** A button on the pet's toolbar. */
     action(what: PetAction): void
+  }
+  /** The pets you created, in Gloom's pets folder (main/pets.ts). */
+  pets: {
+    list(): Promise<CustomPet[]>
+    onChanged(listener: (pets: CustomPet[]) => void): () => void
+    /** Starts a Claude Code session that draws a new pet; its ID. */
+    create(name: string, idea: string): Promise<string>
+    remove(id: string): Promise<void>
+    /** Shows the pets folder in Explorer. */
+    reveal(): Promise<string>
   }
   /** An inline widget's page (show_widget): the URL its sandboxed frame loads. */
   widget(id: string, code: string, title: string, theme: { dark: boolean; accent: string }): Promise<string>

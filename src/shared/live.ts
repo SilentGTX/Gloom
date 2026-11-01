@@ -509,12 +509,21 @@ export interface Settings {
   /** A small companion that floats over the window and says what the sessions are doing (/pet). */
   pet: boolean
   petKind: PetKind
+  /** How big the pet is drawn: each of its pixels is this many screen pixels (PET_SIZE). */
+  petSize: number
 }
 
 /** The built-in pets: pixel characters drawn with pxl (art/pets.px.js), each with a resting and a working loop. */
 export const PET_KINDS = ['blob', 'sprout', 'ghost', 'ember', 'cat', 'frog', 'bot', 'owl'] as const
-export type PetKind = (typeof PET_KINDS)[number]
-export const isPetKind = (v: unknown): v is PetKind => (PET_KINDS as readonly unknown[]).includes(v)
+export type BuiltInPet = (typeof PET_KINDS)[number]
+/** A built-in pet, or one you created (custom:<folder>, in Gloom's pets folder). */
+export type PetKind = BuiltInPet | `custom:${string}`
+export const isBuiltInPet = (v: unknown): v is BuiltInPet => (PET_KINDS as readonly unknown[]).includes(v)
+/** A pet's folder name: lowercase letters, digits and dashes. */
+export const PET_ID = /^[a-z0-9][a-z0-9-]{0,39}$/
+export const isPetKind = (v: unknown): v is PetKind => isBuiltInPet(v) || (typeof v === 'string' && v.startsWith('custom:') && PET_ID.test(v.slice(7)))
+/** The pet size slider: screen pixels per pet pixel. */
+export const PET_SIZE = { min: 2, max: 7, initial: 4 }
 
 export const DEFAULT_SETTINGS: Settings = {
   claudePath: null,
@@ -541,7 +550,8 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   shell: 'powershell',
   pet: false,
-  petKind: 'blob'
+  petKind: 'blob',
+  petSize: PET_SIZE.initial
 }
 
 /** The level a card or a turn's end notifies at. */

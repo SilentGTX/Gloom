@@ -9,7 +9,7 @@ import { IPC, type AppInfo, type ResumeResult, type TerminalCreate } from '@shar
 import { displayTitle, inactiveSessions } from '@shared/library'
 import { isMode, type FileListing, type LiveEvent } from '@shared/live'
 import { parseRef, type Cursor } from '@shared/transcript'
-import { attend, setBadge } from './attention'
+import { attend, reveal, setBadge } from './attention'
 import { claudeInfo } from './claude/binary'
 import { parseAnswer, parseNewSession, parseRewind, parseSend, parseSet, serverName, sessionId } from './claude/parse'
 import { Sessions } from './claude/sessions'
@@ -46,6 +46,7 @@ import { deferUpdatesWhile, finishStarting, installPending, launchCheck, onUpdat
 import { checkOnFocus, onUpdateState, startBackgroundChecks, updateState } from './updater'
 import { markStarted, removeOldVersions, startNewerVersion } from './versions'
 import { startPet } from './pet'
+import { Pets } from './pets'
 import { createMainWindow, createPopOutWindow, isRendererUrl, POP_OUT_PANES, windowState, type PopOutPane } from './window'
 
 /** Started by the version it takes the window over from (handover.ts). */
@@ -773,7 +774,36 @@ if (smokeArg) {
     mainWindow.on('focus', checkOnFocus)
     mainWindow.on('focus', () => mainWindow?.flashFrame(false))
     // The pet: a window of its own on top of every app, which Settings › Pets or /pet shows.
-    startPet({ trusted, mainWindow })
+    // Pets you create: Gloom's pets folder, watched; a new one is chosen once it's built.
+    const pets = new Pets(
+      app.getPath('userData'),
+      (list) => {
+        broadcast(IPC.petsChanged, list)
+        pet.changed()
+      },
+      (id) => updateSettings({ pet: true, petKind: `custom:${id}` })
+    )
+    pets.start()
+    app.on('before-quit', () => pets.stop())
+    const pet = startPet({ trusted, mainWindow, customPets: pets })
+    handle(IPC.petsList, () => pets.all())
+    handle(IPC.petsRemove, (_event, id) => {
+      if (settings().petKind === `custom:${String(id)}`) updateSettings({ petKind: 'blob' })
+      pets.remove(String(id))
+    })
+    handle(IPC.petsReveal, () => shell.openPath(pets.dir))
+    // Create Pet: a session in the pets folder that draws it, on the kit that's there.
+    handle(IPC.petsCreate, (_event, name, idea) => {
+      if (typeof name !== 'string' || !name.trim()) throw new Error('Give your pet a name.')
+      const about = typeof idea === 'string' ? idea.slice(0, 2000) : ''
+      const id = pets.prepare(name, about)
+      const s = settings()
+      const sid = sessions.create({ cwd: pets.dir, model: s.model, mode: s.mode, effort: s.effort })
+      library.apply({ type: 'renameSession', id: sid, title: `Create pet: ${name.trim().slice(0, 40)}` })
+      sessions.send(sid, pets.prompt(id, name.trim(), about), [])
+      if (mainWindow) reveal(mainWindow, sid)
+      return sid
+    })
     // Quitting mid-turn stops Claude where it is: say so first.
     let quitAnyway = false
     mainWindow.on('close', (event) => {

@@ -1,53 +1,37 @@
-/* The pet's own window is clear: only the pet and its bubble are drawn. */
+/* The pet's own window is clear: only the pet, its toolbar and its card are drawn. */
 html[data-pet],
 html[data-pet] body,
 html[data-pet] #root {
   background: transparent !important;
 }
 
+/* The pet, its toolbar's slot and its card's slot, from the bottom up: the slots keep
+   their room, so the pet never moves as the toolbar and card come and go. */
 .pet-stage {
   position: fixed;
   inset: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   justify-content: flex-end;
-  gap: 6px;
-  padding: 8px;
-}
-
-/* A solid bubble: a clear window can't blur the desktop behind it. */
-.pet-bubble {
-  max-width: 200px;
-  padding: 6px 12px;
-  border: 0;
-  border-radius: 14px;
-  transform-origin: bottom right;
-  background: rgb(30 30 34 / 0.94);
-  color: #fff;
-  box-shadow:
-    0 0 0 0.5px rgb(255 255 255 / 0.14),
-    0 6px 18px rgb(0 0 0 / 0.28);
-  font: 500 12.5px/1.3 var(--typeface-text, system-ui), sans-serif;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: default;
+  padding: 8px 10px 6px;
+  --pet-surface: rgb(30 30 34 / 0.95);
+  --pet-ink: #fff;
+  --pet-ink-2: rgb(255 255 255 / 0.62);
+  --pet-edge: rgb(255 255 255 / 0.14);
+  --pet-hover: rgb(255 255 255 / 0.12);
+  --pet-press: rgb(255 255 255 / 0.2);
+  --pet-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
 }
 @media (prefers-color-scheme: light) {
-  .pet-bubble {
-    background: rgb(255 255 255 / 0.97);
-    color: #1d1d1f;
-    box-shadow:
-      0 0 0 0.5px rgb(0 0 0 / 0.12),
-      0 6px 18px rgb(0 0 0 / 0.18);
-  }
-}
-
-@media (prefers-contrast: more) {
-  .pet-bubble {
-    box-shadow: 0 0 0 1.5px currentColor;
+  .pet-stage {
+    --pet-surface: rgb(255 255 255 / 0.97);
+    --pet-ink: #1d1d1f;
+    --pet-ink-2: rgb(29 29 31 / 0.6);
+    --pet-edge: rgb(0 0 0 / 0.12);
+    --pet-hover: rgb(0 0 0 / 0.07);
+    --pet-press: rgb(0 0 0 / 0.12);
+    --pet-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
   }
 }
 
@@ -59,31 +43,37 @@ html[data-pet] #root {
   cursor: grabbing;
 }
 
-/* The pet over its toolbar's slot, which keeps its room so the pet never moves as the toolbar comes and goes. */
-.pet-column {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
 .pet-toolbar-slot {
-  height: 38px;
+  height: 40px;
+  padding-top: 4px;
+}
+.pet-card-slot {
+  width: 100%;
+  height: 66px;
   padding-top: 4px;
 }
 
 /* Codex-style: a small capsule of icon buttons under the pet, while the pointer is on it. */
 .pet-toolbar {
   display: flex;
-  gap: 2px;
+  align-items: center;
+  gap: 1px;
   padding: 3px;
   border-radius: 999px;
   transform-origin: top center;
-  background: rgb(30 30 34 / 0.94);
-  color: #fff;
+  background: var(--pet-surface);
+  color: var(--pet-ink);
   box-shadow:
-    0 0 0 0.5px rgb(255 255 255 / 0.14),
-    0 6px 18px rgb(0 0 0 / 0.28);
+    0 0 0 0.5px var(--pet-edge),
+    var(--pet-shadow);
+}
+.pet-tool-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--pet-edge);
 }
 .pet-tool {
+  position: relative;
   display: grid;
   place-items: center;
   width: 28px;
@@ -96,35 +86,126 @@ html[data-pet] #root {
   cursor: default;
 }
 .pet-tool:hover {
-  background: rgb(255 255 255 / 0.12);
+  background: var(--pet-hover);
   opacity: 1;
 }
 .pet-tool:active {
-  background: rgb(255 255 255 / 0.2);
+  background: var(--pet-press);
 }
 .pet-tool:focus-visible {
   outline: 2px solid #8ab4ff;
   outline-offset: 0;
 }
 
-@media (prefers-color-scheme: light) {
-  .pet-toolbar {
-    background: rgb(255 255 255 / 0.97);
-    color: #1d1d1f;
-    box-shadow:
-      0 0 0 0.5px rgb(0 0 0 / 0.12),
-      0 6px 18px rgb(0 0 0 / 0.18);
+/* Styled tooltips, above the button: they come after a moment of hover, and go at once. */
+.pet-tool[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  translate: -50% 2px;
+  padding: 4px 8px;
+  border-radius: 7px;
+  background: var(--pet-surface);
+  color: var(--pet-ink);
+  box-shadow:
+    0 0 0 0.5px var(--pet-edge),
+    0 3px 10px rgb(0 0 0 / 0.22);
+  font: 500 11.5px/1.2 var(--typeface-text, system-ui), sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 120ms ease-out,
+    translate 120ms ease-out;
+}
+.pet-tool[data-tip]:hover::after {
+  opacity: 1;
+  translate: -50% 0;
+  transition-delay: 450ms;
+}
+
+/* The card: the session it's about, and a line of what's going on in it. */
+.pet-card {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 14px 9px;
+  border: 0;
+  border-radius: 16px;
+  transform-origin: top center;
+  background: var(--pet-surface);
+  color: var(--pet-ink);
+  box-shadow:
+    0 0 0 0.5px var(--pet-edge),
+    var(--pet-shadow);
+  text-align: left;
+  font-family: var(--typeface-text, system-ui), sans-serif;
+  cursor: default;
+}
+.pet-card:hover {
+  box-shadow:
+    0 0 0 1px var(--pet-edge),
+    var(--pet-shadow);
+}
+.pet-card-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.pet-card-detail {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--pet-ink-2);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pet-spinner {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid var(--pet-edge);
+  border-top-color: var(--pet-ink);
+  animation: pet-spin 0.9s linear infinite;
+}
+.pet-needs {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin: 0 2px;
+  border-radius: 999px;
+  background: #ff9f0a;
+}
+.pet-ready {
+  flex: none;
+  color: #34c759;
+}
+@keyframes pet-spin {
+  to {
+    transform: rotate(1turn);
   }
-  .pet-tool:hover {
-    background: rgb(0 0 0 / 0.07);
-  }
-  .pet-tool:active {
-    background: rgb(0 0 0 / 0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-spinner {
+    animation: none;
+    border-color: var(--pet-ink-2);
   }
 }
 
 @media (prefers-contrast: more) {
-  .pet-toolbar {
+  .pet-toolbar,
+  .pet-card,
+  .pet-tool[data-tip]::after {
     box-shadow: 0 0 0 1.5px currentColor;
   }
 }

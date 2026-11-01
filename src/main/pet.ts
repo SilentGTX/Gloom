@@ -1,43 +1,46 @@
 // The pet's own window: small, clear and frameless, on top of every app on the
 // desktop (as Codex's pet is), not inside Gloom's window. It shows Gloom's page
-// with ?pet, which draws only the pet and its bubble. The main window's renderer
-// works out what the pet should say (it knows which turns you haven't looked at
-// yet) and reports it here; this passes it on with the pet you chose.
+// with ?pet, which draws only the pet, its toolbar and its card. The main
+// window's renderer works out what the pet should say (it knows which turns you
+// haven't looked at yet) and reports it here; this passes it on with the pet you
+// chose, at the size you chose.
 //
 // The window is bigger than the pet, so its clear parts let clicks through to
-// whatever is under them; only the pet and its bubble take the pointer. Dragging
-// the pet moves the window, and Gloom keeps the place for next time.
-import { app, BrowserWindow, ipcMain, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+// whatever is under them; only the pet, its toolbar and its card take the pointer.
+// Dragging the pet moves the window, and Gloom keeps the place for next time.
+import { app, BrowserWindow, ipcMain, Menu, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC, type PetState, type PetView } from '@shared/ipc'
-import { PET_KINDS, type Settings } from '@shared/live'
+import { PET_KINDS, type PetKind, type Settings } from '@shared/live'
+import { reveal } from './attention'
 import { onSettings, settings, updateSettings } from './claude/settings'
 import { runCommand } from './commands'
+import type { Pets } from './pets'
 import { isRendererUrl, rendererUrl } from './window'
 
-/** Room for the bubble above the pet and its toolbar below. */
-const SIZE = { width: 240, height: 236 }
+/** The window for a pet `size` screen pixels per pixel: the pet, its toolbar and its card under it. */
+const sizeFor = (size: number) => ({ width: Math.max(320, 26 * size + 24), height: 122 + 27 * size })
 /** From the work area's corner: clear of the taskbar and the screen's edge. */
 const MARGIN = 12
 const MOODS = new Set(['rest', 'busy', 'needs', 'ready'])
 
 let win: BrowserWindow | null = null
-let state: PetState = { mood: 'rest', text: '' }
+let state: PetState = { mood: 'rest', title: '', detail: '', sessionId: null }
 let drag: { x: number; y: number; cursorX: number; cursorY: number } | null = null
+let pets: Pets | null = null
 
 const placeFile = () => join(app.getPath('userData'), 'pet-window.json')
 
 /** Where the pet was left, if that's still on a connected display; else the primary display's bottom-right corner. */
-function place(): { x: number; y: number } {
+function place(size: { width: number; height: number }): { x: number; y: number } {
   try {
     if (existsSync(placeFile())) {
-      const saved = JSON.parse(readFileSync(placeFile(), 'utf8')) as { x?: unknown; y?: unknown }
-      const { x, y } = saved
+      const { x, y } = JSON.parse(readFileSync(placeFile(), 'utf8')) as { x?: unknown; y?: unknown }
       if (
         typeof x === 'number' &&
         typeof y === 'number' &&
-        screen.getAllDisplays().some(({ workArea: a }) => x + SIZE.width > a.x + 40 && x < a.x + a.width - 40 && y + SIZE.height > a.y + 40 && y < a.y + a.height - 40)
+        screen.getAllDisplays().some(({ workArea: a }) => x + size.width > a.x + 40 && x < a.x + a.width - 40 && y + size.height > a.y + 40 && y < a.y + a.height - 40)
       )
         return { x: Math.round(x), y: Math.round(y) }
     }
@@ -45,7 +48,7 @@ function place(): { x: number; y: number } {
     // A corrupt file: the corner.
   }
   const a = screen.getPrimaryDisplay().workArea
-  return { x: a.x + a.width - SIZE.width - MARGIN, y: a.y + a.height - SIZE.height - MARGIN }
+  return { x: a.x + a.width - size.width - MARGIN, y: a.y + a.height - size.height - MARGIN }
 }
 
 function savePlace() {
@@ -58,18 +61,33 @@ function savePlace() {
   }
 }
 
-const view = (): PetView => ({ ...state, kind: settings().petKind })
+function view(): PetView {
+  const { petKind, petSize } = settings()
+  const custom = petKind.startsWith('custom:') ? (pets?.get(petKind.slice(7)) ?? null) : null
+  // A pet you created that's gone (its folder deleted) is Blob until you choose another.
+  return { ...state, kind: petKind.startsWith('custom:') && !custom ? 'blob' : petKind, size: petSize, custom }
+}
 
 function push() {
   if (win && !win.isDestroyed()) win.webContents.send(IPC.petView, view())
 }
 
+/** Every pet to choose from: Gloom's, then yours. */
+function allKinds(): PetKind[] {
+  return [...PET_KINDS, ...(pets?.all() ?? []).map((p) => `custom:${p.id}` as const)]
+}
+
+function nextPet() {
+  const kinds = allKinds()
+  updateSettings({ petKind: kinds[(kinds.indexOf(settings().petKind) + 1) % kinds.length] })
+}
+
 function open() {
   if (win && !win.isDestroyed()) return
-  const at = place()
+  const size = sizeFor(settings().petSize)
   win = new BrowserWindow({
-    ...SIZE,
-    ...at,
+    ...size,
+    ...place(size),
     show: false,
     title: 'Gloom Pet',
     frame: false,
@@ -112,6 +130,16 @@ function open() {
   void win.loadURL(`${rendererUrl()}?pet`)
 }
 
+/** A new pet size: the window grows or shrinks about its bottom-right corner, where the pet stands. */
+function resize() {
+  if (!win || win.isDestroyed()) return
+  const b = win.getBounds()
+  const next = sizeFor(settings().petSize)
+  if (next.width === b.width && next.height === b.height) return
+  win.setBounds({ x: b.x + b.width - next.width, y: b.y + b.height - next.height, ...next })
+  savePlace()
+}
+
 function close() {
   if (win && !win.isDestroyed()) win.close()
   win = null
@@ -120,6 +148,7 @@ function close() {
 function apply(next: Settings) {
   if (next.pet) {
     open()
+    resize()
     push()
   } else close()
 }
@@ -130,11 +159,14 @@ function apply(next: Settings) {
  */
 export function startPet({
   trusted,
-  mainWindow
+  mainWindow,
+  customPets
 }: {
   trusted: (event: IpcMainEvent | IpcMainInvokeEvent) => boolean
   mainWindow: BrowserWindow
-}): void {
+  customPets: Pets
+}): { changed(): void } {
+  pets = customPets
   const show = () => {
     if (mainWindow.isDestroyed()) return
     if (mainWindow.isMinimized()) mainWindow.restore()
@@ -149,14 +181,34 @@ export function startPet({
     if (mainWindow.isVisible() && !mainWindow.isMinimized() && mainWindow.isFocused()) mainWindow.minimize()
     else show()
   }
+  /** Right-click, or the toolbar's chevron: the pet's settings, the next pet, or no pet. */
+  const menu = () => {
+    if (!win || win.isDestroyed()) return
+    Menu.buildFromTemplate([
+      {
+        label: 'Pet Settings…',
+        click: () => {
+          show()
+          runCommand('app.petSettings', mainWindow, false)
+        }
+      },
+      { label: 'Next Pet', click: nextPet },
+      { type: 'separator' },
+      { label: 'Hide Pet', click: () => updateSettings({ pet: false }) }
+    ]).popup({ window: win })
+  }
 
   const fromPet = (event: IpcMainEvent) => trusted(event) && !!win && !win.isDestroyed() && event.sender === win.webContents
+  const text = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : null)
 
   ipcMain.on(IPC.petReport, (event, next: unknown) => {
     if (!trusted(event) || !next || typeof next !== 'object') return
-    const { mood, text } = next as Record<string, unknown>
-    if (typeof mood !== 'string' || !MOODS.has(mood) || typeof text !== 'string' || text.length > 200) return
-    state = { mood: mood as PetState['mood'], text }
+    const raw = next as Record<string, unknown>
+    const title = text(raw.title, 120)
+    const detail = text(raw.detail, 300)
+    const sessionId = raw.sessionId === null ? null : text(raw.sessionId, 100)
+    if (typeof raw.mood !== 'string' || !MOODS.has(raw.mood) || title === null || detail === null || sessionId === undefined) return
+    state = { mood: raw.mood as PetState['mood'], title, detail, sessionId }
     push()
   })
   ipcMain.handle(IPC.petCurrent, (event) => {
@@ -188,13 +240,20 @@ export function startPet({
     if (what === 'new-session') {
       show()
       runCommand('session.new', mainWindow, false)
-    } else if (what === 'next-pet') {
-      const at = PET_KINDS.indexOf(settings().petKind)
-      updateSettings({ petKind: PET_KINDS[(at + 1) % PET_KINDS.length] })
-    } else if (what === 'hide') updateSettings({ pet: false })
+    } else if (what === 'open-card') {
+      // The card's session, or a new one when nothing's going on.
+      if (state.sessionId && !mainWindow.isDestroyed()) reveal(mainWindow, state.sessionId)
+      else {
+        show()
+        runCommand('session.new', mainWindow, false)
+      }
+    } else if (what === 'next-pet') nextPet()
+    else if (what === 'menu') menu()
+    else if (what === 'hide') updateSettings({ pet: false })
   })
 
   onSettings(apply)
   if (mainWindow.isVisible()) apply(settings())
   else mainWindow.once('show', () => apply(settings()))
+  return { changed: push }
 }

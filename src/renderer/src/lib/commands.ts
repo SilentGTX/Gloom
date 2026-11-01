@@ -17,6 +17,7 @@ import { closePalette, togglePalette } from '../stores/palette'
 import { newTerminal, wantFocus } from '../stores/terminals'
 import { useTranscript } from '../stores/transcript'
 import { useUi, type ChatView, type Design } from '../stores/ui'
+import { openSettings } from '../features/settings/Settings'
 import { focusPane } from './panes'
 import { notify } from './toast'
 
@@ -92,6 +93,7 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
     if (selection.length === 1 && isBusy(useLive.getState().sessions[selection[0]])) void useLive.getState().stop(selection[0])
   },
   'app.settings': () => useLive.getState().setSettingsOpen(true),
+  'app.petSettings': () => openSettings('pets'),
   'folder.new': (k) => inSidebar(k, () => void newFolder(null)),
   'view.palette': (k) => togglePalette(k),
   'view.search': (k) =>

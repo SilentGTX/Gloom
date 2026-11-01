@@ -235,20 +235,57 @@ export const IPC = {
   /** send: the pet was clicked; Gloom minimizes when it is in front, else comes forward */
   petOpen: 'pet:open',
   /** send(PetAction): a button on the toolbar the pet shows under the pointer */
-  petAction: 'pet:action'
+  petAction: 'pet:action',
+  /** invoke → CustomPet[]: the pets you created (Gloom's pets folder) */
+  petsList: 'pets:list',
+  /** main → renderer: CustomPet[], as that folder changes */
+  petsChanged: 'pets:changed',
+  /** invoke(name, idea) → sessionId: starts a Claude Code session that draws a new pet */
+  petsCreate: 'pets:create',
+  /** invoke(id): deletes a pet you created */
+  petsRemove: 'pets:remove',
+  /** invoke: shows the pets folder in Explorer */
+  petsReveal: 'pets:reveal'
 } as const
 
 /** What the pet shows: the most urgent state across the sessions, and the bubble's words (empty at rest). */
 export interface PetState {
   mood: 'rest' | 'busy' | 'needs' | 'ready'
-  text: string
+  /** The session it's about (its title), or empty at rest. */
+  title: string
+  /** What's happening in it: what Claude is saying or doing, what it needs, how it ended. */
+  detail: string
+  /** That session, so clicking the card opens it; null at rest. */
+  sessionId: string | null
 }
 
 /** The pet toolbar's buttons: a new session in Gloom, the next pet, or no pet. */
-export type PetAction = 'new-session' | 'next-pet' | 'hide'
+export type PetAction = 'new-session' | 'next-pet' | 'hide' | 'open-card' | 'menu'
+
+/** One of a pet's loops: a horizontal strip of w × h frames, each shown for its duration (ms). */
+export interface PetLoopData {
+  src: string
+  w: number
+  h: number
+  durations: number[]
+  once?: boolean
+}
+export const PET_LOOPS = ['idle', 'busy', 'walk', 'fall', 'happy', 'jump'] as const
+export type PetLoopKey = (typeof PET_LOOPS)[number]
+
+/** A pet you created: its folder in Gloom's pets folder, its name and its loops (PNG data URLs). */
+export interface CustomPet {
+  id: string
+  name: string
+  description: string
+  loops: Record<PetLoopKey, PetLoopData>
+}
 
 export interface PetView extends PetState {
   kind: PetKind
+  size: number
+  /** The loops of a pet you created, when that's the pet. */
+  custom: CustomPet | null
 }
 
 /** A new terminal: in the session's working folder (your home folder without one), sized to the pane. */

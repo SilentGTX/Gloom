@@ -47,6 +47,8 @@ export const COMMANDS = [
   // Prompts Gloom runs on a schedule, each in a new session (the Claude app's scheduled tasks and Routines).
   { id: 'session.routines', label: 'Routines…', group: 'file', runs: 'renderer', keywords: 'schedule cron scheduled tasks recurring' },
   { id: 'app.settings', label: 'Settings…', group: 'file', accelerator: 'CmdOrCtrl+,', runs: 'renderer', keywords: 'preferences options' },
+  // Settings, on the pet's page: which pet, its size, and the ones you create.
+  { id: 'app.petSettings', label: 'Pet Settings…', group: 'file', runs: 'renderer', keywords: 'pets companion mascot size create' },
   { id: 'app.quit', label: 'Quit Gloom', group: 'file', accelerator: 'CmdOrCtrl+Q', runs: 'main', keywords: 'exit close' },
   // Undoes typing in a field, otherwise the last change to your folders and sessions.
   { id: 'edit.undo', label: 'Undo', group: 'edit', accelerator: 'CmdOrCtrl+Z', runs: 'renderer' },

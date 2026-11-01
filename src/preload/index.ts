@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
-import { IPC, type BrowserState, type CommandDispatch, type PetView, type RoutineList, type LibraryChange, type SessionsChange, type TranscriptChange, type UpdateScreen, type UpdateState, type WindowState } from '@shared/ipc'
+import { IPC, type BrowserState, type CommandDispatch, type CustomPet, type PetView, type RoutineList, type LibraryChange, type SessionsChange, type TranscriptChange, type UpdateScreen, type UpdateState, type WindowState } from '@shared/ipc'
 import type { LiveEvent, Settings } from '@shared/live'
 import type { TerminalData, TerminalExit, TerminalInfo } from '@shared/terminal'
 import type { GloomApi } from './api'
@@ -111,6 +111,13 @@ const api: GloomApi = {
     drag: (phase) => ipcRenderer.send(IPC.petDrag, phase),
     open: () => ipcRenderer.send(IPC.petOpen),
     action: (what) => ipcRenderer.send(IPC.petAction, what)
+  },
+  pets: {
+    list: () => ipcRenderer.invoke(IPC.petsList),
+    onChanged: (listener) => subscribe<CustomPet[]>(IPC.petsChanged, listener),
+    create: (name, idea) => ipcRenderer.invoke(IPC.petsCreate, name, idea),
+    remove: (id) => ipcRenderer.invoke(IPC.petsRemove, id),
+    reveal: () => ipcRenderer.invoke(IPC.petsReveal)
   },
   cloud: {
     start: (folder, task) => ipcRenderer.invoke(IPC.cloudStart, folder, task),

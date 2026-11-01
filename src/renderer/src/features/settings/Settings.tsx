@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ChevronDown, CircleAlert, CircleCheck } from 'lucide-react'
 import type { AppInfo } from '@shared/ipc'
-import { branchPrefixProblem, isMode, isPetKind, PET_KINDS, TRANSCRIPT_VIEWS, type NoticeLevel, type PetKind, type Settings as SettingsData } from '@shared/live'
+import { branchPrefixProblem, isMode, TRANSCRIPT_VIEWS, type NoticeLevel, type Settings as SettingsData } from '@shared/live'
 import type { ShellId, ShellInfo } from '@shared/terminal'
 import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
@@ -11,18 +11,29 @@ import { runCommand } from '../../lib/commands'
 import { useLive } from '../../stores/live'
 import { useUi } from '../../stores/ui'
 import { EffortPicker, effortsFor, ModelPicker, ModePicker } from '../chat/pickers'
+import { PetsPane } from './PetsPane'
 
-type Pane = 'general' | 'sessions' | 'notifications' | 'claude' | 'about'
+export type Pane = 'general' | 'sessions' | 'notifications' | 'pets' | 'claude' | 'about'
 const PANES: { id: Pane; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'sessions', label: 'Sessions' },
   { id: 'notifications', label: 'Notifications' },
+  { id: 'pets', label: 'Pets' },
   { id: 'claude', label: 'Claude Code' },
   { id: 'about', label: 'About' }
 ]
 
 /** The pane you used last opens again. */
 let lastPane: Pane = 'general'
+
+/** Opens Settings on a pane (the pet's menu opens it on Pets). */
+export function openSettings(pane: Pane): void {
+  lastPane = pane
+  const live = useLive.getState()
+  // Already open on another pane: it switches.
+  if (live.settingsOpen) live.setSettingsOpen(false)
+  requestAnimationFrame(() => useLive.getState().setSettingsOpen(true))
+}
 
 const IDLE_CHOICES = [5, 10, 15, 30, 60, 0]
 const idleLabel = (m: number) => (m === 0 ? 'Never' : m === 60 ? 'After 1 hour' : `After ${m} minutes`)
@@ -32,16 +43,6 @@ const archiveLabel = (d: number) => (d === 0 ? 'Never' : d === 1 ? 'After 1 day'
 /** The output styles Claude Code comes with, until a session lists yours too. */
 const BUILT_IN_STYLES = ['Concise', 'Explanatory', 'Learning', 'Proactive']
 
-const PET_LABELS: Record<PetKind, { label: string; detail: string }> = {
-  blob: { label: 'Blob', detail: 'A blue cloud with a prompt for a face' },
-  sprout: { label: 'Sprout', detail: 'A seedling with two leaves' },
-  ghost: { label: 'Ghost', detail: 'A soft violet ghost' },
-  ember: { label: 'Ember', detail: 'A fire spirit' },
-  cat: { label: 'Cat', detail: 'A black cat with yellow eyes' },
-  frog: { label: 'Frog', detail: 'A frog with a wide smile' },
-  bot: { label: 'Bot', detail: 'A little screen-faced robot' },
-  owl: { label: 'Owl', detail: 'A wide-eyed owl' }
-}
 
 const LEVELS: { value: NoticeLevel; label: string; detail: string }[] = [
   { value: 'banner', label: 'Banners', detail: 'A notification and the taskbar badge' },
@@ -148,6 +149,7 @@ export function SettingsSheet() {
           {pane === 'general' && <General />}
           {pane === 'sessions' && <Sessions />}
           {pane === 'notifications' && <Notifications />}
+          {pane === 'pets' && <PetsPane />}
           {pane === 'claude' && <ClaudeCode />}
           {pane === 'about' && <About />}
         </div>
@@ -227,20 +229,6 @@ function General() {
       <Row label="Glass" hint="Clear glass that lets the dusk show through, even when Windows’ transparency effects are off.">
         <Toggle checked={glass} onChange={() => runCommand('view.toggleGlass')} label="Always show glass" />
       </Row>
-      <Heading>Pets</Heading>
-      <Row label="Show a pet" hint="A small companion that floats on top of all your apps. It hops while a session works, and says when one needs you or is ready for review. Drag it anywhere; click it to bring Gloom back. /pet does the same.">
-        <Toggle checked={settings.pet} onChange={(pet) => update({ pet })} label="Show a pet" />
-      </Row>
-      {settings.pet && (
-        <Row label="Pet">
-          <Choice
-            label="Pet"
-            value={settings.petKind}
-            options={PET_KINDS.map((kind) => ({ value: kind, ...PET_LABELS[kind] }))}
-            onChange={(petKind) => isPetKind(petKind) && update({ petKind })}
-          />
-        </Row>
-      )}
       <Heading>Terminal</Heading>
       <Row label="Shell" hint="New terminals open with it; ones already open keep theirs.">
         <ShellPicker value={settings.shell} onChange={(shell) => update({ shell })} />
