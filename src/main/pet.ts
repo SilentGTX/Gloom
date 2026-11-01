@@ -19,8 +19,23 @@ import { runCommand } from './commands'
 import type { Pets } from './pets'
 import { isRendererUrl, rendererUrl } from './window'
 
-/** The window for a pet `size` screen pixels per pixel: the pet, its toolbar and its card under it. */
-const sizeFor = (size: number) => ({ width: Math.max(320, 26 * size + 24), height: 122 + 27 * size })
+/** Gloom's own pets are at most 22 × 27 pixels; a pet you add can be bigger (up to 64 × 64). */
+const BUILT_IN = { w: 26, h: 27 }
+
+/** The chosen pet's size in its pixels: the biggest of its loops. */
+function petPixels(): { w: number; h: number } {
+  const kind = settings().petKind
+  const custom = kind.startsWith('custom:') ? pets?.get(kind.slice(7)) : null
+  if (!custom) return BUILT_IN
+  const loops = Object.values(custom.loops)
+  return { w: Math.max(BUILT_IN.w, ...loops.map((l) => l.w)), h: Math.max(BUILT_IN.h, ...loops.map((l) => l.h)) }
+}
+
+/** The window for the pet at `size` screen pixels per pixel: the pet, its toolbar and its card under it. */
+function sizeFor(size: number) {
+  const pet = petPixels()
+  return { width: Math.max(320, pet.w * size + 24), height: 122 + pet.h * size }
+}
 /** From the work area's corner: clear of the taskbar and the screen's edge. */
 const MARGIN = 12
 const MOODS = new Set(['rest', 'busy', 'needs', 'ready'])
@@ -293,5 +308,11 @@ export function startPet({
   onSettings(apply)
   if (mainWindow.isVisible()) apply(settings())
   else mainWindow.once('show', () => apply(settings()))
-  return { changed: push }
+  return {
+    changed: () => {
+      // A pet you added may have changed size.
+      resize()
+      push()
+    }
+  }
 }
