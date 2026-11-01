@@ -104,13 +104,13 @@ const api: GloomApi = {
   widget: (id, code, title, theme) => ipcRenderer.invoke(IPC.widgetServe, id, code, title, theme),
   popOut: (pane, id) => ipcRenderer.invoke(IPC.popOut, pane, id),
   pet: {
-    report: (state) => ipcRenderer.send(IPC.petReport, state),
+    report: (cards) => ipcRenderer.send(IPC.petReport, cards),
     current: () => ipcRenderer.invoke(IPC.petCurrent),
     onView: (listener) => subscribe<PetView>(IPC.petView, listener),
     hover: (over) => ipcRenderer.send(IPC.petHover, over),
     drag: (phase) => ipcRenderer.send(IPC.petDrag, phase),
     open: () => ipcRenderer.send(IPC.petOpen),
-    action: (what) => ipcRenderer.send(IPC.petAction, what)
+    action: (what, sessionId) => ipcRenderer.send(IPC.petAction, what, sessionId)
   },
   pets: {
     list: () => ipcRenderer.invoke(IPC.petsList),

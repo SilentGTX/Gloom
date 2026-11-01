@@ -204,7 +204,8 @@ export interface GloomApi {
   /** The pet's window, on top of every app (main/pet.ts). */
   pet: {
     /** From the main window: what the pet should show. */
-    report(state: PetState): void
+    /** A card per session that wants your attention, most urgent first. */
+    report(cards: PetState[]): void
     /** From the pet window: what to show, now and as it changes. */
     current(): Promise<PetView>
     onView(listener: (view: PetView) => void): () => void
@@ -215,7 +216,8 @@ export interface GloomApi {
     /** The pet was clicked: Gloom minimizes when it is in front, else comes forward. */
     open(): void
     /** A button on the pet's toolbar. */
-    action(what: PetAction): void
+    /** `sessionId`: the card's session, for 'open-card'. */
+    action(what: PetAction, sessionId?: string | null): void
   }
   /** The pets you created, in Gloom's pets folder (main/pets.ts). */
   pets: {

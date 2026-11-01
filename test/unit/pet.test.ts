@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { isPetKind, PET_KINDS, type LiveSummary } from '@shared/live'
 import type { TranscriptEntry } from '@shared/transcript'
-import { petDetail, petPick, petState, plain } from '../../src/renderer/src/features/pet/mood'
+import { othersLine, petCards, petDetail, petPick, petQueue, petState, plain } from '../../src/renderer/src/features/pet/mood'
 import { petIdFor } from '../../src/main/pets'
 
 const summary = (state: LiveSummary['state'], extra: Partial<LiveSummary> = {}): LiveSummary =>
@@ -29,6 +29,44 @@ describe('petPick', () => {
     expect(petPick({ a: summary('idle') }, new Set(['a']))).toEqual({ mood: 'ready', id: 'a' })
     expect(petPick({ a: summary('idle'), b: summary('working') }, new Set(['a']))).toEqual({ mood: 'busy', id: 'b' })
     expect(petPick({}, new Set(['gone'])).mood).toBe('rest')
+  })
+})
+
+describe('petQueue', () => {
+  it('orders by urgency, then by how long each has been that way', () => {
+    const sessions = {
+      ready1: summary('idle', { lastActive: 300 }),
+      busyLate: summary('working', { turnStarted: 200, lastActive: 900 }),
+      needsLate: summary('waiting', { lastActive: 500 }),
+      ready0: summary('idle', { lastActive: 100 }),
+      busyEarly: summary('working', { turnStarted: 50, lastActive: 950 }),
+      needsEarly: summary('waiting', { lastActive: 400 }),
+      quiet: summary('idle', { lastActive: 10 })
+    }
+    expect(petQueue(sessions, new Set(['ready0', 'ready1'])).map((q) => q.id)).toEqual(['needsEarly', 'needsLate', 'busyEarly', 'busyLate', 'ready0', 'ready1'])
+  })
+
+  it('picks the one waiting longest, whatever order Gloom lists them in', () => {
+    expect(petPick({ late: summary('waiting', { lastActive: 20 }), early: summary('waiting', { lastActive: 10 }) }, none).id).toBe('early')
+    expect(petPick({ early: summary('waiting', { lastActive: 10 }), late: summary('waiting', { lastActive: 20 }) }, none).id).toBe('early')
+  })
+})
+
+describe('the cards and the others', () => {
+  const look = { title: (id: string) => id, stream: () => null, entries: () => [] }
+  const sessions = { r: summary('idle', { lastActive: 1 }), w: summary('working', { turnStarted: 5 }), n: summary('waiting', { lastActive: 9 }) }
+
+  it('has a card for each session that wants you, most urgent first', () => {
+    expect(petCards(sessions, new Set(['r']), look).map((c) => [c.mood, c.sessionId])).toEqual([['needs', 'n'], ['busy', 'w'], ['ready', 'r']])
+  })
+
+  it('counts the cards not on show by state, "more" for the shown card’s own', () => {
+    const cards = petCards(sessions, new Set(['r']), look)
+    expect(othersLine(cards, 0)).toBe('1 working · 1 ready')
+    expect(othersLine(cards, 2)).toBe('1 waiting · 1 working')
+    const two = petCards({ a: summary('waiting', { lastActive: 1 }), b: summary('waiting', { lastActive: 2 }) }, none, look)
+    expect(othersLine(two, 0)).toBe('1 more waiting')
+    expect(othersLine(cards.slice(0, 1), 0)).toBe('')
   })
 })
 

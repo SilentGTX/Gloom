@@ -9,18 +9,30 @@ import type { TranscriptEntry } from '@shared/transcript'
 
 export type Mood = PetState['mood']
 
-/** The most urgent session: one waiting on you, else one working, else one finished you haven't looked at. */
-export function petPick(sessions: Record<string, LiveSummary | undefined>, finished: ReadonlySet<string>): { mood: Mood; id: string | null } {
-  let busy: string | null = null
-  let ready: string | null = null
+/** How urgent each state is: waiting on you, then working, then finished and not yet looked at. */
+const RANK: Record<Exclude<Mood, 'rest'>, number> = { needs: 0, busy: 1, ready: 2 }
+
+/**
+ * Every session that wants your attention, most urgent first: waiting on you, then
+ * working, then finished and not yet looked at. Within each, the one that's been
+ * that way longest comes first: waiting longest, working longest (its turn started
+ * first), finished longest ago.
+ */
+export function petQueue(sessions: Record<string, LiveSummary | undefined>, finished: ReadonlySet<string>): { mood: Exclude<Mood, 'rest'>; id: string; since: number }[] {
+  const queue: { mood: Exclude<Mood, 'rest'>; id: string; since: number }[] = []
   for (const [id, summary] of Object.entries(sessions)) {
-    if (summary?.state === 'waiting') return { mood: 'needs', id }
-    if (summary && (summary.state === 'starting' || summary.state === 'working')) busy ??= id
-    else if (finished.has(id)) ready ??= id
+    if (!summary) continue
+    if (summary.state === 'waiting') queue.push({ mood: 'needs', id, since: summary.lastActive })
+    else if (summary.state === 'starting' || summary.state === 'working') queue.push({ mood: 'busy', id, since: summary.turnStarted ?? summary.lastActive })
+    else if (finished.has(id)) queue.push({ mood: 'ready', id, since: summary.lastActive })
   }
-  if (busy) return { mood: 'busy', id: busy }
-  if (ready) return { mood: 'ready', id: ready }
-  return { mood: 'rest', id: null }
+  return queue.sort((a, b) => RANK[a.mood] - RANK[b.mood] || a.since - b.since || a.id.localeCompare(b.id))
+}
+
+/** The most urgent session (petQueue's first), or rest. */
+export function petPick(sessions: Record<string, LiveSummary | undefined>, finished: ReadonlySet<string>): { mood: Mood; id: string | null } {
+  const first = petQueue(sessions, finished)[0]
+  return first ? { mood: first.mood, id: first.id } : { mood: 'rest', id: null }
 }
 
 /** Markdown and line breaks off, cut to a line or two. */
@@ -76,15 +88,41 @@ export function petDetail(mood: Mood, summary: LiveSummary | undefined, stream: 
   return ''
 }
 
-/** What the pet shows, put together from the sessions. */
-export function petState(
+/** The most cards the pet keeps: you can cycle through these. */
+export const PET_CARDS = 8
+
+/** What the pet shows, put together from the sessions: a card for each that wants your attention, most urgent first. Empty at rest. */
+export function petCards(
   sessions: Record<string, LiveSummary | undefined>,
   finished: ReadonlySet<string>,
   look: { title(id: string): string; stream(id: string): StreamState | null | undefined; entries(id: string): readonly TranscriptEntry[] | undefined }
-): PetState {
-  const { mood, id } = petPick(sessions, finished)
-  if (!id) return { mood, title: '', detail: '', sessionId: null }
-  return { mood, title: look.title(id), detail: petDetail(mood, sessions[id], look.stream(id), look.entries(id)), sessionId: id }
+): PetState[] {
+  return petQueue(sessions, finished)
+    .slice(0, PET_CARDS)
+    .map(({ mood, id }) => ({ mood, title: look.title(id), detail: petDetail(mood, sessions[id], look.stream(id), look.entries(id)), sessionId: id }))
+}
+
+/** The most urgent card alone, or rest. */
+export function petState(sessions: Record<string, LiveSummary | undefined>, finished: ReadonlySet<string>, look: Parameters<typeof petCards>[2]): PetState {
+  return petCards(sessions, finished, look)[0] ?? { mood: 'rest', title: '', detail: '', sessionId: null }
+}
+
+const OTHERS: [Exclude<Mood, 'rest'>, string][] = [
+  ['needs', 'waiting'],
+  ['busy', 'working'],
+  ['ready', 'ready']
+]
+
+/** The other cards, counted by state ("1 more waiting · 2 working · 1 ready"); empty when there are none. */
+export function othersLine(cards: readonly PetState[], shown: number): string {
+  const others = cards.filter((_, i) => i !== shown)
+  const showing = cards[shown]?.mood
+  return OTHERS.map(([mood, word]) => {
+    const n = others.filter((c) => c.mood === mood).length
+    return n ? `${n} ${mood === showing ? 'more ' : ''}${word}` : ''
+  })
+    .filter(Boolean)
+    .join(' · ')
 }
 
 /** At rest, the card says hello: one of these, a different one each time it shows. */

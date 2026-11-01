@@ -49,7 +49,7 @@ html[data-pet] #root {
 }
 .pet-card-slot {
   width: 100%;
-  height: 66px;
+  height: 92px;
   padding-top: 4px;
 }
 
@@ -130,8 +130,7 @@ html[data-pet] #root {
   display: flex;
   width: 100%;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 14px 9px;
+  overflow: hidden;
   border: 0;
   border-radius: 16px;
   transform-origin: top center;
@@ -144,10 +143,45 @@ html[data-pet] #root {
   font-family: var(--typeface-text, system-ui), sans-serif;
   cursor: default;
 }
-.pet-card:hover {
-  box-shadow:
-    0 0 0 1px var(--pet-edge),
-    var(--pet-shadow);
+/* The card's session: opens it. */
+.pet-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 14px 9px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: default;
+}
+.pet-card-main:hover {
+  background: var(--pet-hover);
+}
+/* The others, counted: shows the next. */
+.pet-card-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 10px 6px 14px;
+  border: 0;
+  border-top: 0.5px solid var(--pet-edge);
+  background: transparent;
+  color: var(--pet-ink-2);
+  font: 500 11.5px/1.2 var(--typeface-text, system-ui), sans-serif;
+  text-align: left;
+  cursor: default;
+}
+.pet-card-more:hover {
+  background: var(--pet-hover);
+  color: var(--pet-ink);
+}
+.pet-card-main:focus-visible,
+.pet-card-more:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: -2px;
 }
 .pet-card-title {
   display: flex;

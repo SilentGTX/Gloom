@@ -10,7 +10,7 @@ import { isBuiltInPet, type PetKind } from '@shared/live'
 import { useFinished } from '../concept/finished'
 import { useLibrary } from '../../stores/library'
 import { useLive } from '../../stores/live'
-import { petState, type Mood } from './mood'
+import { petCards, type Mood } from './mood'
 import { PET_SPRITES, type PetLoopName } from './sprites'
 
 /** A pet's loops: Gloom's own, or yours (a pet you created), else Blob's. */
@@ -111,12 +111,12 @@ export function usePetReport(): void {
   const finished = useFinished((s) => s.ids)
   const metas = useLibrary((s) => s.sessions)
   const entries = useLibrary((s) => s.library.sessions)
-  const state = petState(sessions, finished, {
+  const cards = petCards(sessions, finished, {
     title: (id) => (metas[id] ? displayTitle(metas[id], entries[id]) : 'New Session'),
     stream: (id) => streams[id],
     entries: (id) => provisional[id]?.entries
   })
-  const key = JSON.stringify(state)
+  const key = JSON.stringify(cards)
   const sent = useRef({ key: '', at: 0 })
   useEffect(() => {
     const send = () => {

@@ -222,7 +222,7 @@ export const IPC = {
   cloudStart: 'cloud:start',
   /** invoke → CloudSession[]: the cloud sessions Gloom started */
   cloudList: 'cloud:list',
-  /** send(PetState): the main window's renderer says what the pet should show */
+  /** send(PetState[]): the main window's renderer says what the pet should show: a card per session that wants you, most urgent first */
   petReport: 'pet:report',
   /** invoke → PetView: what the pet window shows as it opens */
   petCurrent: 'pet:current',
@@ -281,7 +281,9 @@ export interface CustomPet {
   loops: Record<PetLoopKey, PetLoopData>
 }
 
-export interface PetView extends PetState {
+export interface PetView {
+  /** A card per session that wants your attention, most urgent first; none at rest. */
+  cards: PetState[]
   kind: PetKind
   size: number
   /** The loops of a pet you created, when that's the pet. */

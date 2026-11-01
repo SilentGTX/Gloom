@@ -34,14 +34,15 @@ function petPixels(): { w: number; h: number } {
 /** The window for the pet at `size` screen pixels per pixel: the pet, its toolbar and its card under it. */
 function sizeFor(size: number) {
   const pet = petPixels()
-  return { width: Math.max(320, pet.w * size + 24), height: 122 + pet.h * size }
+  return { width: Math.max(320, pet.w * size + 24), height: 148 + pet.h * size }
 }
 /** From the work area's corner: clear of the taskbar and the screen's edge. */
 const MARGIN = 12
 const MOODS = new Set(['rest', 'busy', 'needs', 'ready'])
 
 let win: BrowserWindow | null = null
-let state: PetState = { mood: 'rest', title: '', detail: '', sessionId: null }
+/** A card per session that wants your attention, most urgent first (the main window works them out). */
+let cards: PetState[] = []
 let drag: { x: number; y: number; cursorX: number; cursorY: number } | null = null
 let pets: Pets | null = null
 /** The pet's menu is up: the pet mustn't come up over it. */
@@ -98,7 +99,7 @@ function view(): PetView {
   const { petKind, petSize } = settings()
   const custom = petKind.startsWith('custom:') ? (pets?.get(petKind.slice(7)) ?? null) : null
   // A pet you created that's gone (its folder deleted) is Blob until you choose another.
-  return { ...state, kind: petKind.startsWith('custom:') && !custom ? 'blob' : petKind, size: petSize, custom }
+  return { cards, kind: petKind.startsWith('custom:') && !custom ? 'blob' : petKind, size: petSize, custom }
 }
 
 function push() {
@@ -248,14 +249,21 @@ export function startPet({
   const fromPet = (event: IpcMainEvent) => trusted(event) && !!win && !win.isDestroyed() && event.sender === win.webContents
   const text = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : null)
 
+  /** One card, checked; null when it isn't one. */
+  const card = (raw: unknown): PetState | null => {
+    if (!raw || typeof raw !== 'object') return null
+    const r = raw as Record<string, unknown>
+    const title = text(r.title, 120)
+    const detail = text(r.detail, 300)
+    const sessionId = text(r.sessionId, 100)
+    if (typeof r.mood !== 'string' || !MOODS.has(r.mood) || r.mood === 'rest' || title === null || detail === null || !sessionId) return null
+    return { mood: r.mood as PetState['mood'], title, detail, sessionId }
+  }
   ipcMain.on(IPC.petReport, (event, next: unknown) => {
-    if (!trusted(event) || !next || typeof next !== 'object') return
-    const raw = next as Record<string, unknown>
-    const title = text(raw.title, 120)
-    const detail = text(raw.detail, 300)
-    const sessionId = raw.sessionId === null ? null : text(raw.sessionId, 100)
-    if (typeof raw.mood !== 'string' || !MOODS.has(raw.mood) || title === null || detail === null || sessionId === undefined) return
-    state = { mood: raw.mood as PetState['mood'], title, detail, sessionId }
+    if (!trusted(event) || !Array.isArray(next)) return
+    const checked = next.slice(0, 8).map(card)
+    if (checked.some((c) => c === null)) return
+    cards = checked as PetState[]
     push()
   })
   ipcMain.handle(IPC.petCurrent, (event) => {
@@ -285,14 +293,15 @@ export function startPet({
   ipcMain.on(IPC.petOpen, (event) => {
     if (fromPet(event)) toggle()
   })
-  ipcMain.on(IPC.petAction, (event, what: unknown) => {
+  ipcMain.on(IPC.petAction, (event, what: unknown, sessionId: unknown) => {
     if (!fromPet(event)) return
     if (what === 'new-session') {
       show()
       runCommand('session.new', mainWindow, false)
     } else if (what === 'open-card') {
-      // The card's session, or a new one when nothing's going on.
-      if (state.sessionId && !mainWindow.isDestroyed()) reveal(mainWindow, state.sessionId)
+      // The card's session (one of the pet's cards), or a new one when nothing's going on.
+      const id = cards.find((c) => c.sessionId === sessionId)?.sessionId ?? cards[0]?.sessionId
+      if (id && !mainWindow.isDestroyed()) reveal(mainWindow, id)
       else {
         show()
         runCommand('session.new', mainWindow, false)
