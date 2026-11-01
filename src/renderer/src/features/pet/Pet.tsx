@@ -1,10 +1,9 @@
-// The pet: a small built-in companion that floats over the bottom-right of the
-// window and says what the sessions are doing. Drawn in SVG, so there's no file
-// to ship. It's decorative (the bubble is the status, announced politely), and
-// it never takes the pointer from the chat around it.
-import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
+// The pet's artwork and motion, and the main window's report of what it should
+// show. The pet itself lives in a window of its own, on top of every app
+// (main/pet.ts, PetWindow.tsx); drawn in SVG, so there's no file to ship.
+import { useEffect } from 'react'
+import type { Transition } from 'motion/react'
 import type { PetKind } from '@shared/live'
-import { GlassCapsule } from '../../components/ui/Glass'
 import { useFinished } from '../concept/finished'
 import { useLive } from '../../stores/live'
 import { petMood, type Mood } from './mood'
@@ -70,10 +69,10 @@ function Body({ kind }: { kind: PetKind }) {
 }
 
 /** The pet's artwork: a body, its face and, for some moods, a badge. Decorative. */
-export function PetArt({ kind, mood }: { kind: PetKind; mood: Mood }) {
+export function PetArt({ kind, mood, size = 64 }: { kind: PetKind; mood: Mood; size?: number }) {
   const badge = BADGE[mood]
   return (
-    <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden className="block overflow-visible">
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden className="block overflow-visible">
       <ellipse cx="32" cy="60" rx="15" ry="2.6" fill="#000" opacity={0.18} />
       <Body kind={kind} />
       <Face kind={kind} ink={PALETTE[kind].ink} />
@@ -83,56 +82,22 @@ export function PetArt({ kind, mood }: { kind: PetKind; mood: Mood }) {
 }
 
 /** A critically damped spring (no bounce) for things that arrive; reduced motion gets a short fade. */
-const arrive = (reduce: boolean | null): Transition => (reduce ? { duration: 0.2, ease: [0.23, 1, 0.32, 1] } : { type: 'spring', bounce: 0, duration: 0.32 })
+export const arrive = (reduce: boolean | null): Transition => (reduce ? { duration: 0.2, ease: [0.23, 1, 0.32, 1] } : { type: 'spring', bounce: 0, duration: 0.32 })
 
 /** How the pet moves in each mood: breathing at rest, quicker bobbing while working, a slow lift when it needs you. */
-function motionFor(mood: Mood, reduce: boolean | null) {
+export function petMotion(mood: Mood, reduce: boolean | null) {
   if (reduce) return { animate: { y: 0, scaleY: 1 }, transition: { duration: 0 } }
   if (mood === 'busy') return { animate: { y: [0, -3, 0] }, transition: { duration: 1.1, repeat: Infinity, ease: 'easeInOut' as const } }
   if (mood === 'needs') return { animate: { y: [0, -4, 0] }, transition: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' as const } }
   return { animate: { scaleY: [1, 1.035, 1] }, transition: { duration: 2.8, repeat: Infinity, ease: 'easeInOut' as const } }
 }
 
-/** Mounted once, by the app. Renders nothing while the pet is hidden. */
-export function Pet() {
-  const enabled = useLive((s) => s.settings.pet)
-  const kind = useLive((s) => s.settings.petKind)
+/** In the main window: tells main what the pet should show, as the sessions change. Mounted once, by the app. */
+export function usePetReport(): void {
   const sessions = useLive((s) => s.sessions)
   const finished = useFinished((s) => s.ids)
-  const reduce = useReducedMotion()
-  if (!enabled) return null
   const { mood, text } = petMood(sessions, finished)
-  const motionProps = motionFor(mood, reduce)
-  return (
-    <div className="pointer-events-none fixed right-[var(--frame)] bottom-[var(--frame)] z-30 flex flex-col items-end gap-2">
-      <AnimatePresence initial={false}>
-        {text && (
-          <motion.div
-            key="bubble"
-            role="status"
-            aria-live="polite"
-            className="pointer-events-auto"
-            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.92, y: 6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 4 }}
-            transition={arrive(reduce)}
-            style={{ transformOrigin: 'bottom right' }}
-          >
-            <GlassCapsule className="h-auto px-3 py-1.5">
-              <span className="text-[12px] font-medium whitespace-nowrap text-label">{text}</span>
-            </GlassCapsule>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <motion.div
-        key={`${kind}-${mood}`}
-        className="pointer-events-auto origin-bottom"
-        initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, ...motionProps.animate }}
-        transition={{ opacity: arrive(reduce), ...(reduce ? {} : { scale: arrive(reduce) }), ...motionProps.transition }}
-      >
-        <PetArt kind={kind} mood={mood} />
-      </motion.div>
-    </div>
-  )
+  useEffect(() => {
+    window.gloom?.pet.report({ mood, text })
+  }, [mood, text])
 }

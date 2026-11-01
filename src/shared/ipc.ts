@@ -1,6 +1,7 @@
 // IPC channel names and payloads shared by main, preload and renderer.
 import type { CommandId } from './commands'
 import type { LibraryData, LibraryOp, SessionMeta } from './library'
+import type { PetKind } from './live'
 import type { Cursor, TranscriptUpdate } from './transcript'
 
 export const IPC = {
@@ -220,8 +221,30 @@ export const IPC = {
   /** invoke(folder, task) → CloudSession: starts a cloud session (claude --cloud) and opens it on claude.ai */
   cloudStart: 'cloud:start',
   /** invoke → CloudSession[]: the cloud sessions Gloom started */
-  cloudList: 'cloud:list'
+  cloudList: 'cloud:list',
+  /** send(PetState): the main window's renderer says what the pet should show */
+  petReport: 'pet:report',
+  /** invoke → PetView: what the pet window shows as it opens */
+  petCurrent: 'pet:current',
+  /** main → pet window: PetView, as it changes */
+  petView: 'pet:view',
+  /** send(boolean): the pointer is over the pet or its bubble (the rest of its window lets clicks through) */
+  petHover: 'pet:hover',
+  /** send('start' | 'move' | 'end'): the pet is being dragged; main moves its window with the cursor */
+  petDrag: 'pet:drag',
+  /** send: the pet was clicked; Gloom comes forward */
+  petOpen: 'pet:open'
 } as const
+
+/** What the pet shows: the most urgent state across the sessions, and the bubble's words (empty at rest). */
+export interface PetState {
+  mood: 'rest' | 'busy' | 'needs' | 'ready'
+  text: string
+}
+
+export interface PetView extends PetState {
+  kind: PetKind
+}
 
 /** A new terminal: in the session's working folder (your home folder without one), sized to the pane. */
 export interface TerminalCreate {

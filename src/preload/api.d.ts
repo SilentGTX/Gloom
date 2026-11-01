@@ -49,6 +49,7 @@ import type {
 } from '../shared/live'
 import type { BlobRef, TranscriptPage } from '../shared/transcript'
 import type { PrStatus } from '../shared/pr'
+import type { PetState, PetView } from '../shared/ipc'
 import type { Routine } from '../shared/routines'
 
 /** The sessions Gloom runs. */
@@ -200,6 +201,20 @@ export interface GloomApi {
   }
   /** Opens a pane (diff, terminal, file, plan, tasks, browser, artifacts) in a window of its own, for the session. */
   popOut(pane: 'diff' | 'terminal' | 'file' | 'plan' | 'tasks' | 'browser' | 'artifacts' | 'pr', id: string): Promise<void>
+  /** The pet's window, on top of every app (main/pet.ts). */
+  pet: {
+    /** From the main window: what the pet should show. */
+    report(state: PetState): void
+    /** From the pet window: what to show, now and as it changes. */
+    current(): Promise<PetView>
+    onView(listener: (view: PetView) => void): () => void
+    /** The pointer is over the pet or its bubble, so the window takes clicks there. */
+    hover(over: boolean): void
+    /** Dragging the pet: main moves its window with the cursor. */
+    drag(phase: 'start' | 'move' | 'end'): void
+    /** The pet was clicked: Gloom comes forward. */
+    open(): void
+  }
   /** An inline widget's page (show_widget): the URL its sandboxed frame loads. */
   widget(id: string, code: string, title: string, theme: { dark: boolean; accent: string }): Promise<string>
   /** The Browser pane: a page per session, laid over the pane's place; and the project's dev servers. */

@@ -219,7 +219,7 @@ function General() {
         <Toggle checked={glass} onChange={() => runCommand('view.toggleGlass')} label="Always show glass" />
       </Row>
       <Heading>Pets</Heading>
-      <Row label="Show a pet" hint="A small companion over the window. It bobs while a session works, and says when one needs you or is ready for review. /pet does the same.">
+      <Row label="Show a pet" hint="A small companion that floats on top of all your apps. It bobs while a session works, and says when one needs you or is ready for review. Drag it anywhere; click it to bring Gloom back. /pet does the same.">
         <Toggle checked={settings.pet} onChange={(pet) => update({ pet })} label="Show a pet" />
       </Row>
       {settings.pet && (

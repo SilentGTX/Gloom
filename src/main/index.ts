@@ -45,6 +45,7 @@ import { claudeInTerminal, resumeInTerminal } from './terminal'
 import { deferUpdatesWhile, finishStarting, installPending, launchCheck, onUpdateScreen, sessionsQuiet, showStarting, updateScreen } from './update-screen'
 import { checkOnFocus, onUpdateState, startBackgroundChecks, updateState } from './updater'
 import { markStarted, removeOldVersions, startNewerVersion } from './versions'
+import { startPet } from './pet'
 import { createMainWindow, createPopOutWindow, isRendererUrl, POP_OUT_PANES, windowState, type PopOutPane } from './window'
 
 /** Started by the version it takes the window over from (handover.ts). */
@@ -771,6 +772,18 @@ if (smokeArg) {
     })
     mainWindow.on('focus', checkOnFocus)
     mainWindow.on('focus', () => mainWindow?.flashFrame(false))
+    // The pet: a window of its own on top of every app, which Settings › Pets or /pet shows.
+    startPet({
+      trusted,
+      mainWindow,
+      bringForward: () => {
+        const win = mainWindow
+        if (!win) return
+        if (win.isMinimized()) win.restore()
+        win.show()
+        win.focus()
+      }
+    })
     // Quitting mid-turn stops Claude where it is: say so first.
     let quitAnyway = false
     mainWindow.on('close', (event) => {
