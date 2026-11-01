@@ -504,7 +504,15 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark'
   /** The terminal pane's shell. */
   shell: ShellId
+  /** A small companion that floats over the window and says what the sessions are doing (/pet). */
+  pet: boolean
+  petKind: PetKind
 }
+
+/** The built-in pets: each is drawn in SVG, so none is a file to download. */
+export const PET_KINDS = ['blob', 'sprout', 'orb'] as const
+export type PetKind = (typeof PET_KINDS)[number]
+export const isPetKind = (v: unknown): v is PetKind => (PET_KINDS as readonly unknown[]).includes(v)
 
 export const DEFAULT_SETTINGS: Settings = {
   claudePath: null,
@@ -529,7 +537,9 @@ export const DEFAULT_SETTINGS: Settings = {
   notifySound: true,
   flashTaskbar: true,
   theme: 'system',
-  shell: 'powershell'
+  shell: 'powershell',
+  pet: false,
+  petKind: 'blob'
 }
 
 /** The level a card or a turn's end notifies at. */

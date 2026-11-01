@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ChevronDown, CircleAlert, CircleCheck } from 'lucide-react'
 import type { AppInfo } from '@shared/ipc'
-import { branchPrefixProblem, isMode, TRANSCRIPT_VIEWS, type NoticeLevel, type Settings as SettingsData } from '@shared/live'
+import { branchPrefixProblem, isMode, isPetKind, PET_KINDS, TRANSCRIPT_VIEWS, type NoticeLevel, type PetKind, type Settings as SettingsData } from '@shared/live'
 import type { ShellId, ShellInfo } from '@shared/terminal'
 import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
@@ -31,6 +31,8 @@ const ARCHIVE_CHOICES = [0, 1, 2, 7, 14, 30]
 const archiveLabel = (d: number) => (d === 0 ? 'Never' : d === 1 ? 'After 1 day' : `After ${d} days`)
 /** The output styles Claude Code comes with, until a session lists yours too. */
 const BUILT_IN_STYLES = ['Concise', 'Explanatory', 'Learning', 'Proactive']
+
+const PET_LABELS: Record<PetKind, string> = { blob: 'Blob', sprout: 'Sprout', orb: 'Orb' }
 
 const LEVELS: { value: NoticeLevel; label: string; detail: string }[] = [
   { value: 'banner', label: 'Banners', detail: 'A notification and the taskbar badge' },
@@ -216,6 +218,20 @@ function General() {
       <Row label="Glass" hint="Clear glass that lets the dusk show through, even when Windows’ transparency effects are off.">
         <Toggle checked={glass} onChange={() => runCommand('view.toggleGlass')} label="Always show glass" />
       </Row>
+      <Heading>Pets</Heading>
+      <Row label="Show a pet" hint="A small companion over the window. It bobs while a session works, and says when one needs you or is ready for review. /pet does the same.">
+        <Toggle checked={settings.pet} onChange={(pet) => update({ pet })} label="Show a pet" />
+      </Row>
+      {settings.pet && (
+        <Row label="Pet">
+          <Segmented
+            label="Pet"
+            value={settings.petKind}
+            options={PET_KINDS.map((kind) => ({ value: kind, label: PET_LABELS[kind] }))}
+            onChange={(petKind) => isPetKind(petKind) && update({ petKind })}
+          />
+        </Row>
+      )}
       <Heading>Terminal</Heading>
       <Row label="Shell" hint="New terminals open with it; ones already open keep theirs.">
         <ShellPicker value={settings.shell} onChange={(shell) => update({ shell })} />

@@ -145,6 +145,10 @@ const handlers: Partial<Record<CommandId, (viaKeyboard: boolean) => void>> = {
   'view.textSmaller': () => useUi.getState().stepText(-1),
   'view.textReset': () => useUi.getState().resetText(),
   'view.toggleGlass': () => useUi.getState().toggleGlass(),
+  'view.togglePet': () => {
+    const { settings, updateSettings } = useLive.getState()
+    void updateSettings({ pet: !settings.pet })
+  },
   'view.designConcept': () => switchDesign('concept'),
   'view.designClassic': () => switchDesign('classic'),
   'session.fast': () => {

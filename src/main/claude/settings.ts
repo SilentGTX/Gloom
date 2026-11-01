@@ -9,7 +9,7 @@
 import { app, nativeTheme } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
-import { branchPrefixProblem, DEFAULT_MODELS, DEFAULT_SETTINGS, EFFORTS, isEffort, isMode, isTranscriptView, type ModelChoice, type NoticeLevel, type Settings } from '@shared/live'
+import { branchPrefixProblem, DEFAULT_MODELS, DEFAULT_SETTINGS, EFFORTS, isEffort, isMode, isPetKind, isTranscriptView, type ModelChoice, type NoticeLevel, type Settings } from '@shared/live'
 import { isShell } from '@shared/terminal'
 
 interface SettingsFile {
@@ -64,7 +64,9 @@ export function cleanSettings(raw: unknown, base: Settings = DEFAULT_SETTINGS): 
     notifySound: flag(s.notifySound, base.notifySound),
     flashTaskbar: flag(s.flashTaskbar, base.flashTaskbar),
     theme: s.theme === 'light' || s.theme === 'dark' || s.theme === 'system' ? s.theme : base.theme,
-    shell: isShell(s.shell) ? s.shell : base.shell
+    shell: isShell(s.shell) ? s.shell : base.shell,
+    pet: typeof s.pet === 'boolean' ? s.pet : base.pet,
+    petKind: isPetKind(s.petKind) ? s.petKind : base.petKind
   }
 }
 

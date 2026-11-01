@@ -91,6 +91,8 @@ export const COMMANDS = [
   { id: 'view.textSmaller', label: 'Smaller Text', group: 'view', accelerator: 'CmdOrCtrl+-', runs: 'renderer', keywords: 'zoom font size' },
   { id: 'view.textReset', label: 'Default Text Size', group: 'view', accelerator: 'CmdOrCtrl+0', runs: 'renderer', keywords: 'zoom font' },
   { id: 'view.toggleGlass', label: 'Always Show Glass', group: 'view', runs: 'renderer' },
+  // The pet: a small companion over the window that shows whether a session is working, waiting or ready. /pet in the composer does the same.
+  { id: 'view.togglePet', label: 'Show or Hide Pet', group: 'view', runs: 'renderer', keywords: 'companion mascot status' },
   // Gloom's look while you try the concept: a quiet neutral window with an inspector, or the classic dusk.
   { id: 'view.designConcept', label: 'Concept', group: 'view', submenu: 'Design', runs: 'renderer', keywords: 'look redesign new' },
   { id: 'view.designClassic', label: 'Classic', group: 'view', submenu: 'Design', runs: 'renderer', keywords: 'look dusk old' },

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect } from 'react'
 import { TooltipProvider } from './components/ui/Tooltip'
 import { useFinishedTracking } from './features/concept/finished'
+import { Pet } from './features/pet/Pet'
 import { Palette } from './features/palette/Palette'
 import { SessionsSheetsHost } from './features/sessions/SheetsHost'
 import { Shell } from './features/shell/Shell'
@@ -54,6 +55,7 @@ export function App() {
         <SessionsSheetsHost />
         <UpdatedNote />
         <Toasts />
+        <Pet />
       </div>
       <Palette blocked={updateScreen !== null} />
       <UpdateScreen screen={updateScreen} />

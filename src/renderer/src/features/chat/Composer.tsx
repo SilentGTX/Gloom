@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
 import { setComposerSpace } from '../../lib/composer-space'
+import { runCommand } from '../../lib/commands'
 import { useNow } from '../../lib/now'
 import { notify } from '../../lib/toast'
 import { isBusy, useElsewhere, useLive, type Draft, type DraftImage } from '../../stores/live'
@@ -226,6 +227,10 @@ function Banner({ text, action, detail }: { text: string; action?: { label: stri
   )
 }
 
+/** Gloom's own slash command: the pet. Listed beside the CLI's, and never sent to the CLI. */
+const PET_SLASH = '/pet'
+const PET_COMMAND: CommandInfo = { name: 'pet', description: 'Show or hide the pet', argumentHint: '' }
+
 /** The commands that start with what you've typed after the slash. */
 function useCommands(sessionId: string, query: string | null): CommandInfo[] {
   const [all, setAll] = useState<CommandInfo[] | null>(null)
@@ -241,8 +246,9 @@ function useCommands(sessionId: string, query: string | null): CommandInfo[] {
   return useMemo(() => {
     if (query === null || !all) return []
     const q = query.toLowerCase()
-    const starts = all.filter((c) => c.name.toLowerCase().startsWith(q))
-    const contains = all.filter((c) => !c.name.toLowerCase().startsWith(q) && c.name.toLowerCase().includes(q))
+    const list = all.some((c) => c.name === PET_COMMAND.name) ? all : [PET_COMMAND, ...all]
+    const starts = list.filter((c) => c.name.toLowerCase().startsWith(q))
+    const contains = list.filter((c) => !c.name.toLowerCase().startsWith(q) && c.name.toLowerCase().includes(q))
     return [...starts, ...contains].slice(0, 50)
   }, [all, query])
 }
@@ -380,6 +386,12 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
 
   const setText = (text: string) => useLive.getState().setDraft(sessionId, { ...useLive.getState().draft(sessionId), text })
   const send = () => {
+    // /pet is Gloom's own: it shows or hides the pet, and never goes to the CLI.
+    if (!noting && draft.text.trim() === PET_SLASH) {
+      setText('')
+      runCommand('view.togglePet')
+      return
+    }
     if (!canSend) return
     if (noting) {
       const note = draft.text.trim()
