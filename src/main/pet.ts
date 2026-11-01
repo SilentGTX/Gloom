@@ -29,6 +29,24 @@ let win: BrowserWindow | null = null
 let state: PetState = { mood: 'rest', title: '', detail: '', sessionId: null }
 let drag: { x: number; y: number; cursorX: number; cursorY: number } | null = null
 let pets: Pets | null = null
+/** The pet's menu is up: the pet mustn't come up over it. */
+let menuOpen = false
+let guard: ReturnType<typeof setInterval> | undefined
+/** How often the pet checks it's still on top, in case Windows pushed it under. */
+const ON_TOP_MS = 2000
+
+/**
+ * Puts the pet back on top. Windows can leave an always-on-top window that never
+ * takes the focus (as the pet's can't) under ordinary ones: it still says it's on
+ * top, but Gloom's own window, Chrome or Explorer show over it. Setting it on top
+ * again (off, then on: Windows only re-applies a change) and raising it fixes that.
+ */
+function keepOnTop() {
+  if (!win || win.isDestroyed() || menuOpen || !win.isVisible()) return
+  win.setAlwaysOnTop(false)
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.moveTop()
+}
 
 const placeFile = () => join(app.getPath('userData'), 'pet-window.json')
 
@@ -110,13 +128,19 @@ function open() {
       spellcheck: false
     }
   })
-  // Above ordinary always-on-top windows too, as a floating panel is.
-  win.setAlwaysOnTop(true, 'floating')
+  // Above other apps' always-on-top windows too.
+  win.setAlwaysOnTop(true, 'screen-saver')
   win.setVisibleOnAllWorkspaces(true)
   // Clicks go through until the pointer is over the pet (petHover); moves still arrive, so the page can tell.
   win.setIgnoreMouseEvents(true, { forward: true })
-  win.once('ready-to-show', () => win?.showInactive())
+  win.once('ready-to-show', () => {
+    win?.showInactive()
+    keepOnTop()
+  })
+  clearInterval(guard)
+  guard = setInterval(keepOnTop, ON_TOP_MS)
   win.on('closed', () => {
+    clearInterval(guard)
     win = null
     drag = null
   })
@@ -184,6 +208,7 @@ export function startPet({
   /** Right-click, or the toolbar's chevron: the pet's settings, the next pet, or no pet. */
   const menu = () => {
     if (!win || win.isDestroyed()) return
+    menuOpen = true
     Menu.buildFromTemplate([
       {
         label: 'Pet Settings…',
@@ -195,7 +220,13 @@ export function startPet({
       { label: 'Next Pet', click: nextPet },
       { type: 'separator' },
       { label: 'Hide Pet', click: () => updateSettings({ pet: false }) }
-    ]).popup({ window: win })
+    ]).popup({
+      window: win,
+      callback: () => {
+        menuOpen = false
+        keepOnTop()
+      }
+    })
   }
 
   const fromPet = (event: IpcMainEvent) => trusted(event) && !!win && !win.isDestroyed() && event.sender === win.webContents
@@ -225,11 +256,14 @@ export function startPet({
     if (phase === 'start') {
       const [x, y] = win!.getPosition()
       drag = { x, y, cursorX: cursor.x, cursorY: cursor.y }
+      keepOnTop()
     } else if (phase === 'move' && drag) {
       win!.setPosition(Math.round(drag.x + cursor.x - drag.cursorX), Math.round(drag.y + cursor.y - drag.cursorY))
+      win!.moveTop()
     } else if (phase === 'end') {
       drag = null
       savePlace()
+      keepOnTop()
     }
   })
   ipcMain.on(IPC.petOpen, (event) => {
@@ -251,6 +285,9 @@ export function startPet({
     else if (what === 'menu') menu()
     else if (what === 'hide') updateSettings({ pet: false })
   })
+
+  // Gloom's window coming and going is when Windows tends to push the pet under it.
+  for (const event of ['focus', 'blur', 'show', 'restore', 'minimize'] as const) mainWindow.on(event as 'focus', () => setTimeout(keepOnTop, 50))
 
   onSettings(apply)
   if (mainWindow.isVisible()) apply(settings())
