@@ -31,20 +31,20 @@ let drag: { x: number; y: number; cursorX: number; cursorY: number } | null = nu
 let pets: Pets | null = null
 /** The pet's menu is up: the pet mustn't come up over it. */
 let menuOpen = false
-let guard: ReturnType<typeof setInterval> | undefined
-/** How often the pet checks it's still on top, in case Windows pushed it under. */
-const ON_TOP_MS = 2000
 
 /**
  * Puts the pet back on top. Windows can leave an always-on-top window that never
  * takes the focus (as the pet's can't) under ordinary ones: it still says it's on
  * top, but Gloom's own window, Chrome or Explorer show over it. Setting it on top
  * again (off, then on: Windows only re-applies a change) and raising it fixes that.
+ * Done when it's likely needed (a drag, Gloom's window coming and going), never on
+ * a timer: Codex's pet doesn't poll either, and a timer would keep jumping the pet
+ * over every other always-on-top window.
  */
 function keepOnTop() {
   if (!win || win.isDestroyed() || menuOpen || !win.isVisible()) return
   win.setAlwaysOnTop(false)
-  win.setAlwaysOnTop(true, 'screen-saver')
+  win.setAlwaysOnTop(true, 'floating')
   win.moveTop()
 }
 
@@ -118,6 +118,9 @@ function open() {
     fullscreenable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
+    // As Codex's pet window: no resizing border, corners or accent edge, so nothing of the window shows.
+    thickFrame: false,
+    roundedCorners: false,
     // Clicking the pet never takes the keyboard from the app you're in.
     focusable: false,
     webPreferences: {
@@ -128,19 +131,17 @@ function open() {
       spellcheck: false
     }
   })
-  // Above other apps' always-on-top windows too.
-  win.setAlwaysOnTop(true, 'screen-saver')
+  // A floating panel's level, as Codex's pet has.
+  win.setAlwaysOnTop(true, 'floating')
   win.setVisibleOnAllWorkspaces(true)
   // Clicks go through until the pointer is over the pet (petHover); moves still arrive, so the page can tell.
   win.setIgnoreMouseEvents(true, { forward: true })
+  // Raised, then shown without taking the focus, as Codex shows its pet.
   win.once('ready-to-show', () => {
+    win?.moveTop()
     win?.showInactive()
-    keepOnTop()
   })
-  clearInterval(guard)
-  guard = setInterval(keepOnTop, ON_TOP_MS)
   win.on('closed', () => {
-    clearInterval(guard)
     win = null
     drag = null
   })
