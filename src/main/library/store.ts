@@ -113,6 +113,8 @@ export function sanitize(raw: unknown): LibraryData {
     if (isString(e.name) && e.name.length <= 24) entry.name = e.name
     if (isString(e.routine)) entry.routine = e.routine
     if (isRecord(e.ssh) && isString(e.ssh.host) && isString(e.ssh.cwd)) entry.ssh = { host: e.ssh.host, cwd: e.ssh.cwd }
+    if (e.model === null || isString(e.model)) entry.model = e.model as string | null
+    if (e.effort === null || isString(e.effort)) entry.effort = e.effort as string | null
     if (isRecord(e.pr) && (e.pr.url === null || isString(e.pr.url))) entry.pr = { url: (e.pr.url as string | null) ?? null, ...(e.pr.autoFix === true ? { autoFix: true } : {}), ...(e.pr.autoArchive === true ? { autoArchive: true } : {}) }
     if (Array.isArray(e.folders) && e.folders.every(isString) && e.folders.length) entry.folders = e.folders.slice(0, 100)
     sessions[id] = entry

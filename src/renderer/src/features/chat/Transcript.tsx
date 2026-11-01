@@ -242,10 +242,39 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
     window.addEventListener('gloom:show-card', show)
     return () => window.removeEventListener('gloom:show-card', show)
   }, [inline, waitingCard, toBottom])
+  // Going up (wheel, keys, the scroll bar) lets go of the bottom at once, even a notch short of
+  // the margin, so a reply streaming in can't pull you back; only going down to the end holds it again.
+  const lastTop = useRef(0)
+  const held = useRef(false)
+  const leave = useCallback(() => {
+    pinned.current = false
+    cancelAnimationFrame(settle.current)
+  }, [])
   const onScroll = useCallback((e: Event) => {
     const s = e.currentTarget as HTMLElement
-    pinned.current = s.scrollHeight - s.clientHeight - s.scrollTop < bottomSpace() + 64
+    const gap = s.scrollHeight - s.clientHeight - s.scrollTop
+    const down = s.scrollTop > lastTop.current
+    lastTop.current = s.scrollTop
+    if (gap >= bottomSpace() + 64 || (held.current && !down)) pinned.current = false
+    else if (down || gap < 2) pinned.current = true
   }, [])
+  const onWheel = useCallback((e: WheelEvent) => e.deltaY < 0 && leave(), [leave])
+  const onKey = useCallback((e: KeyboardEvent) => (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'Home' || (e.key === ' ' && e.shiftKey)) && leave(), [leave])
+  const onPress = useCallback(() => (held.current = true), [])
+  const onRelease = useCallback(() => (held.current = false), [])
+  const listen = useCallback(
+    (el: HTMLElement | null, on: boolean) => {
+      if (!el) return
+      const fn = on ? el.addEventListener.bind(el) : el.removeEventListener.bind(el)
+      fn('scroll', onScroll as EventListener, { passive: true })
+      fn('wheel', onWheel as EventListener, { passive: true })
+      fn('keydown', onKey as EventListener)
+      fn('pointerdown', onPress)
+      const win = on ? window.addEventListener.bind(window) : window.removeEventListener.bind(window)
+      win('pointerup', onRelease)
+    },
+    [onScroll, onWheel, onKey, onPress, onRelease]
+  )
 
   // ─── Find ──────────────────────────────────────────────────────────────────
   const findOpen = useFind((s) => s.open)
@@ -332,9 +361,9 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
       <Virtuoso
         ref={virtuoso}
         scrollerRef={(el) => {
-          scroller.current?.removeEventListener('scroll', onScroll)
+          listen(scroller.current, false)
           scroller.current = el as HTMLElement | null
-          scroller.current?.addEventListener('scroll', onScroll, { passive: true })
+          listen(scroller.current, true)
         }}
         data={rows}
         context={{ loadingOlder, sessionId, inline }}

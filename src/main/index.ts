@@ -314,6 +314,7 @@ if (smokeArg) {
       if (request.ssh) {
         const id = sessions.create(request)
         library.apply({ type: 'setSsh', id, host: request.ssh, cwd: request.cwd })
+        library.apply({ type: 'setSessionRun', id, model: request.model, effort: request.effort })
         return id
       }
       if (!existsSync(request.cwd)) throw new Error('That folder doesn’t exist.')
@@ -325,7 +326,9 @@ if (smokeArg) {
           throw new Error(`Couldn’t make a worktree: ${String((error as { stderr?: string }).stderr || (error as Error).message).trim().split('\n')[0]}`)
         }
       }
-      return sessions.create(request)
+      const id = sessions.create(request)
+      library.apply({ type: 'setSessionRun', id, model: request.model, effort: request.effort })
+      return id
     })
     handle(IPC.liveRewindPreview, (_event, id, messageId) => sessions.rewindPreview(sessionId(id), sessionId(messageId)))
     handle(IPC.liveRewind, (_event, id, raw) => sessions.rewind(sessionId(id), parseRewind(raw)))
@@ -369,8 +372,10 @@ if (smokeArg) {
       const sid = sessionId(id)
       const parsed = parseSet(request)
       await sessions.set(sid, parsed)
-      // A session's extra folders are kept with it, for every process it starts.
+      // A session's extra folders are kept with it, for every process it starts; so are its model and effort.
       if ('folders' in parsed) library.apply({ type: 'setSessionFolders', id: sid, folders: parsed.folders })
+      if ('model' in parsed) library.apply({ type: 'setSessionRun', id: sid, model: parsed.model })
+      if ('effort' in parsed) library.apply({ type: 'setSessionRun', id: sid, effort: parsed.effort })
     })
     handle(IPC.liveToggleMcp, (_event, id, name, enabled) => sessions.toggleMcp(sessionId(id), serverName(name), enabled === true))
     handle(IPC.liveStopTask, (_event, id, taskId) => sessions.stopTask(sessionId(id), String(taskId).slice(0, 200)))

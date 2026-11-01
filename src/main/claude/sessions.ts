@@ -356,12 +356,15 @@ export class Sessions {
     const ssh = sshEntry ? this.sshFor(sshEntry.host) : null
     if (!meta?.cwd && !sshEntry) throw new Error('That session’s transcript is gone.')
     const s = settings()
+    // What you last picked for this session, else Settings' defaults.
+    const entry = this.entryOf(id)
+    const effort = entry && 'effort' in entry ? entry.effort : s.effort
     const runner = this.makeRunner({
       id,
       cwd: sshEntry?.cwd ?? meta!.cwd!,
-      model: s.model,
+      model: entry && 'model' in entry ? (entry.model ?? null) : s.model,
       mode: isMode(s.mode) ? s.mode : 'default',
-      effort: isEffort(s.effort) ? s.effort : null,
+      effort: isEffort(effort) ? effort : null,
       resume: true,
       folders: this.entryOf(id)?.folders ?? [],
       ...(ssh ? { ssh } : {})

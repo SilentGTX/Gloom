@@ -75,6 +75,10 @@ export function parseOp(raw: unknown): LibraryOp {
       return { type: 'linkSession', id: str(raw.id, 'id'), startedBy: str(raw.startedBy, 'id'), name: str(raw.name, 'name'), title: strOrNull(raw.title ?? null, 'title') }
     case 'setSsh':
       return { type: 'setSsh', id: str(raw.id, 'id'), host: str(raw.host, 'host'), cwd: str(raw.cwd, 'folder') }
+    case 'setSessionRun': {
+      const pick = (v: unknown, what: string) => (v === null ? null : str(v, what))
+      return { type: 'setSessionRun', id: str(raw.id, 'id'), ...('model' in raw ? { model: pick(raw.model, 'model') } : {}), ...('effort' in raw ? { effort: pick(raw.effort, 'effort') } : {}) }
+    }
     case 'setRoutine':
       return { type: 'setRoutine', id: str(raw.id, 'id'), routine: str(raw.routine, 'routine') }
     case 'setPr': {

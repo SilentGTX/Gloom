@@ -81,6 +81,9 @@ export interface SessionEntry {
   routine?: string
   /** It runs on another machine: Settings' SSH connection, and its folder there. */
   ssh?: { host: string; cwd: string }
+  /** The model and effort you last picked for it (null: Claude Code's default), so reopening it keeps them. */
+  model?: string | null
+  effort?: string | null
 }
 
 export interface SessionPr {
@@ -247,6 +250,8 @@ export type LibraryOp =
   | { type: 'setRoutine'; id: string; routine: string }
   /** It runs on another machine. */
   | { type: 'setSsh'; id: string; host: string; cwd: string }
+  /** The model or effort you picked for it (null: Claude Code's default). */
+  | { type: 'setSessionRun'; id: string; model?: string | null; effort?: string | null }
   /** `title: null` goes back to Claude's title. */
   | { type: 'renameSession'; id: string; title: string | null }
   | { type: 'setFilingRules'; id: string; paths: string[] }
@@ -448,6 +453,9 @@ export function applyOp(lib: LibraryData, op: LibraryOp, ctx: OpContext): OpResu
 
     case 'setSsh':
       return { library: setEntries(lib, [op.id], (e) => ({ ...e, ssh: { host: op.host, cwd: op.cwd } })) }
+
+    case 'setSessionRun':
+      return { library: setEntries(lib, [op.id], (e) => ({ ...e, ...('model' in op ? { model: op.model ?? null } : {}), ...('effort' in op ? { effort: op.effort ?? null } : {}) })) }
 
     case 'setRoutine':
       return { library: setEntries(lib, [op.id], (e) => ({ ...e, routine: op.routine })) }

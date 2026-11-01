@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react'
 import { ArrowUp, CircleAlert, Lock, Paperclip, Square, X, Zap } from 'lucide-react'
 import type { SessionMeta } from '@shared/library'
-import type { CanSend, CommandInfo, LiveSummary } from '@shared/live'
+import { isEffort, type CanSend, type CommandInfo, type LiveSummary } from '@shared/live'
 import { Button } from '../../components/ui/Button'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
@@ -10,6 +10,7 @@ import { runCommand } from '../../lib/commands'
 import { useNow } from '../../lib/now'
 import { notify } from '../../lib/toast'
 import { isBusy, useElsewhere, useLive, type Draft, type DraftImage } from '../../stores/live'
+import { useLibrary } from '../../stores/library'
 import { stopNoting, useNoting } from '../concept/noting'
 import { useConcept } from '../concept/parts'
 import { ContextMeter } from './ContextMeter'
@@ -330,9 +331,12 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
     if (card?.sessionId === sessionId && !noting) stopNoting()
   }, [noting, sessionId])
 
-  const model = summary ? summary.model : settings.model
+  // Not running here yet: what you last picked for it (kept in the library), else Settings' defaults.
+  const entry = useLibrary((s) => s.library.sessions[sessionId])
+  const model = summary ? summary.model : entry && 'model' in entry ? (entry.model ?? null) : settings.model
   const mode = summary?.mode ?? settings.mode
-  const effort = summary ? summary.effort : settings.effort
+  const kept = entry && 'effort' in entry ? entry.effort : undefined
+  const effort = summary ? summary.effort : kept !== undefined ? (isEffort(kept) ? kept : null) : settings.effort
   const efforts = effortsFor(model, models)
   // Fast mode, for a model that offers it (or a session already running fast, to turn it off).
   const fastOffered = !!summary?.fast || models.some((m) => m.fast && (m.value === model || m.value === summary?.activeModel))
