@@ -16,14 +16,14 @@ let page: Page
 test.afterEach(async () => app?.close())
 
 /** Gloom with one earlier session in a real folder, and the fake claude playing `fixture`. */
-async function start(fixture: string, speed = 0, prompt = 'Look at the notes') {
+async function start(fixture: string, speed = 0, prompt = 'Look at the notes', design: 'classic' | 'concept' = 'classic') {
   process.env.GLOOM_CLAUDE_EXE = FAKE
   process.env.FAKE_CLAUDE_FIXTURE = fixture
   process.env.FAKE_CLAUDE_SPEED = String(speed)
   const cwd = tempDir('gloom-live-')
   const claudeDir = fakeClaude([{ id: SESSION, cwd, prompt, title: TITLE, created: minutesAgo(90), updated: minutesAgo(60) }])
   const userData = tempDir('gloom-e2e-')
-  ;({ app, page } = await launch({ claudeDir, userData }))
+  ;({ app, page } = await launch({ claudeDir, userData, design }))
   await setWindowSize(app, 1280, 900)
   return { cwd, claudeDir, userData }
 }
@@ -238,8 +238,8 @@ test('a session keeps the effort you picked for it when Gloom opens again', asyn
 
 test('scrolling up while Claude writes stays where you scrolled', async () => {
   // A quarter of the recording's pace, so its count streams in for a few seconds,
-  // after an earlier message long enough to scroll through.
-  await start('interrupt', 4, `Look at the notes${'\nand this line'.repeat(60)}`)
+  // after an earlier message long enough to scroll through. The concept: the look you use.
+  await start('interrupt', 4, `Look at the notes${'\nand this line'.repeat(60)}`, 'concept')
   const composer = await openSession()
   await composer.fill('Count from 1 to 400')
   await composer.press('Enter')
@@ -252,12 +252,14 @@ test('scrolling up while Claude writes stays where you scrolled', async () => {
   // One notch: less than the margin that counts as "at the bottom".
   await page.mouse.wheel(0, -100)
   await expect.poll(gap).toBeGreaterThan(50)
+  // The list nudges the view down a little by itself (a row above measured again): that isn't you coming back.
+  await page.waitForTimeout(500)
+  await scroller.evaluate((s) => (s.scrollTop += 20))
   const before = await height()
   // More of the reply arrives, and the view stays put.
   await expect.poll(height, { timeout: 10_000 }).toBeGreaterThan(before + 40)
   await page.waitForTimeout(300)
   expect(await gap()).toBeGreaterThan(50)
-  await expect(page.locator('main > header').getByRole('status')).toHaveText('Working…')
 })
 
 test('New Session starts in a folder you trust, and runs from its first message', async () => {

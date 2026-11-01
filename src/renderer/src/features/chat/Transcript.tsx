@@ -243,9 +243,13 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
     return () => window.removeEventListener('gloom:show-card', show)
   }, [inline, waitingCard, toBottom])
   // Going up (wheel, keys, the scroll bar) lets go of the bottom at once, even a notch short of
-  // the margin, so a reply streaming in can't pull you back; only going down to the end holds it again.
+  // the margin, so a reply streaming in can't pull you back. Only your own going down holds it
+  // again (or reaching the very end): the list nudges the view down by itself when rows above
+  // you are measured again (a tool finishing, a code block), and that isn't you coming back.
   const lastTop = useRef(0)
   const held = useRef(false)
+  /** When you last scrolled by wheel or keys; a wheel's smooth scroll runs on for a moment after. */
+  const intent = useRef(0)
   const leave = useCallback(() => {
     pinned.current = false
     cancelAnimationFrame(settle.current)
@@ -255,11 +259,24 @@ function TranscriptList({ sessionId, rows }: { sessionId: string; rows: Row[] })
     const gap = s.scrollHeight - s.clientHeight - s.scrollTop
     const down = s.scrollTop > lastTop.current
     lastTop.current = s.scrollTop
-    if (gap >= bottomSpace() + 64 || (held.current && !down)) pinned.current = false
-    else if (down || gap < 2) pinned.current = true
+    const yours = held.current || performance.now() - intent.current < 400
+    if (gap >= bottomSpace() + 64 || (yours && !down)) pinned.current = false
+    else if (gap < 2 || (yours && down)) pinned.current = true
   }, [])
-  const onWheel = useCallback((e: WheelEvent) => e.deltaY < 0 && leave(), [leave])
-  const onKey = useCallback((e: KeyboardEvent) => (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'Home' || (e.key === ' ' && e.shiftKey)) && leave(), [leave])
+  const onWheel = useCallback(
+    (e: WheelEvent) => {
+      intent.current = performance.now()
+      if (e.deltaY < 0) leave()
+    },
+    [leave]
+  )
+  const onKey = useCallback(
+    (e: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) intent.current = performance.now()
+      if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'Home' || (e.key === ' ' && e.shiftKey)) leave()
+    },
+    [leave]
+  )
   const onPress = useCallback(() => (held.current = true), [])
   const onRelease = useCallback(() => (held.current = false), [])
   const listen = useCallback(
