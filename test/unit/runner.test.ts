@@ -152,6 +152,25 @@ describe('the session runner', () => {
     expect(t.texts().at(-1)).toBe('still here')
   })
 
+  it('retries a rewind Claude Code refused (a message folded into that turn), once and without the check', async () => {
+    const t = run('rewind-refused', { resume: true })
+    current = t.runner
+    // Each launch replays the recording's next process: the refusal, then the turn.
+    process.env.FAKE_CLAUDE_SPAWN_COUNTER = join(mkdtempSync(join(tmpdir(), 'gloom-spawns-')), 'n')
+    try {
+      t.runner.rewindConversation('21f7ef60-894a-4fce-b97c-69c8517aafa0', '6bf11dff-fdf6-43a3-8686-f233a7138fd1')
+      t.runner.send('What number did I ask you to remember?', [])
+      await t.until((s) => s.state === 'idle' && t.texts().length > 0, 20_000)
+      // Carried on from the rewound point, the reply came, and no error was left behind.
+      expect(t.texts().at(-1)).toMatch(/4127/)
+      expect(t.summaries.at(-1)?.error).toBeNull()
+      // The refused try is cleared from what the window shows: your message shows once.
+      expect(t.runner.provisional().entries.filter((e) => e.kind === 'prompt')).toHaveLength(1)
+    } finally {
+      delete process.env.FAKE_CLAUDE_SPAWN_COUNTER
+    }
+  })
+
   it('says an error once: the CLI’s own row, no banner repeating it', async () => {
     const t = run('thrash')
     current = t.runner

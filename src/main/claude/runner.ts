@@ -376,7 +376,10 @@ export class Runner {
    * `at` (the entry before the message rewound to, `drops`). It stays shown as
    * rewound, so the old turns don't flash back while the file catches up.
    */
-  private forkAt: { at: string; drops: string } | null = null
+  /** A conversation rewind the next process starts from; `check` asks Claude Code to make sure only that turn goes. */
+  private forkAt: { at: string; drops: string; check: boolean } | null = null
+  /** The rewind the running process started from, and the message it was started for: for a refused rewind's retry. */
+  private started: { fork: { at: string; drops: string; check: boolean } | null; message: SDKUserMessage | null } = { fork: null, message: null }
   private rewound: string | null = null
 
   private stream: StreamState | null = null
@@ -532,6 +535,7 @@ export class Runner {
     this.lastActive = Date.now()
     this.newTurn()
     this.show(message as unknown as Record<string, unknown>)
+    this.started.message ??= message
     this.inbox!.push(message)
     this.emit()
   }
@@ -619,6 +623,7 @@ export class Runner {
     // Gloom's tools that only show or read go through without a card.
     const canUseTool: CanUseTool = (toolName, input, options) => (QUIET_TOOLS.has(toolName) ? Promise.resolve({ behavior: 'allow', updatedInput: input }) : this.ask(toolName, input, options))
     const fork = this.forkAt
+    this.started = { fork, message: null }
     const forkFrom = this.forkFrom
     this.forkFrom = null
     const tools = this.events.tools?.()
@@ -631,7 +636,7 @@ export class Runner {
         ...(forkFrom ? { resume: forkFrom, forkSession: true, sessionId: this.id } : this.resume ? { resume: this.id } : { sessionId: this.id }),
         // After a conversation rewind: carry on from the entry before the message rewound to. Newer
         // CLIs also check that only that turn goes (older ones reject the flag outright).
-        ...(fork && this.resume ? { resumeSessionAt: fork.at, ...(cliAtLeast(EXPECTED_VERSION) ? { resumeDropsTurn: fork.drops } : {}) } : {}),
+        ...(fork && this.resume ? { resumeSessionAt: fork.at, ...(fork.check && cliAtLeast(EXPECTED_VERSION) ? { resumeDropsTurn: fork.drops } : {}) } : {}),
         canUseTool,
         spawnClaudeCodeProcess: (options) => (this.ssh ? this.spawnOverSsh(options) : this.spawn(options, (pid) => (this.pid = pid), true))
       }
@@ -675,6 +680,25 @@ export class Runner {
     return child as unknown as SpawnedProcess
   }
 
+  /**
+   * Claude Code refused a rewind: past the point rewound to there's more than that turn, as when a
+   * message you sent mid-turn was folded into it (CLI 2.1.316). You saw that message and chose to go
+   * back before it, so the rewind is tried once more without the check, with the message you sent.
+   * False when that retry was the one refused, or nothing was sent.
+   */
+  private refused(why: string): boolean {
+    const { fork, message } = this.started
+    if (!fork?.check || !message) return false
+    console.warn('Gloom: rewind refused, retrying without the check:', why.slice(0, 300))
+    this.forkAt = { ...fork, check: false }
+    this.retire()
+    this.turns = []
+    this.events.entries([], {}, true)
+    this.error = null
+    this.deliver(message)
+    return true
+  }
+
   private async pump(q: Query): Promise<void> {
     try {
       for await (const m of q) this.handle(m)
@@ -695,7 +719,7 @@ export class Runner {
    */
   rewindConversation(at: string, drops: string): void {
     if (this.busy) throw new Error('Claude is working. Stop it first.')
-    this.forkAt = { at, drops }
+    this.forkAt = { at, drops, check: true }
     this.rewound = drops
     this.error = null
     this.queued = []
@@ -784,6 +808,7 @@ export class Runner {
 
   private fail(error: unknown): void {
     const text = error instanceof Error ? error.message : String(error)
+    if (text.includes(DROPS_REFUSED) && this.refused(text)) return
     const detail = this.stderr.trim() || undefined
     this.error = /exited with code|terminated|killed/i.test(text)
       ? { kind: 'exited', message: 'Claude Code stopped unexpectedly.', detail: detail ?? text }
@@ -1136,12 +1161,13 @@ export class Runner {
       const status = num(m.api_error_status)
       const errors = Array.isArray(m.errors) ? m.errors.filter((e): e is string => typeof e === 'string') : []
       const said = (typeof m.result === 'string' ? m.result : '') || errors[0] || ''
-      if (said.startsWith(DROPS_REFUSED) || errors.some((e) => e.startsWith(DROPS_REFUSED))) {
-        // The CLI won't drop more than the rewound turn (something arrived in it meanwhile). As the SDK
-        // asks: give up the fork and carry on plainly, never retry it.
+      const refusal = [said, ...errors].find((e) => e.includes(DROPS_REFUSED))
+      if (refusal && this.refused(refusal)) return
+      if (refusal) {
+        // Refused again without the check (it can't be, but never loop): give up the fork, carry on from the end.
         this.forkAt = null
         this.rewound = null
-        this.error = { kind: 'failed', message: 'Something arrived in that turn after you rewound, so Claude can’t carry on from there. Send your message again to continue from the end.', detail: said }
+        this.error = { kind: 'failed', message: 'Something arrived in that turn after you rewound, so Claude can’t carry on from there. Send your message again to continue from the end.', detail: refusal }
       } else if (said.trim() && said.trim() === this.shownError && status !== 401 && !/log ?in|authenticat/i.test(said)) {
         // Shown already; the banner is for what the transcript doesn't say (or what needs a Log In button).
       } else {

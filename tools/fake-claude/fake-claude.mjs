@@ -7,12 +7,13 @@
 //   FAKE_CLAUDE_SPEED    1 = recorded timing (default), 0 = as fast as possible, 2 = twice as slow
 //   FAKE_CLAUDE_SPAWN    which recorded process to replay when a fixture holds several (0-based);
 //                        by default the first whose use of --resume matches this launch
+//   FAKE_CLAUDE_SPAWN_COUNTER  a file counting launches: each one replays the next recorded process
 //
 // Point the SDK at it with `pathToClaudeCodeExecutable: '<repo>/tools/fake-claude/fake-claude.mjs'`;
 // the SDK runs .mjs paths with node. Inputs are matched by kind (a user message, a
 // control request of the same subtype), never by content, so any prompt replays
 // the next recorded turn. Prompts past the end of the recording get a canned reply.
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createInterface } from 'node:readline'
@@ -48,6 +49,11 @@ const flagValue = (list, flag) => {
 }
 const resuming = flagValue(args, '--resume') !== undefined
 let segmentIndex = Number(process.env.FAKE_CLAUDE_SPAWN ?? NaN)
+const counter = process.env.FAKE_CLAUDE_SPAWN_COUNTER
+if (counter) {
+  segmentIndex = existsSync(counter) ? Number(readFileSync(counter, 'utf8')) || 0 : 0
+  writeFileSync(counter, String(segmentIndex + 1))
+}
 if (Number.isNaN(segmentIndex)) segmentIndex = Math.max(0, segments.findIndex((s) => (flagValue(s.args, '--resume') !== undefined) === resuming))
 const script = segments[segmentIndex]?.events ?? fail(`fixture has no process #${segmentIndex}`)
 let cursor = 0
