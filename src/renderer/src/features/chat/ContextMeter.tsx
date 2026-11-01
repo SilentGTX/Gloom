@@ -35,19 +35,21 @@ export function ContextMeter({ sessionId, summary }: { sessionId: string; summar
   const context = summary?.context ?? null
   // Nothing to measure yet (no turn has said how full it is, and no limit reported a percentage): no ring.
   if (!context && usage?.fiveHour?.percent == null && usage?.weekly?.percent == null) return null
-  const percent = context?.percent ?? 0
+  // Before a turn here has measured the context, the ring shows your plan's use: the limit nearest full.
+  const plan = Math.max(usage?.fiveHour?.percent ?? 0, usage?.weekly?.percent ?? 0)
+  const percent = context ? context.percent : Math.round(plan)
   const r = 7
   const circumference = 2 * Math.PI * r
-  const label = context ? `Context ${percent}% full` : 'Usage'
+  const label = context ? `Context ${percent}% full` : `Plan usage ${percent}%`
   return (
     <Popover.Root>
       <Tooltip label={label}>
         <Popover.Trigger
           render={
             <Button shape="round" aria-label={label}>
-              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden className={cn('context-ring', context && `is-${level(percent)}`)}>
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden className={cn('context-ring', `is-${level(percent)}`)}>
                 <circle cx="9" cy="9" r={r} className="context-ring-track" />
-                {context && <circle cx="9" cy="9" r={r} className="context-ring-fill" strokeDasharray={`${(circumference * percent) / 100} ${circumference}`} transform="rotate(-90 9 9)" />}
+                {percent > 0 && <circle cx="9" cy="9" r={r} className="context-ring-fill" strokeDasharray={`${(circumference * percent) / 100} ${circumference}`} transform="rotate(-90 9 9)" />}
               </svg>
             </Button>
           }

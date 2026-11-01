@@ -3,7 +3,7 @@
 // the same and costs no usage. The fake writes no transcript, so what shows is
 // what Gloom took from the stream.
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fakeClaude, launch, minutesAgo, openGroup, sessionRow, setWindowSize, tempDir, triggerShortcut } from './app'
 
@@ -201,6 +201,26 @@ test('the Effort menus open where they appear, and what you pick shows on the bu
   await expect(settings).toBeVisible()
   await pick('Effort: Default', 'Low')
   await expect(settings.getByRole('button', { name: 'Effort: Low' })).toBeVisible()
+})
+
+test('before a turn here, the ring by Send fills with the plan’s use', async () => {
+  process.env.GLOOM_CLAUDE_EXE = FAKE
+  process.env.FAKE_CLAUDE_FIXTURE = 'two-turns'
+  const cwd = tempDir('gloom-live-')
+  const claudeDir = fakeClaude([{ id: SESSION, cwd, prompt: 'Look at the notes', title: TITLE, created: minutesAgo(90), updated: minutesAgo(60) }])
+  // Claude Code's copy of the plan's use: 24% of the 5-hour limit, 36% of the week.
+  const later = (h: number) => new Date(Date.now() + h * 3600_000).toISOString()
+  writeFileSync(
+    join(claudeDir, '.claude.json'),
+    JSON.stringify({ cachedUsageUtilization: { fetchedAtMs: Date.now() - 60_000, utilization: { five_hour: { utilization: 24, resets_at: later(2) }, seven_day: { utilization: 36, resets_at: later(72) } } } })
+  )
+  ;({ app, page } = await launch({ claudeDir }))
+  await openSession()
+  // The limit nearest full, drawn as a share of the ring.
+  const ring = page.getByRole('button', { name: 'Plan usage 36%' })
+  await expect(ring).toBeVisible()
+  const drawn = await ring.locator('.context-ring-fill').getAttribute('stroke-dasharray')
+  expect(Number(drawn!.split(' ')[0])).toBeCloseTo((2 * Math.PI * 7 * 36) / 100, 1)
 })
 
 test('a session keeps the effort you picked for it when Gloom opens again', async () => {
