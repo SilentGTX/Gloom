@@ -580,7 +580,7 @@ function Box({ sessionId, summary, ready }: { sessionId: string; summary: LiveSu
           <input ref={files} type="file" multiple hidden onChange={onPick} />
           <ModePicker value={mode} onChange={(m) => setRun({ mode: m })} />
           <ModelPicker value={model} models={models} onChange={(m) => setRun({ model: m })} />
-          {efforts.length > 0 && <EffortPicker value={effort} efforts={efforts} onChange={(v) => setRun({ effort: v })} />}
+          {efforts.length > 0 && <EffortPicker value={effort} efforts={efforts} model={model} models={models} onChange={(v) => setRun({ effort: v })} />}
           {fastOffered && !isDraft && <FastToggle sessionId={sessionId} summary={summary} />}
           <div className="flex-1" />
           {suggestion && (

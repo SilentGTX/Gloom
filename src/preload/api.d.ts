@@ -28,6 +28,7 @@ import type { LibraryOp } from '../shared/library'
 import type { MergeResult, RemoveResult, RepoInfo, WorktreeInfo } from '../shared/git'
 import type {
   AccountSummary,
+  ClaudeDefaults,
   CanSend,
   CardAnswer,
   ClaudeInfo,
@@ -82,6 +83,8 @@ export interface LiveApi {
   usage(): Promise<UsageInfo | null>
   /** Who Claude Code is signed in as, from its config (or a session's process). */
   account(): Promise<AccountSummary | null>
+  /** The effort Claude Code starts a model on when nothing picks one. */
+  defaults(): Promise<ClaudeDefaults>
   /** Asks for your plan's usage when what's known is older than this; the answer comes as a `usage` event. */
   refreshUsage(maxAgeMs?: number): Promise<void>
   /** What rewinding to before one of your messages can restore. */

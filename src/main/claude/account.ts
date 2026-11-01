@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { accountName, planName, type AccountSummary, type UsageInfo, type UsageLimit, type UsageWindow } from '@shared/live'
+import { accountName, EFFORTS, planName, type AccountSummary, type ClaudeDefaults, type Effort, type UsageInfo, type UsageLimit, type UsageWindow } from '@shared/live'
 
 /** Claude Code's config: in CLAUDE_CONFIG_DIR when it's set, as the CLI keeps it, else ~/.claude.json. */
 export function configFile(): string {
@@ -85,5 +85,28 @@ export function readAccount(file = configFile(), now = Date.now()): { account: A
     return { account: accountFrom(config), usage: usageFrom(config, now) }
   } catch {
     return { account: null, usage: null }
+  }
+}
+
+/**
+ * The effort Claude Code starts a model on when nothing picks one: /effort's
+ * level for that model (modelSettings), else the one in its settings
+ * (effortLevel). From settings.json in Claude Code's folder.
+ */
+export function claudeDefaults(): ClaudeDefaults {
+  const dir = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+  try {
+    const raw = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8')) as Record<string, unknown>
+    const isLevel = (v: unknown): v is Effort => typeof v === 'string' && (EFFORTS as readonly string[]).includes(v)
+    const perModel: Record<string, Effort> = {}
+    if (raw.modelSettings && typeof raw.modelSettings === 'object') {
+      for (const [model, s] of Object.entries(raw.modelSettings as Record<string, unknown>)) {
+        const level = (s as { effortLevel?: unknown } | null)?.effortLevel
+        if (isLevel(level)) perModel[model] = level
+      }
+    }
+    return { effort: isLevel(raw.effortLevel) ? raw.effortLevel : null, perModel }
+  } catch {
+    return { effort: null, perModel: {} }
   }
 }

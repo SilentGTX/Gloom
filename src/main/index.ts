@@ -10,6 +10,7 @@ import { displayTitle, inactiveSessions } from '@shared/library'
 import { isMode, type FileListing, type LiveEvent } from '@shared/live'
 import { parseRef, type Cursor } from '@shared/transcript'
 import { attend, reveal, setBadge } from './attention'
+import { claudeDefaults } from './claude/account'
 import { claudeInfo } from './claude/binary'
 import { parseAnswer, parseNewSession, parseRewind, parseSend, parseSet, serverName, sessionId } from './claude/parse'
 import { Sessions } from './claude/sessions'
@@ -401,6 +402,7 @@ if (smokeArg) {
     handle(IPC.liveModels, () => knownModels())
     handle(IPC.liveUsage, () => sessions.usage())
     handle(IPC.liveAccount, () => sessions.account())
+    handle(IPC.liveDefaults, () => claudeDefaults())
     // The usage panel asks for fresher than five minutes, never more often than every ten seconds.
     handle(IPC.liveRefreshUsage, (_event, maxAge) => sessions.refreshUsage(typeof maxAge === 'number' && Number.isFinite(maxAge) ? Math.max(10_000, maxAge) : undefined))
     // Your plan's use as it is now, and Claude Code may have been updated (with new models) or have

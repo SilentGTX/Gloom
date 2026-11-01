@@ -699,3 +699,9 @@ export type LiveEvent =
   | { type: 'view'; id: string; view: TranscriptView }
   /** A session's pull request, as Gloom last read it (null: it has none). */
   | { type: 'pr'; id: string; status: import('./pr').PrStatus | null }
+
+/** What Claude Code itself starts on when Gloom doesn't say: the effort in its settings, and /effort's per-model levels (by model ID). */
+export interface ClaudeDefaults {
+  effort: Effort | null
+  perModel: Record<string, Effort>
+}

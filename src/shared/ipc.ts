@@ -104,6 +104,8 @@ export const IPC = {
   liveUsage: 'live:usage',
   /** invoke → AccountSummary | null: who Claude Code is signed in as */
   liveAccount: 'live:account',
+  /** invoke → ClaudeDefaults: the effort Claude Code starts on when nothing picks one */
+  liveDefaults: 'live:defaults',
   /** invoke(maxAgeMs): asks for your plan's usage when what's known is older; it arrives as a LiveEvent */
   liveRefreshUsage: 'live:refresh-usage',
   /** invoke → ClaudeInfo */

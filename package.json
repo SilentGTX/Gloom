@@ -1,6 +1,6 @@
 {
   "name": "gloom",
-  "version": "0.17.4",
+  "version": "0.17.5",
   "private": true,
   "description": "A desktop app for Claude Code with nested session folders",
   "author": "SilentGTX",

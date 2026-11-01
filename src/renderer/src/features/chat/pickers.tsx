@@ -1,9 +1,11 @@
 // The model, mode and effort pop-up buttons: in the composer (switched live
 // on a running session) and in New Session and Settings. Each shows its
 // current choice; its menu lists the others, with what each does.
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { create } from 'zustand'
 import { ChevronDown, ClipboardList, Cpu, FilePen, Gauge, Hand, ShieldOff, Sparkles } from 'lucide-react'
-import { EFFORT_LABELS, EFFORTS, MODES, modeInfo, modelLabel, type Effort, type ModeId, type ModelChoice } from '@shared/live'
+import { EFFORT_LABELS, EFFORTS, MODES, modeInfo, modelLabel, type ClaudeDefaults, type Effort, type ModeId, type ModelChoice } from '@shared/live'
+import { modelName } from './tools'
 import { MenuGroupLabel, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuRoot, MenuSeparator, MenuTrigger } from '../../components/ui/Menu'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { cn } from '../../lib/cn'
@@ -66,12 +68,51 @@ export function ModePicker({ value, onChange, look = 'chip', disabled }: { value
   )
 }
 
-/** `null` is Claude Code's own default model. */
+// ─── What Default means ──────────────────────────────────────────────────────
+
+/** Claude Code's own starting effort, asked once and again whenever the window comes back (you may have run /effort). */
+const useDefaults = create<{ value: ClaudeDefaults | null }>(() => ({ value: null }))
+let askedAt = 0
+function useClaudeDefaults(): ClaudeDefaults | null {
+  const value = useDefaults((s) => s.value)
+  useEffect(() => {
+    const ask = () => {
+      if (Date.now() - askedAt < 5_000) return
+      askedAt = Date.now()
+      void window.gloom?.live.defaults().then((v) => useDefaults.setState({ value: v }))
+    }
+    ask()
+    window.addEventListener('focus', ask)
+    return () => window.removeEventListener('focus', ask)
+  }, [])
+  return value
+}
+
+/** The model Default runs on, from the list's own words: "Opus 5.5 · Best for everyday…" → "Opus 5.5". */
+export function defaultModelName(models: readonly ModelChoice[]): string | null {
+  const head = models.find((m) => m.value === 'default')?.description.split(' · ')[0]
+  const name = head?.replace(/\s+with\s+1M\s+context$/i, '').trim()
+  // Only a model's name ("Opus 5.5"), not Gloom's own words before Claude Code has said.
+  return name && /^[A-Z][a-z]+ \d+(\.\d+)?$/.test(name) ? name : null
+}
+
+/** The effort a model starts on when nothing picks one: /effort's level for it, else Claude Code's setting. */
+function startingEffort(model: string | null, models: readonly ModelChoice[], defaults: ClaudeDefaults | null, efforts: readonly Effort[]): Effort | null {
+  if (!defaults || !efforts.length) return null
+  const name = model && model !== 'default' ? modelLabel(model, models) : defaultModelName(models)
+  const own = Object.entries(defaults.perModel).find(([id]) => name && modelName(id.replace(/\[.*\]$/, '')) === name)?.[1]
+  const level = own ?? defaults.effort
+  return level && efforts.includes(level) ? level : null
+}
+
+/** `null` is Claude Code's own default model: the chip names the model it is. */
 export function ModelPicker({ value, models, onChange, look = 'chip', disabled }: { value: string | null; models: ModelChoice[]; onChange(model: string | null): void; look?: Look; disabled?: boolean }) {
   // "default" in the list is the same as no choice: one Default row.
   const list = models.filter((m) => m.value !== 'default')
+  const picked = value && value !== 'default' ? value : null
+  const shown = picked ? modelLabel(picked, models) : (defaultModelName(models) ?? 'Default')
   return (
-    <PopUp look={look} label="Model" value={modelLabel(value === 'default' ? null : value, models)} icon={<Cpu strokeWidth={1.75} />} tooltip={look === 'chip' ? 'Model' : undefined} disabled={disabled}>
+    <PopUp look={look} label="Model" value={shown} spoken={picked ? shown : `Default${shown !== 'Default' ? `, ${shown}` : ''}`} icon={<Cpu strokeWidth={1.75} />} tooltip={look === 'chip' ? 'Model' : undefined} disabled={disabled}>
       <MenuRadioGroup value={value && value !== 'default' ? value : ''} onChange={(v) => onChange(v || null)}>
         <MenuRadioItem value="" label="Default" detail={models.find((m) => m.value === 'default')?.description || 'The model Claude Code picks for your plan'} />
         {list.length > 0 && <MenuSeparator />}
@@ -89,15 +130,33 @@ export function effortsFor(model: string | null, models: ModelChoice[]): readonl
   return chosen ? chosen.efforts : EFFORTS
 }
 
-export function EffortPicker({ value, efforts, onChange, look = 'chip', disabled }: { value: Effort | null; efforts: readonly Effort[]; onChange(effort: Effort | null): void; look?: Look; disabled?: boolean }) {
-  const name = value ? EFFORT_LABELS[value] : 'Default'
-  // The chip says just "Effort" until you pick one; it's still read out as Default.
+/** With `model`, Default names the effort that model starts on ("Medium"), from Claude Code's settings. */
+export function EffortPicker({
+  value,
+  efforts,
+  onChange,
+  look = 'chip',
+  disabled,
+  model,
+  models = []
+}: {
+  value: Effort | null
+  efforts: readonly Effort[]
+  onChange(effort: Effort | null): void
+  look?: Look
+  disabled?: boolean
+  model?: string | null
+  models?: readonly ModelChoice[]
+}) {
+  const defaults = useClaudeDefaults()
+  const starting = model === undefined ? null : startingEffort(model, models, defaults, efforts)
+  const name = value ? EFFORT_LABELS[value] : starting ? EFFORT_LABELS[starting] : 'Default'
   return (
-    <PopUp look={look} label="Effort" value={look === 'chip' && !value ? 'Effort' : name} spoken={name} icon={<Gauge strokeWidth={1.75} />} tooltip={look === 'chip' ? 'How hard Claude thinks' : undefined} disabled={disabled}>
+    <PopUp look={look} label="Effort" value={name} spoken={value ? name : `Default${starting ? `, ${name}` : ''}`} icon={<Gauge strokeWidth={1.75} />} tooltip={look === 'chip' ? 'How hard Claude thinks' : undefined} disabled={disabled}>
       <MenuRadioGroup value={value ?? ''} onChange={(v) => onChange(v ? (v as Effort) : null)}>
         {/* Inside the group it names: Base UI throws for a group label outside a group, which blanked the window. */}
         <MenuGroupLabel>Effort</MenuGroupLabel>
-        <MenuRadioItem value="" label="Default" detail="What the model uses unless told" />
+        <MenuRadioItem value="" label="Default" detail={starting ? `${EFFORT_LABELS[starting]}, from Claude Code’s settings` : 'What the model uses unless told'} />
         {efforts.map((e) => (
           <MenuRadioItem key={e} value={e} label={EFFORT_LABELS[e]} />
         ))}
