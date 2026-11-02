@@ -12,6 +12,7 @@ import { parseRef, type Cursor } from '@shared/transcript'
 import { attend, reveal, setBadge } from './attention'
 import { claudeDefaults } from './claude/account'
 import { claudeInfo } from './claude/binary'
+import { cancelLogin, checkSetup, installClaude, onSetup, startLogin, submitLoginCode } from './claude/setup'
 import { parseAnswer, parseNewSession, parseRewind, parseSend, parseSet, serverName, sessionId } from './claude/parse'
 import { Sessions } from './claude/sessions'
 import { knownModels, loadSettings, onSettings, settings, updateSettings } from './claude/settings'
@@ -415,6 +416,13 @@ if (smokeArg) {
       void sessions.checkModels()
     })
     handle(IPC.claudeInfo, (_event, fresh) => claudeInfo({ fresh: fresh === true }))
+    // A new PC's first run: Gloom's own Claude Code, and signing in (setup.ts).
+    onSetup((next) => broadcast(IPC.setupChanged, next))
+    handle(IPC.setupCheck, () => checkSetup())
+    handle(IPC.setupInstall, () => installClaude())
+    handle(IPC.setupLogin, () => startLogin())
+    handle(IPC.setupCode, (_event, code) => submitLoginCode(String(code).slice(0, 500)))
+    handle(IPC.setupCancel, () => cancelLogin())
     handle(IPC.claudeTerminal, (_event, what) => (what === 'login' || what === 'update' ? claudeInTerminal(what) : false))
     handle(IPC.claudeLocate, async (event) => {
       const win = BrowserWindow.fromWebContents(event.sender)

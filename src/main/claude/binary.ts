@@ -2,6 +2,7 @@
 // terminal uses (same login, same version); Settings can point elsewhere. The
 // Agent SDK was made with a newer CLI than many installs have, so Gloom checks
 // the version once and offers Claude Code's own `claude update` when it's behind.
+import { app } from 'electron'
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -12,9 +13,17 @@ import { settings } from './settings'
 
 /** The CLI version this build of the Agent SDK was made with. */
 export const EXPECTED_VERSION: string = (sdk as { claudeCodeVersion?: string }).claudeCodeVersion ?? '0.0.0'
+/** The SDK's own version: its platform package, which carries that claude.exe, has the same (setup.ts). */
+export const SDK_VERSION: string = (sdk as { version?: string }).version ?? '0.0.0'
+
+/** The Claude Code Gloom downloads for itself on a PC without one (setup.ts). */
+export function managedClaude(): string {
+  return join(app.getPath('userData'), 'claude-code', SDK_VERSION, 'claude.exe')
+}
 
 /**
- * Your claude.exe: the one Settings names, else the native installer's, else
+ * Your claude.exe: the one Settings names, else the one Gloom downloaded for
+ * itself (a PC without Claude Code, setup.ts), else the native installer's, else
  * the first on PATH. An npm `claude.cmd` can't be started without a shell, but
  * it only runs the package's own native claude.exe, so that one counts; the
  * shim itself only counts for opening a terminal. GLOOM_CLAUDE_EXE overrides
@@ -25,6 +34,8 @@ export function findClaude({ forTerminal = false } = {}): string | null {
   if (forced) return existsSync(forced) ? forced : null
   const chosen = settings().claudePath
   if (chosen && existsSync(chosen)) return chosen
+  const own = managedClaude()
+  if (existsSync(own)) return own
   const local = join(homedir(), '.local', 'bin', 'claude.exe')
   if (existsSync(local)) return local
   for (const dir of (process.env.PATH ?? '').split(delimiter)) {

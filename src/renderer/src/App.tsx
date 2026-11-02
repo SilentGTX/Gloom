@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { TooltipProvider } from './components/ui/Tooltip'
 import { useFinishedTracking } from './features/concept/finished'
 import { usePetReport } from './features/pet/Pet'
@@ -7,6 +7,7 @@ import { SessionsSheetsHost } from './features/sessions/SheetsHost'
 import { Shell } from './features/shell/Shell'
 import { UpdatedNote } from './features/update/UpdateButton'
 import { UpdateScreen } from './features/update/UpdateScreen'
+import { SetupScreen } from './features/setup/SetupScreen'
 import { useWaitingBadge } from './lib/badge'
 import { useCommandBridge } from './lib/commands'
 import { Toasts } from './lib/toast'
@@ -37,6 +38,8 @@ export function App() {
   const design = useUi((s) => s.design)
   const updateScreen = useUpdateScreen()
   const palette = usePalette((s) => s.open)
+  // A new PC's first run (Claude Code getting ready, signing in) covers the app until it's done.
+  const [setup, setSetup] = useState(false)
   useEffect(() => {
     document.documentElement.style.setProperty('--text-scale', String(textScale))
   }, [textScale])
@@ -56,13 +59,14 @@ export function App() {
   return (
     <TooltipProvider>
       {/* Under the update screen or the command palette the app can't be reached, by pointer, keyboard or screen reader. */}
-      <div className="contents" inert={updateScreen !== null || palette}>
+      <div className="contents" inert={updateScreen !== null || palette || setup}>
         <Shell />
         <SessionsSheetsHost />
         <UpdatedNote />
         <Toasts />
       </div>
       <Palette blocked={updateScreen !== null} />
+      <SetupScreen onOpen={setSetup} />
       <UpdateScreen screen={updateScreen} />
     </TooltipProvider>
   )

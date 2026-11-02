@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
-import { IPC, type BrowserState, type CommandDispatch, type CustomPet, type PetView, type RoutineList, type LibraryChange, type SessionsChange, type TranscriptChange, type UpdateScreen, type UpdateState, type WindowState } from '@shared/ipc'
+import { IPC, type BrowserState, type CommandDispatch, type CustomPet, type PetView, type RoutineList, type SetupState, type LibraryChange, type SessionsChange, type TranscriptChange, type UpdateScreen, type UpdateState, type WindowState } from '@shared/ipc'
 import type { LiveEvent, Settings } from '@shared/live'
 import type { TerminalData, TerminalExit, TerminalInfo } from '@shared/terminal'
 import type { GloomApi } from './api'
@@ -78,6 +78,14 @@ const api: GloomApi = {
     info: (options) => ipcRenderer.invoke(IPC.claudeInfo, options?.fresh === true),
     inTerminal: (what) => ipcRenderer.invoke(IPC.claudeTerminal, what),
     locate: () => ipcRenderer.invoke(IPC.claudeLocate)
+  },
+  setup: {
+    check: () => ipcRenderer.invoke(IPC.setupCheck),
+    install: () => ipcRenderer.invoke(IPC.setupInstall),
+    login: () => ipcRenderer.invoke(IPC.setupLogin),
+    code: (code) => ipcRenderer.invoke(IPC.setupCode, code),
+    cancel: () => ipcRenderer.invoke(IPC.setupCancel),
+    onChange: (listener) => subscribe<SetupState>(IPC.setupChanged, listener)
   },
   getSettings: () => ipcRenderer.invoke(IPC.settings),
   setSettings: (patch) => ipcRenderer.invoke(IPC.settingsSet, patch),

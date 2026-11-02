@@ -50,7 +50,7 @@ import type {
 } from '../shared/live'
 import type { BlobRef, TranscriptPage } from '../shared/transcript'
 import type { PrStatus } from '../shared/pr'
-import type { CustomPet, PetAction, PetState, PetView } from '../shared/ipc'
+import type { CustomPet, PetAction, PetState, PetView, SetupState } from '../shared/ipc'
 import type { Routine } from '../shared/routines'
 
 /** The sessions Gloom runs. */
@@ -167,6 +167,15 @@ export interface GloomApi {
     inTerminal(what: 'login' | 'update'): Promise<boolean>
     /** A claude.exe chosen in a file picker, or null. */
     locate(): Promise<string | null>
+  }
+  /** A new PC's first run: Gloom's own Claude Code and signing in (main/claude/setup.ts). */
+  setup: {
+    check(): Promise<SetupState>
+    install(): Promise<void>
+    login(): Promise<void>
+    code(code: string): Promise<void>
+    cancel(): Promise<void>
+    onChange(listener: (state: SetupState) => void): () => void
   }
   getSettings(): Promise<Settings>
   /** Changes some settings; resolves to all of them. */

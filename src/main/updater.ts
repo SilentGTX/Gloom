@@ -1,5 +1,5 @@
 // Updates the way Sync does them (and Discord before it). At launch the update
-// screen checks the private repo's latest GitHub release; while Gloom runs, a
+// screen checks the repo's latest GitHub release; while Gloom runs, a
 // check every half hour lights up the Update button. Either way the update
 // screen downloads the app the release carries, verifies its SHA-256 and
 // unpacks it beside the running copy, which hands its window over to it
@@ -11,10 +11,11 @@
 //     "zip": "Gloom-1.2.3-win.zip", "zipSha256": "…", "zipSize": 456 }
 // (scripts/release.mjs makes them; older versions of Gloom read only the installer's
 // fields), and update.json.sig, update.json's signature by Gloom's release key: a
-// newer release installs only when it's there and right (release-key.ts). The
-// repo is private, so requests carry your `gh` login's token, or
-// GLOOM_GITHUB_TOKEN when set. GLOOM_UPDATE_FROM=<folder> reads update.json and
-// its files from a folder instead, to try an update without publishing it
+// newer release installs only when it's there and right (release-key.ts). GitHub
+// is asked with no sign-in (a public repo needs none, as on a new PC); while the
+// repo is private, with your `gh` login's token, or GLOOM_GITHUB_TOKEN when set.
+// GLOOM_UPDATE_FROM=<folder> reads update.json and its files from a folder
+// instead, to try an update without publishing it
 // (`npm run release -- --local` makes one).
 import { app } from 'electron'
 import { execFile, spawn } from 'node:child_process'
@@ -104,22 +105,33 @@ export function setUpdateWaiting(waiting: boolean): void {
   for (const listener of listeners) listener(state)
 }
 
-async function githubToken(): Promise<string> {
+/** Your `gh` login's token, if there is one: only needed while the repository is private. */
+async function githubToken(): Promise<string | null> {
   if (process.env.GLOOM_GITHUB_TOKEN) return process.env.GLOOM_GITHUB_TOKEN
   const gh = onPath('gh.exe')
-  const token = await new Promise<string | null>((resolve) =>
+  return new Promise<string | null>((resolve) =>
     gh ? execFile(gh, ['auth', 'token'], { windowsHide: true, timeout: 5_000 }, (error, stdout) => resolve(error ? null : stdout.trim() || null)) : resolve(null)
   )
-  if (!token) throw new Error('No GitHub sign-in: run `gh auth login` in a terminal, then check again.')
-  return token
 }
 
-async function github(path: string, token: string, signal: AbortSignal, accept = 'application/vnd.github+json'): Promise<Response> {
-  // Asset downloads redirect to storage on another host; fetch drops the token there.
-  const response = await fetch(`https://api.github.com${path}`, {
-    signal,
-    headers: { Authorization: `Bearer ${token}`, Accept: accept, 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': `Gloom/${app.getVersion()}` }
-  })
+/**
+ * Asks GitHub with no sign-in (a public repository, as on a new PC with nothing
+ * installed), and only when it says the repository isn't there (private) with
+ * your gh login. A release is trusted for its signature, never for who served it.
+ */
+let token: string | null | undefined
+async function github(path: string, signal: AbortSignal, accept = 'application/vnd.github+json'): Promise<Response> {
+  const ask = (auth: string | null) =>
+    fetch(`https://api.github.com${path}`, {
+      signal,
+      // Asset downloads redirect to storage on another host; fetch drops the token there.
+      headers: { ...(auth ? { Authorization: `Bearer ${auth}` } : {}), Accept: accept, 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': `Gloom/${app.getVersion()}` }
+    })
+  let response = await ask(token ?? null)
+  if ((response.status === 404 || response.status === 401) && token === undefined) {
+    token = await githubToken()
+    if (token) response = await ask(token)
+  }
   if (!response.ok) throw new Error(`GitHub answered ${response.status} for ${path}`)
   return response
 }
@@ -166,12 +178,11 @@ export async function findUpdate(timeoutMs: number): Promise<Release | null> {
     return manifest && releaseFrom(manifest, (name) => (existsSync(join(source, name)) ? 0 : undefined))
   }
   const signal = AbortSignal.timeout(timeoutMs)
-  const token = await githubToken()
-  const release = (await (await github(`/repos/${REPO}/releases/latest`, token, signal)).json()) as { assets: ReleaseAsset[] }
+  const release = (await (await github(`/repos/${REPO}/releases/latest`, signal)).json()) as { assets: ReleaseAsset[] }
   const asset = (name: string) => release.assets.find((a) => a.name === name)
   const manifestAsset = asset(MANIFEST)
   if (!manifestAsset) throw new Error(`The latest release has no ${MANIFEST}.`)
-  const fetchAsset = async (id: number) => (await github(`/repos/${REPO}/releases/assets/${id}`, token, signal, 'application/octet-stream')).arrayBuffer()
+  const fetchAsset = async (id: number) => (await github(`/repos/${REPO}/releases/assets/${id}`, signal, 'application/octet-stream')).arrayBuffer()
   const signatureAsset = asset(SIGNATURE)
   const manifest = await newerManifest(Buffer.from(await fetchAsset(manifestAsset.id)), async () =>
     signatureAsset ? Buffer.from(await fetchAsset(signatureAsset.id)).toString('utf8') : null
@@ -216,7 +227,7 @@ export async function download(asset: Asset, onProgress: (received: number) => v
     const source = localSource()
     const body = source
       ? createReadStream(join(source, asset.name))
-      : Readable.fromWeb((await github(`/repos/${REPO}/releases/assets/${asset.assetId}`, await githubToken(), stalled.signal, 'application/octet-stream')).body as unknown as WebReadableStream)
+      : Readable.fromWeb((await github(`/repos/${REPO}/releases/assets/${asset.assetId}`, stalled.signal, 'application/octet-stream')).body as unknown as WebReadableStream)
     await pipeline(
       body,
       async function* (source: AsyncIterable<Buffer>) {

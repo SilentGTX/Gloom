@@ -114,6 +114,18 @@ export const IPC = {
   claudeTerminal: 'claude:terminal',
   /** invoke → string | null: a claude.exe chosen in a file picker */
   claudeLocate: 'claude:locate',
+  /** invoke → SetupState: a new PC's first run (Claude Code downloaded, signing in), checked again */
+  setupCheck: 'setup:check',
+  /** invoke: downloads Gloom's own Claude Code */
+  setupInstall: 'setup:install',
+  /** invoke: starts signing in (Claude Code opens your browser) */
+  setupLogin: 'setup:login',
+  /** invoke(code): the code the sign-in page showed */
+  setupCode: 'setup:code',
+  /** invoke: stops waiting for the browser */
+  setupCancel: 'setup:cancel',
+  /** event SetupState */
+  setupChanged: 'setup:changed',
   /** invoke → Settings */
   settings: 'settings:get',
   /** invoke(Partial<Settings>) → Settings */
@@ -473,3 +485,16 @@ export type WorkerReply =
   | { type: 'transcript'; file: string; update: TranscriptUpdate }
   /** Entry types Gloom doesn't know yet, met while reading `file`. */
   | { type: 'unknown'; file: string; types: string[] }
+
+/** A new PC's first run, as the Claude app's: Claude Code (Gloom's own, downloaded) and signing in. */
+export interface SetupState {
+  /** ok: there's a claude.exe; missing: none yet; downloading/failed: Gloom's own copy. */
+  claude: 'ok' | 'missing' | 'downloading' | 'failed'
+  received: number
+  total: number
+  error: string | null
+  /** Claude Code's sign-in, once there's a claude.exe to ask (null: it couldn't say). */
+  signedIn: boolean | null
+  /** Signing in: the page's address once Claude Code prints it, and what went wrong. */
+  login: { url: string | null; error: string | null } | null
+}
