@@ -99,8 +99,9 @@ test('a packaged build opens a session, its panes and its keyboard', async () =>
   })
   writeFileSync(join(profile, 'window-state.json'), JSON.stringify({ width: 1280, height: 860, maximized: false }))
 
+  // An empty Claude folder is signed out: as a test, it skips the first-run sign-in screen.
   // --inspect too, which the fuses ignore.
-  const gloom = await launchPackaged(profile, { ...process.env, CLAUDE_CONFIG_DIR: claudeDir, GLOOM_RESUME_DRY_RUN: '1' }, ['--inspect=0'])
+  const gloom = await launchPackaged(profile, { ...process.env, CLAUDE_CONFIG_DIR: claudeDir, GLOOM_RESUME_DRY_RUN: '1', GLOOM_NO_CLAUDE_ASKS: '1' }, ['--inspect=0'])
   const { page } = gloom
   // Anything the page reports going wrong (a file app://gloom couldn't serve, a policy refusal).
   const errors: string[] = []
