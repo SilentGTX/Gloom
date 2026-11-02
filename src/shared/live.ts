@@ -55,16 +55,21 @@ export const DEFAULT_MODELS: ModelChoice[] = [
   { value: 'haiku', label: 'Haiku', description: 'Fastest, for quick answers', efforts: [] }
 ]
 
-/** The models the picker lists, by their names: the 5.5 family and Fable 5.1, as Claude Code's desktop app offers them. */
-const SHOWN_MODEL = /^(Opus|Sonnet|Haiku) 5\.5$|^Fable 5\.1$/
+/**
+ * The models the picker lists: Default and the current generation. Claude Code
+ * reports its current models under short aliases (opus, sonnet, haiku, fable),
+ * whatever version they resolve to; older or pinned ones come as full model IDs
+ * ("claude-opus-5"). Keeping the aliases tracks the lineup as it moves.
+ */
+const isCurrentModel = (value: string): boolean => value === 'default' || !value.startsWith('claude-')
 
 /**
  * Keeps the picker to the models Gloom offers. Of what the CLI reports, Default
- * and those models stay; older versions are dropped. If nothing current is
- * left, Claude Code's own aliases stand in.
+ * and the current generation stay; older or pinned versions are dropped. If
+ * nothing current is left, Claude Code's own aliases stand in.
  */
 export function shownModels(models: readonly ModelChoice[]): ModelChoice[] {
-  const kept = models.filter((m) => m.value === 'default' || SHOWN_MODEL.test(m.label))
+  const kept = models.filter((m) => isCurrentModel(m.value))
   return kept.some((m) => m.value !== 'default') ? kept : DEFAULT_MODELS
 }
 
