@@ -15,9 +15,10 @@ export const EXPECTED_VERSION: string = (sdk as { claudeCodeVersion?: string }).
 
 /**
  * Your claude.exe: the one Settings names, else the native installer's, else
- * the first on PATH. An npm `claude.cmd` can't be started without a shell, so
- * it only counts for opening a terminal. GLOOM_CLAUDE_EXE overrides all of it
- * (the end-to-end tests point it at the fake claude).
+ * the first on PATH. An npm `claude.cmd` can't be started without a shell, but
+ * it only runs the package's own native claude.exe, so that one counts; the
+ * shim itself only counts for opening a terminal. GLOOM_CLAUDE_EXE overrides
+ * all of it (the end-to-end tests point it at the fake claude).
  */
 export function findClaude({ forTerminal = false } = {}): string | null {
   const forced = process.env.GLOOM_CLAUDE_EXE
@@ -28,10 +29,12 @@ export function findClaude({ forTerminal = false } = {}): string | null {
   if (existsSync(local)) return local
   for (const dir of (process.env.PATH ?? '').split(delimiter)) {
     if (!dir) continue
-    for (const name of forTerminal ? ['claude.exe', 'claude.cmd'] : ['claude.exe']) {
-      const candidate = join(dir, name)
-      if (existsSync(candidate)) return candidate
-    }
+    const exe = join(dir, 'claude.exe')
+    if (existsSync(exe)) return exe
+    if (!existsSync(join(dir, 'claude.cmd'))) continue
+    const npmExe = join(dir, 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe')
+    if (existsSync(npmExe)) return npmExe
+    if (forTerminal) return join(dir, 'claude.cmd')
   }
   return null
 }
